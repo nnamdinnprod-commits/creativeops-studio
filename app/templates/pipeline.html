@@ -2,5 +2,39 @@
 {% block title %}Pipeline — CreativeOps Studio{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-semibold">Creative Pipeline</h1>
-<p class="text-slate-500 mt-2">This is the Pipeline screen. Content coming in Phase 3.</p>
+
+<form method="get" action="/pipeline" class="mt-4 flex flex-wrap gap-3 text-sm items-end">
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Brand</label>
+        <select name="brand" class="border border-slate-300 rounded px-2 py-1" onchange="this.form.submit()">
+            <option value="">All</option>
+            {% for b in all_brands %}
+            <option value="{{ b }}" {% if b == selected_brand %}selected{% endif %}>{{ b }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Market</label>
+        <select name="market" class="border border-slate-300 rounded px-2 py-1" onchange="this.form.submit()">
+            <option value="">All</option>
+            {% for m in all_markets %}
+            <option value="{{ m }}" {% if m == selected_market %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Priority</label>
+        <select name="priority" class="border border-slate-300 rounded px-2 py-1" onchange="this.form.submit()">
+            <option value="">All</option>
+            {% for p in all_priorities %}
+            <option value="{{ p.value }}" {% if p.value == selected_priority %}selected{% endif %}>{{ p.value|title }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% if selected_brand or selected_market or selected_priority %}
+    <a href="/pipeline" class="text-slate-500 underline text-xs pb-1">Clear filters</a>
+    {% endif %}
+</form>
+
+{% include "partials/_board.html" %}
 {% endblock %}

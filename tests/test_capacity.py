@@ -1,0 +1,137 @@
+from datetime import date, timedelta
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.database import Base
+from app.models import Assignment, Person, PersonRole, Priority, Project, ProjectStatus
+from app.services.capacity import (
+    allocation_timeline,
+    capacity_status,
+    current_allocation_pct,
+    get_conflicts,
+    person_capacity,
+)
+
+TODAY = date(2026, 8, 21)
+
+
+def make_assignment(person_id, project_id, allocation_pct, start_offset, end_offset):
+    return Assignment(
+        person_id=person_id,
+        project_id=project_id,
+        allocation_pct=allocation_pct,
+        start_date=TODAY + timedelta(days=start_offset),
+        end_date=TODAY + timedelta(days=end_offset),
+    )
+
+
+def test_allocation_timeline_empty():
+    assert allocation_timeline([]) == []
+
+
+def test_allocation_timeline_single_assignment():
+    a = make_assignment(1, 1, 50, -2, 5)
+    segments = allocation_timeline([a])
+    assert len(segments) == 1
+    assert segments[0].allocation_pct == 50
+    assert segments[0].start == a.start_date
+    assert segments[0].end == a.end_date
+
+
+def test_allocation_timeline_overlapping_assignments_sum():
+    a1 = make_assignment(1, 1, 55, -5, 0)   # today-5 .. today
+    a2 = make_assignment(1, 2, 40, -3, 10)  # today-3 .. today+10
+    segments = allocation_timeline([a1, a2])
+
+    # The overlap window (today-3 .. today) should carry the combined allocation.
+    overlap = [s for s in segments if s.start <= TODAY <= s.end and TODAY - timedelta(days=3) <= s.start]
+    combined = [s for s in segments if s.allocation_pct == 95]
+    assert combined, "expected a segment where both assignments overlap at 95%"
+    assert combined[0].start == TODAY - timedelta(days=3)
+    assert combined[0].end == TODAY
+
+
+def test_current_allocation_pct_sums_active_assignments():
+    a1 = make_assignment(1, 1, 55, -5, 0)
+    a2 = make_assignment(1, 2, 40, -3, 10)
+    assert current_allocation_pct([a1, a2], on_date=TODAY) == 95
+    # Before a1 started, only a2 (not yet active) — neither active before -5.
+    assert current_allocation_pct([a1, a2], on_date=TODAY - timedelta(days=10)) == 0
+
+
+@pytest.mark.parametrize(
+    "allocated,capacity,expected",
+    [
+        (95, 80, "overloaded"),
+        (85, 100, "tight"),
+        (90, 100, "tight"),
+        (50, 100, "available"),
+        (85, 85, "tight"),  # equal to capacity but not over it, and at the threshold
+    ],
+)
+def test_capacity_status(allocated, capacity, expected):
+    assert capacity_status(allocated, capacity, tight_threshold=85) == expected
+
+
+def test_person_capacity_computes_available_and_next_deadline():
+    person = Person(id=1, name="Alex", role=PersonRole.senior_designer, capacity_pct=100,
+                    skills="layout", is_external=False)
+    project = Project(id=1, name="P1", brand="Albelli", campaign="C", source_market="NL",
+                      priority=Priority.high, status=ProjectStatus.in_production,
+                      deadline=TODAY + timedelta(days=5), owner_id=1, brief_raw="x")
+    a1 = make_assignment(1, 1, 88, -2, 5)
+    result = person_capacity(person, [a1], {1: project}, on_date=TODAY)
+    assert result.allocated_pct == 88
+    assert result.available_pct == 12
+    assert result.status == "tight"
+    assert result.next_deadline == TODAY + timedelta(days=5)
+
+
+@pytest.fixture
+def db_session():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    yield session
+    session.close()
+
+
+def test_get_conflicts_finds_overloaded_person(db_session):
+    alex = Person(name="Alex", role=PersonRole.senior_designer, capacity_pct=80,
+                 skills="layout", is_external=False)
+    maya = Person(name="Maya", role=PersonRole.designer, capacity_pct=100,
+                 skills="layout", is_external=False)
+    db_session.add_all([alex, maya])
+    db_session.flush()
+
+    p1 = Project(name="P1", brand="Albelli", campaign="C", source_market="NL",
+                priority=Priority.high, status=ProjectStatus.in_production,
+                deadline=TODAY + timedelta(days=5), owner_id=alex.id, brief_raw="x")
+    p2 = Project(name="P2", brand="Albelli", campaign="C", source_market="NL",
+                priority=Priority.medium, status=ProjectStatus.assigned,
+                deadline=TODAY + timedelta(days=10), owner_id=alex.id, brief_raw="x")
+    db_session.add_all([p1, p2])
+    db_session.flush()
+
+    a1 = Assignment(person_id=alex.id, project_id=p1.id, allocation_pct=55,
+                    start_date=TODAY - timedelta(days=5), end_date=TODAY)
+    a2 = Assignment(person_id=alex.id, project_id=p2.id, allocation_pct=40,
+                    start_date=TODAY - timedelta(days=3), end_date=TODAY + timedelta(days=10))
+    a3 = Assignment(person_id=maya.id, project_id=p2.id, allocation_pct=30,
+                    start_date=TODAY - timedelta(days=3), end_date=TODAY + timedelta(days=10))
+    db_session.add_all([a1, a2, a3])
+    db_session.commit()
+
+    conflicts = get_conflicts(db_session, on_date=TODAY)
+    conflict_people = {c.person.name for c in conflicts}
+    assert "Alex" in conflict_people
+    assert "Maya" not in conflict_people
+
+    alex_conflict = next(c for c in conflicts if c.person.name == "Alex")
+    assert alex_conflict.allocated_pct == 95
+    assert alex_conflict.capacity_pct == 80
+    project_names = {p.name for p in alex_conflict.projects}
+    assert project_names == {"P1", "P2"}

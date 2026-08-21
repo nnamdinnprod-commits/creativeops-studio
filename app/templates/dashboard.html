@@ -2,5 +2,64 @@
 {% block title %}Dashboard — CreativeOps Studio{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-semibold">Operations Dashboard</h1>
-<p class="text-slate-500 mt-2">This is the Dashboard screen. Content coming in Phase 3.</p>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+    <div class="bg-white rounded shadow-sm p-4">
+        <div class="text-xs text-slate-500">Active projects</div>
+        <div class="text-2xl font-semibold mt-1">{{ active_count }}</div>
+    </div>
+    <div class="bg-white rounded shadow-sm p-4">
+        <div class="text-xs text-slate-500">On track</div>
+        <div class="text-2xl font-semibold mt-1 text-green-700">{{ on_track_count }}</div>
+    </div>
+    <div class="bg-white rounded shadow-sm p-4">
+        <div class="text-xs text-slate-500">At risk</div>
+        <div class="text-2xl font-semibold mt-1 text-red-700">{{ at_risk_count }}</div>
+    </div>
+    <div class="bg-white rounded shadow-sm p-4">
+        <div class="text-xs text-slate-500">Blocked</div>
+        <div class="text-2xl font-semibold mt-1 text-slate-400">{{ blocked_count }}</div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+    <div class="bg-white rounded shadow-sm p-4">
+        <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Deadlines — next 7 days</h2>
+        {% if upcoming_deadlines %}
+        <ul class="mt-3 space-y-2 text-sm">
+            {% for p in upcoming_deadlines %}
+            <li class="flex justify-between">
+                <a href="/projects/{{ p.id }}" class="hover:underline">{{ p.name }}</a>
+                <span class="text-slate-500">{{ p.deadline.strftime('%d %b') }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="mt-3 text-sm text-slate-400">Nothing due in the next 7 days.</p>
+        {% endif %}
+    </div>
+
+    <div class="bg-white rounded shadow-sm p-4">
+        <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Team capacity</h2>
+        <div class="mt-3 text-sm space-y-1">
+            <div class="flex justify-between"><span>Aggregate utilisation</span><span class="font-medium">{{ aggregate_utilisation }}%</span></div>
+            <div class="flex justify-between"><span>Overloaded people</span><span class="font-medium text-red-700">{{ overloaded_count }}</span></div>
+            <div class="flex justify-between"><span>Tight people</span><span class="font-medium text-amber-700">{{ tight_count }}</span></div>
+        </div>
+        <a href="/resources" class="text-xs text-slate-500 hover:underline mt-3 inline-block">View resource plan &rarr;</a>
+    </div>
+</div>
+
+<div class="bg-white rounded shadow-sm p-4 mt-4">
+    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Localisation progress</h2>
+    <div class="mt-2 text-sm">{{ loc_approved }} of {{ loc_total }} localisation rows approved ({{ loc_pct }}%)</div>
+    <div class="mt-2 w-full bg-slate-100 rounded-full h-2">
+        <div class="bg-purple-500 h-2 rounded-full" style="width: {{ loc_pct }}%"></div>
+    </div>
+</div>
+
+<div class="bg-slate-50 border border-dashed border-slate-300 rounded p-4 mt-6">
+    <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Needs attention</h2>
+    <p class="mt-2 text-sm text-slate-400">AI-generated attention panel arrives in Phase 4 — it will turn the "at risk" count above into named, actionable items.</p>
+</div>
 {% endblock %}

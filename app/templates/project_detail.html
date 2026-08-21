@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} — CreativeOps Studio{% endblock %}
+{% block content %}
+<a href="/pipeline" class="text-xs text-slate-500 hover:underline">&larr; Back to pipeline</a>
+
+<div class="flex items-start justify-between mt-2">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ project.name }}</h1>
+        <p class="text-slate-500 text-sm mt-1">{{ project.brand }} · {{ project.campaign }} · {{ project.source_market }}</p>
+    </div>
+    <div class="text-right text-sm">
+        <div class="text-slate-500">Status</div>
+        <div class="font-medium">{{ project.status.value.replace('_', ' ')|title }}</div>
+    </div>
+</div>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
+    <div><div class="text-slate-500 text-xs">Priority</div><div class="font-medium">{{ project.priority.value|title }}</div></div>
+    <div><div class="text-slate-500 text-xs">Deadline</div><div class="font-medium">{{ project.deadline.strftime('%d %b %Y') }}</div></div>
+    <div><div class="text-slate-500 text-xs">Owner</div><div class="font-medium">{{ owner.name if owner else '—' }}</div></div>
+    <div><div class="text-slate-500 text-xs">Localisation required</div><div class="font-medium">{{ 'Yes' if project.localisation_required else 'No' }}</div></div>
+</div>
+
+<div class="mt-6">
+    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Brief</h2>
+    <p class="mt-2 text-sm bg-slate-50 border border-slate-200 rounded p-3 whitespace-pre-wrap">{{ project.brief_raw }}</p>
+    <p class="mt-2 text-xs text-slate-400">Extracted brief fields and readiness score arrive in Phase 4 (AI Brief Assistant).</p>
+</div>
+
+<div class="mt-6">
+    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Deliverables</h2>
+    {% if deliverables %}
+    <table class="mt-2 w-full text-sm bg-white border border-slate-200 rounded overflow-hidden">
+        <thead class="bg-slate-50 text-left text-xs text-slate-500">
+            <tr><th class="px-3 py-2">Type</th><th class="px-3 py-2">Market</th><th class="px-3 py-2">Format</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Deadline</th></tr>
+        </thead>
+        <tbody>
+        {% for d in deliverables %}
+            <tr class="border-t border-slate-100">
+                <td class="px-3 py-2">{{ d.type.value.replace('_', ' ')|title }}</td>
+                <td class="px-3 py-2">{{ d.market }}</td>
+                <td class="px-3 py-2">{{ d.format_spec or '—' }}</td>
+                <td class="px-3 py-2">{{ d.status.value.replace('_', ' ')|title }}</td>
+                <td class="px-3 py-2">{{ d.deadline.strftime('%d %b') if d.deadline else '—' }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="mt-2 text-sm text-slate-400">No deliverables scoped yet.</p>
+    {% endif %}
+</div>
+
+<div class="mt-6">
+    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Assignments</h2>
+    {% if assignments %}
+    <table class="mt-2 w-full text-sm bg-white border border-slate-200 rounded overflow-hidden">
+        <thead class="bg-slate-50 text-left text-xs text-slate-500">
+            <tr><th class="px-3 py-2">Person</th><th class="px-3 py-2">Role</th><th class="px-3 py-2">Allocation</th><th class="px-3 py-2">Window</th></tr>
+        </thead>
+        <tbody>
+        {% for a in assignments %}
+            <tr class="border-t border-slate-100">
+                <td class="px-3 py-2">{{ people_by_id[a.person_id].name if a.person_id in people_by_id else '—' }}</td>
+                <td class="px-3 py-2">{{ a.role_on_project or '—' }}</td>
+                <td class="px-3 py-2">{{ a.allocation_pct }}%</td>
+                <td class="px-3 py-2">{{ a.start_date.strftime('%d %b') }} – {{ a.end_date.strftime('%d %b') }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="mt-2 text-sm text-slate-400">No one assigned yet.</p>
+    {% endif %}
+</div>
+
+<div class="mt-6">
+    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Localisation</h2>
+    {% if localisations %}
+    <table class="mt-2 w-full text-sm bg-white border border-slate-200 rounded overflow-hidden">
+        <thead class="bg-slate-50 text-left text-xs text-slate-500">
+            <tr><th class="px-3 py-2">Market</th><th class="px-3 py-2">Translator</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Review</th><th class="px-3 py-2">QA</th><th class="px-3 py-2">Due</th></tr>
+        </thead>
+        <tbody>
+        {% for l in localisations %}
+            <tr class="border-t border-slate-100 {% if not l.translator_id and l.due_date and (l.due_date - now).days <= 4 %}bg-red-50{% endif %}">
+                <td class="px-3 py-2">{{ l.target_market }}</td>
+                <td class="px-3 py-2">{{ people_by_id[l.translator_id].name if l.translator_id in people_by_id else 'Unassigned' }}</td>
+                <td class="px-3 py-2">{{ l.status.value.replace('_', ' ')|title }}</td>
+                <td class="px-3 py-2">{{ l.review_status.value|title }}</td>
+                <td class="px-3 py-2">{{ l.qa_status.value|title }}</td>
+                <td class="px-3 py-2">{{ l.due_date.strftime('%d %b') if l.due_date else '—' }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="mt-2 text-sm text-slate-400">No localisation required for this project.</p>
+    {% endif %}
+</div>
+
+<div class="mt-6">
+    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Risk assessment</h2>
+    <p class="mt-2 text-xs text-slate-400">The deterministic risk rule (Phase 5) will populate this from capacity and localisation signals.</p>
+</div>
+
+<div class="mt-6">
+    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Recommendation history</h2>
+    <p class="mt-2 text-xs text-slate-400">AI recommendations and their accept/reject history (Phase 4) will appear here.</p>
+</div>
+{% endblock %}
