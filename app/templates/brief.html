@@ -29,7 +29,7 @@
 </div>
 {% endif %}
 
-<form id="retry-form" method="post" action="/brief/analyse" class="mt-4">
+<form id="retry-form" method="post" action="/brief/analyse" class="mt-4" onsubmit="showLoading(this, 'Analysing…')">
     <textarea name="raw_text" rows="6" required
               class="w-full border border-slate-300 rounded p-3 text-sm"
               placeholder="Paste the raw brief here...">{{ raw_text or '' }}</textarea>

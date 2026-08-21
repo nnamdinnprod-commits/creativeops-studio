@@ -6,6 +6,17 @@
     Demo data — mock performance figures, not connected to any real analytics platform.
 </p>
 
+{% if recommend_failed %}
+<div class="mt-3 bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700">
+    The AI recommendation did not return a usable result. Nothing was saved — try again below.
+</div>
+{% elif no_candidates %}
+<div class="mt-3 bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-700">
+    No designer currently has spare capacity for this recommendation. Check Resources for
+    availability before requesting again.
+</div>
+{% endif %}
+
 <h2 class="text-lg font-semibold mt-6">Lifestyle vs product-only, by market</h2>
 <p class="text-slate-500 text-sm mt-1">Computed directly from the rows below — averages, not model output.</p>
 
@@ -19,7 +30,7 @@
             Product-only {{ c.product_avg_ctr }}% CTR ({{ c.product_count }} variants)
         </div>
         <div class="mt-1 text-xs text-slate-400">{{ c.lifestyle_count }} lifestyle variants, {{ c.product_count }} product-only variants</div>
-        <form method="post" action="/intelligence/recommend" class="mt-3 flex items-end gap-2">
+        <form method="post" action="/intelligence/recommend" class="mt-3 flex items-end gap-2" onsubmit="showLoading(this, 'Thinking…')">
             <input type="hidden" name="market" value="{{ c.market }}">
             <div>
                 <label class="block text-xs text-slate-500 mb-1">Brand</label>

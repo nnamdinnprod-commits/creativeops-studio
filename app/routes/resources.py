@@ -62,8 +62,10 @@ def _screen_context(db: Session):
 
 
 @router.get("/resources")
-def resources(request: Request, db: Session = Depends(get_db)):
-    return templates.TemplateResponse(request, "resources.html", _screen_context(db))
+def resources(request: Request, error: str | None = None, db: Session = Depends(get_db)):
+    context = _screen_context(db)
+    context["recommend_failed"] = error == "recommend_failed"
+    return templates.TemplateResponse(request, "resources.html", context)
 
 
 def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict | None:
@@ -127,16 +129,17 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
 def recommend(request: Request, person_id: int = Form(...), project_id: int = Form(...),
               db: Session = Depends(get_db)):
     facts = _build_conflict_facts(db, person_id, project_id)
-    if facts is not None:
-        rec = recommend_resource(facts)
-        if rec is not None:
-            db.add(Recommendation(
-                kind=RecommendationKind.resource_reallocation,
-                project_id=project_id,
-                payload_json=rec.model_dump_json(),
-                rationale=rec.rationale,
-                computed_facts_json=json.dumps(facts, default=str),
-                status=RecommendationStatus.pending,
-            ))
-            db.commit()
+    rec = recommend_resource(facts) if facts is not None else None
+    if rec is None:
+        return RedirectResponse(url="/resources?error=recommend_failed", status_code=303)
+
+    db.add(Recommendation(
+        kind=RecommendationKind.resource_reallocation,
+        project_id=project_id,
+        payload_json=rec.model_dump_json(),
+        rationale=rec.rationale,
+        computed_facts_json=json.dumps(facts, default=str),
+        status=RecommendationStatus.pending,
+    ))
+    db.commit()
     return RedirectResponse(url="/resources", status_code=303)

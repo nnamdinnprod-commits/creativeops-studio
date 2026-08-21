@@ -18,8 +18,10 @@ from app.models import (
     Priority,
     Project,
     ProjectStatus,
+    Recommendation,
 )
 from app.services.ai.localisation import check_localisation_risk
+from app.services.ai.schemas import BriefExtraction
 from app.services.attention import build_attention_snapshot
 from app.services.localisation_risk import get_localisation_risks
 
@@ -199,6 +201,12 @@ def project_detail(project_id: int, request: Request, db: Session = Depends(get_
     assignments = db.query(Assignment).filter_by(project_id=project.id).all()
     localisations = db.query(Localisation).filter_by(project_id=project.id).all()
     translators = db.query(Person).filter_by(role=PersonRole.translator).all()
+    recommendations = (
+        db.query(Recommendation)
+        .filter_by(project_id=project.id)
+        .order_by(Recommendation.created_at.desc())
+        .all()
+    )
 
     people_by_id = {p.id: p for p in db.query(Person).all()}
 
@@ -206,6 +214,13 @@ def project_detail(project_id: int, request: Request, db: Session = Depends(get_
     if localisations:
         facts = _build_localisation_facts(db, project.id)
         risk_assessment = check_localisation_risk(facts)
+
+    brief_analysis = None
+    brief_extraction = None
+    if project.brief_analysis_id is not None:
+        brief_analysis = db.get(BriefAnalysis, project.brief_analysis_id)
+        if brief_analysis is not None:
+            brief_extraction = BriefExtraction.model_validate_json(brief_analysis.extracted_json)
 
     return templates.TemplateResponse(request, "project_detail.html", {
         "project": project,
@@ -217,6 +232,9 @@ def project_detail(project_id: int, request: Request, db: Session = Depends(get_
         "translators": translators,
         "loc_status_order": LOC_STATUS_ORDER,
         "risk_assessment": risk_assessment,
+        "brief_analysis": brief_analysis,
+        "brief_extraction": brief_extraction,
+        "recommendations": recommendations,
         "now": date.today(),
     })
 

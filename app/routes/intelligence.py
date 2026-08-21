@@ -44,8 +44,11 @@ def _screen_context(db: Session):
 
 
 @router.get("/intelligence")
-def intelligence(request: Request, db: Session = Depends(get_db)):
-    return templates.TemplateResponse(request, "intelligence.html", _screen_context(db))
+def intelligence(request: Request, error: str | None = None, db: Session = Depends(get_db)):
+    context = _screen_context(db)
+    context["recommend_failed"] = error == "recommend_failed"
+    context["no_candidates"] = error == "no_candidates"
+    return templates.TemplateResponse(request, "intelligence.html", context)
 
 
 @router.post("/intelligence/recommend")
@@ -55,7 +58,7 @@ def recommend(request: Request, market: str = Form(...), brand: str = Form(...),
     comparisons = compute_market_comparisons(insights)
     match = next((c for c in comparisons if c["market"] == market), None)
     if match is None:
-        return RedirectResponse(url="/intelligence", status_code=303)
+        return RedirectResponse(url="/intelligence?error=recommend_failed", status_code=303)
 
     # The deliverable is visual production work — only design-capable roles are
     # feasible candidates. A producer or translator having spare capacity doesn't
@@ -73,19 +76,21 @@ def recommend(request: Request, market: str = Form(...), brand: str = Form(...),
         if c.available_pct > 0 and not c.person.is_external and c.person.role in _DESIGN_ROLES
     ]
     if not capacity_snapshot:
-        return RedirectResponse(url="/intelligence", status_code=303)
+        return RedirectResponse(url="/intelligence?error=no_candidates", status_code=303)
 
     rec = insight_to_action(match, capacity_snapshot)
-    if rec is not None:
-        facts = dict(match)
-        facts["brand"] = brand
-        db.add(Recommendation(
-            kind=RecommendationKind.production_action,
-            project_id=None,
-            payload_json=rec.model_dump_json(),
-            rationale=rec.recommended_action,
-            computed_facts_json=json.dumps(facts, default=str),
-        ))
-        db.commit()
+    if rec is None:
+        return RedirectResponse(url="/intelligence?error=recommend_failed", status_code=303)
+
+    facts = dict(match)
+    facts["brand"] = brand
+    db.add(Recommendation(
+        kind=RecommendationKind.production_action,
+        project_id=None,
+        payload_json=rec.model_dump_json(),
+        rationale=rec.recommended_action,
+        computed_facts_json=json.dumps(facts, default=str),
+    ))
+    db.commit()
 
     return RedirectResponse(url="/intelligence", status_code=303)
