@@ -1,5 +1,5 @@
 import json
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import RedirectResponse
@@ -139,7 +139,7 @@ def accept(rec_id: int, db: Session = Depends(get_db)):
 
     rec.status = RecommendationStatus.accepted
     rec.decided_by = DECIDED_BY
-    rec.decided_at = datetime.utcnow()
+    rec.decided_at = datetime.now(UTC)
     rec.outcome_note = outcome
     db.commit()
 
@@ -152,7 +152,7 @@ def reject(rec_id: int, db: Session = Depends(get_db)):
     if rec is not None and rec.status == RecommendationStatus.pending:
         rec.status = RecommendationStatus.rejected
         rec.decided_by = DECIDED_BY
-        rec.decided_at = datetime.utcnow()
+        rec.decided_at = datetime.now(UTC)
         rec.outcome_note = "Rejected — no change applied."
         db.commit()
         return RedirectResponse(url=_SCREEN_BY_KIND.get(rec.kind, "/resources"), status_code=303)
