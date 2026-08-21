@@ -99,3 +99,54 @@ a one-day build.
 Consequences: No exact version pins for this project — a `pip freeze` after install would
 give a reproducible lockfile if that's ever wanted, but isn't needed for a single-day,
 single-machine build.
+
+## 008 — Added openai and anthropic SDKs for live AI calls
+Date: 2026-08-21
+Decision: Added `openai` and `anthropic` to requirements.txt, imported only in
+`app/services/ai/client.py` per the rule that no other file imports a provider SDK.
+Alternatives considered: skipping live-provider support and shipping mock-only.
+Why: AI_WORKFLOWS.md requires `AI_PROVIDER` to support `openai` / `anthropic` / `mock`, and
+Phase 4's exit criteria asks that `analyse_brief` work against a live provider if a key is
+set. Both installed cleanly on this machine's Python 3.14 environment.
+Consequences: Two more dependencies; untested against a live key in this session since none
+was provided — the app still runs and is fully tested in mock mode regardless.
+
+## 009 — Localisation risk rule built in Phase 4, not Phase 5
+Date: 2026-08-21
+Decision: Wrote `app/services/localisation_risk.py` (the deterministic at-risk rule) during
+Phase 4 instead of waiting for Phase 5, and used it to feed the Phase 4 dashboard attention
+panel.
+Alternatives considered: leaving the dashboard's localisation-caused attention item out until
+Phase 5.
+Why: PRODUCT_SPEC.md's own example attention panel includes a localisation-blocked item, and
+BUILD_PLAN.md already named this exact file in the Phase 1 folder structure — it wasn't new
+scope, just built slightly earlier than scheduled because Phase 4 genuinely needed it.
+Consequences: Phase 5 reuses this function rather than duplicating it; Phase 5's own scope
+shrinks to wiring it onto pipeline cards and the localisation status ladder.
+
+## 010 — Seed brief text adjusted; noted a cross-doc scoring inconsistency
+Date: 2026-08-21
+Decision: Added "DE" to the seeded vague-brief project's text so the rubric scores it at
+exactly 50%, and left DEMO_DATA.md's stated "55–70 band" target unmet rather than forcing it.
+Alternatives considered: tuning the extraction heuristic or rubric weights until the score
+landed in 55–70.
+Why: AI_WORKFLOWS.md's rubric weights make 55–70 mathematically unreachable for a brief
+missing exactly the four fields DEMO_DATA.md names as gaps (format specs, audience, approval
+owner, deadline) — those four sum to exactly 50 of the 100 points, so the ceiling is 50%, not
+55-70. This is an inconsistency between the two docs, not something fixable in code without
+either contradicting the published rubric or inventing facts the brief text doesn't contain.
+Consequences: The seeded vague brief now scores 50% — still well below the 70% threshold, so
+it demonstrates the readiness-gate behavior correctly. Owner has been told; docs not silently
+edited to match.
+
+## 011 — Centralised Jinja2Templates into app/templates_env.py
+Date: 2026-08-21
+Decision: Replaced five separate `Jinja2Templates(directory="app/templates")` instances (one
+per route file) with a single shared instance, with `settings` registered as a Jinja global.
+Alternatives considered: passing `settings` into every individual TemplateResponse call.
+Why: AI_WORKFLOWS.md requires a mode indicator ("mock"/"openai"/"anthropic") in the footer on
+every screen. A per-file template instance meant a Jinja global set on one didn't reach the
+others; centralizing was the only way to guarantee it everywhere without repeating it in six
+route handlers.
+Consequences: One shared template environment for the whole app — also means any future
+global (e.g. current user) only needs to be added once.

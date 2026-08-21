@@ -76,7 +76,7 @@ def seed(session):
                  source_market="DE", priority=Priority.medium, status=ProjectStatus.brief,
                  deadline=friday, owner_id=sam.id,
                  brief_raw=(
-                     "Need something for the app push, ideally next Friday. Probably social "
+                     "Need something for the DE app push, ideally next Friday. Probably social "
                      "and maybe email? Not sure on exact sizes yet, will confirm. Audience is "
                      "existing customers I think. Who signs off on this one is TBC."
                  ),

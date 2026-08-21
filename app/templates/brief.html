@@ -2,5 +2,115 @@
 {% block title %}Brief Assistant — CreativeOps Studio{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-semibold">AI Brief Assistant</h1>
-<p class="text-slate-500 mt-2">This is the Brief Assistant screen. Content coming in Phase 4.</p>
+
+{% if created_project %}
+<div class="mt-4 bg-green-50 border border-green-200 rounded p-4 text-sm">
+    <p class="font-medium">Project created.</p>
+    <p class="mt-1">
+        <a href="/projects/{{ created_project.id }}" class="underline">{{ created_project.name }}</a>
+        was added to the pipeline at status Brief.
+        {% if not deadline_confirmed %}
+        Its deadline ({{ created_project.deadline.strftime('%d %b %Y') }}) is a 14-day placeholder —
+        no confirmed date was in the brief, so this needs review before it's trusted.
+        {% endif %}
+    </p>
+    <a href="/brief" class="text-xs text-slate-500 hover:underline mt-2 inline-block">Analyse another brief &rarr;</a>
+</div>
+{% else %}
+
+<p class="text-slate-500 mt-1 text-sm">Paste a messy real-world request below. Extraction and scoring shown here are AI-generated
+    <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-700 align-middle">AI</span> —
+    the readiness score itself is computed by a fixed rubric, not the model.</p>
+
+{% if ai_failed %}
+<div class="mt-4 bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700">
+    The AI extraction did not return a usable result. Nothing was saved.
+    <button class="underline" onclick="document.getElementById('retry-form').requestSubmit()">Retry</button>
+</div>
+{% endif %}
+
+<form id="retry-form" method="post" action="/brief/analyse" class="mt-4">
+    <textarea name="raw_text" rows="6" required
+              class="w-full border border-slate-300 rounded p-3 text-sm"
+              placeholder="Paste the raw brief here...">{{ raw_text or '' }}</textarea>
+    <button type="submit" class="mt-2 bg-slate-800 text-white text-sm rounded px-4 py-2">Analyse brief</button>
+</form>
+
+{% if extraction and result %}
+<div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="bg-white rounded shadow-sm p-4">
+        <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">
+            Extracted fields <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-700 align-middle">AI</span>
+        </h2>
+        <dl class="mt-3 text-sm space-y-2">
+            <div><dt class="text-xs text-slate-500">Objective</dt><dd>{{ extraction.objective or '—' }}</dd></div>
+            <div><dt class="text-xs text-slate-500">Audience</dt><dd>{{ extraction.audience or '—' }}</dd></div>
+            <div><dt class="text-xs text-slate-500">Markets</dt><dd>{{ extraction.markets|join(', ') or '—' }}</dd></div>
+            <div><dt class="text-xs text-slate-500">Deliverables</dt>
+                <dd>
+                {% if extraction.deliverables %}
+                    {% for d in extraction.deliverables %}{{ d.type }}{% if d.market %} ({{ d.market }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+                {% else %}—{% endif %}
+                </dd>
+            </div>
+            <div><dt class="text-xs text-slate-500">Deadline</dt><dd>{{ extraction.deadline or 'Not confirmed' }}</dd></div>
+            <div><dt class="text-xs text-slate-500">Approval owner</dt><dd>{{ extraction.approval_owner or 'Not stated' }}</dd></div>
+            <div><dt class="text-xs text-slate-500">Localisation</dt>
+                <dd>{% if extraction.localisation.required %}Required — {{ extraction.localisation.targets|join(', ') }}{% else %}Not required{% endif %}</dd>
+            </div>
+            {% if extraction.ambiguities %}
+            <div><dt class="text-xs text-slate-500">Ambiguities</dt>
+                <dd><ul class="list-disc list-inside">{% for a in extraction.ambiguities %}<li>{{ a }}</li>{% endfor %}</ul></dd>
+            </div>
+            {% endif %}
+        </dl>
+    </div>
+
+    <div class="bg-white rounded shadow-sm p-4">
+        <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Brief readiness score</h2>
+        <div class="mt-3 flex items-baseline gap-2">
+            <span class="text-3xl font-semibold {% if result.score >= 70 %}text-green-700{% else %}text-amber-700{% endif %}">{{ result.score }}%</span>
+            <span class="text-sm text-slate-500">{% if result.score >= 70 %}Ready{% else %}Needs clarification{% endif %}</span>
+        </div>
+        <table class="mt-4 w-full text-xs">
+            {% for field, weight in rubric_weights.items() %}
+            <tr class="border-t border-slate-100">
+                <td class="py-1">{{ field.replace('_', ' ')|title }}</td>
+                <td class="py-1 text-right w-12">{{ weight }}pt</td>
+                <td class="py-1 text-right w-20">
+                    {% if field in result.present_fields %}
+                    <span class="text-green-700">Present</span>
+                    {% else %}
+                    <span class="text-red-700">Missing</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% if field in result.blocking_reasons %}
+            <tr><td colspan="3" class="text-slate-400 pb-1">Blocks: {{ result.blocking_reasons[field] }}</td></tr>
+            {% endif %}
+            {% endfor %}
+        </table>
+    </div>
+</div>
+
+<form method="post" action="/brief/create-project" class="mt-4 bg-white rounded shadow-sm p-4 flex flex-wrap items-end gap-3">
+    <input type="hidden" name="analysis_id" value="{{ analysis_id }}">
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Project name</label>
+        <input type="text" name="project_name" required value="{{ suggested_name }}"
+               class="border border-slate-300 rounded px-2 py-1 text-sm w-64">
+    </div>
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Brand</label>
+        <select name="brand" class="border border-slate-300 rounded px-2 py-1 text-sm">
+            {% for b in brands %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="bg-slate-800 text-white text-sm rounded px-4 py-2">Create project from brief</button>
+    {% if result.score < 70 %}
+    <span class="text-xs text-amber-700">Below 70% — the project will be created but can't move past Ready until gaps are filled.</span>
+    {% endif %}
+</form>
+{% endif %}
+{% endif %}
 {% endblock %}

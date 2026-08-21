@@ -1,16 +1,16 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from fastapi import HTTPException
 
+from app.config import settings
 from app.database import get_db
-from app.models import Assignment, Deliverable, Localisation, Person, Priority, Project, ProjectStatus
+from app.templates_env import templates
+from app.models import Assignment, BriefAnalysis, Deliverable, Localisation, Person, Priority, Project, ProjectStatus
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
 
 STATUS_ORDER = [
     ProjectStatus.brief,
@@ -54,6 +54,27 @@ def validate_transition(current: ProjectStatus, target: ProjectStatus) -> tuple[
     return False, (
         f"Cannot move directly from {STATUS_LABELS[current]} to {STATUS_LABELS[target]} — "
         f"must pass through {skipped_names} first."
+    )
+
+
+def check_readiness_gate(project: Project, target: ProjectStatus, db: Session) -> tuple[bool, str | None]:
+    """PRODUCT_SPEC.md: a brief scored below the readiness threshold creates a
+    project but cannot move past Ready until the gaps are filled. Only applies to
+    projects that have actually been through the Brief Assistant — seed projects
+    with no BriefAnalysis on record aren't gated on a score that was never computed."""
+    if STATUS_ORDER.index(target) <= STATUS_ORDER.index(ProjectStatus.ready):
+        return True, None
+    if project.brief_analysis_id is None:
+        return True, None
+
+    analysis = db.get(BriefAnalysis, project.brief_analysis_id)
+    if analysis is None or analysis.readiness_score >= settings.brief_readiness_threshold:
+        return True, None
+
+    return False, (
+        f"Brief readiness is {analysis.readiness_score}%, below the "
+        f"{settings.brief_readiness_threshold}% threshold — cannot move past Ready "
+        f"until the gaps are filled."
     )
 
 
@@ -113,6 +134,8 @@ def change_status(project_id: int, request: Request, status: str = Form(...),
 
         if target_status is not None:
             ok, reason = validate_transition(project.status, target_status)
+            if ok:
+                ok, reason = check_readiness_gate(project, target_status, db)
             if ok:
                 project.status = target_status
                 db.commit()

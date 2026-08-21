@@ -2,5 +2,117 @@
 {% block title %}Creative Intelligence — CreativeOps Studio{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-semibold">Creative Intelligence</h1>
-<p class="text-slate-500 mt-2">This is the Creative Intelligence screen. Content coming in Phase 4.</p>
+<p class="text-slate-500 mt-1 text-sm">
+    Demo data — mock performance figures, not connected to any real analytics platform.
+</p>
+
+<h2 class="text-lg font-semibold mt-6">Lifestyle vs product-only, by market</h2>
+<p class="text-slate-500 text-sm mt-1">Computed directly from the rows below — averages, not model output.</p>
+
+{% if comparisons %}
+<div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+    {% for c in comparisons %}
+    <div class="bg-white border border-slate-200 rounded p-4 text-sm">
+        <div class="font-medium">{{ c.market }}</div>
+        <div class="mt-1 text-slate-600">
+            Lifestyle {{ c.lifestyle_avg_ctr }}% CTR ({{ c.lifestyle_count }} variants) vs
+            Product-only {{ c.product_avg_ctr }}% CTR ({{ c.product_count }} variants)
+        </div>
+        <div class="mt-1 text-xs text-slate-400">{{ c.lifestyle_count }} lifestyle variants, {{ c.product_count }} product-only variants</div>
+        <form method="post" action="/intelligence/recommend" class="mt-3 flex items-end gap-2">
+            <input type="hidden" name="market" value="{{ c.market }}">
+            <div>
+                <label class="block text-xs text-slate-500 mb-1">Brand</label>
+                <select name="brand" class="border border-slate-300 rounded px-2 py-1 text-xs">
+                    {% for b in brands %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="text-xs bg-slate-800 text-white rounded px-3 py-1.5">Get production recommendation</button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="mt-3 text-sm text-slate-400">No notable lifestyle-vs-product gap in the current data.</p>
+{% endif %}
+
+<h2 class="text-lg font-semibold mt-8">Production recommendations</h2>
+{% if recommendations %}
+<ul class="mt-3 space-y-3">
+    {% for item in recommendations %}
+    {% set rec = item.rec %}
+    {% set payload = item.payload %}
+    <li class="bg-white border border-slate-200 rounded p-4 text-sm">
+        <div class="flex items-center gap-2">
+            <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-700">AI</span>
+            <span class="font-medium">{{ payload.recommended_action }}</span>
+            <span class="text-xs text-slate-400">— {{ payload.confidence|title }} confidence</span>
+            {% if rec.status.value == 'pending' %}
+            <span class="ml-auto inline-block px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-700">Awaiting approval</span>
+            {% elif rec.status.value == 'accepted' %}
+            <span class="ml-auto inline-block px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700">Accepted</span>
+            {% else %}
+            <span class="ml-auto inline-block px-1.5 py-0.5 rounded text-xs bg-slate-100 text-slate-500">Rejected</span>
+            {% endif %}
+        </div>
+        <p class="mt-2 text-slate-600">{{ payload.insight_summary }}</p>
+        <dl class="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div><dt class="text-slate-400">Estimated effort</dt><dd>{{ payload.estimated_days }} days</dd></div>
+            <div><dt class="text-slate-400">Suggested resource</dt><dd>{{ people_by_id[payload.suggested_person_id].name if payload.suggested_person_id in people_by_id else '—' }}</dd></div>
+            <div><dt class="text-slate-400">Window</dt><dd>{{ payload.suggested_window.start }} – {{ payload.suggested_window.end }}</dd></div>
+            <div><dt class="text-slate-400">Localisation</dt><dd>{% if payload.localisation_required %}{{ payload.localisation_note }}{% else %}Not required{% endif %}</dd></div>
+        </dl>
+        {% if payload.caveats %}
+        <ul class="mt-2 text-xs text-amber-700 list-disc list-inside">
+            {% for c in payload.caveats %}<li>{{ c }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+        {% if rec.status.value == 'pending' %}
+        <div class="mt-3 flex gap-2">
+            <form method="post" action="/recommendations/{{ rec.id }}/accept">
+                <button type="submit" class="text-xs bg-green-700 text-white rounded px-3 py-1">Accept</button>
+            </form>
+            <form method="post" action="/recommendations/{{ rec.id }}/reject">
+                <button type="submit" class="text-xs bg-slate-200 rounded px-3 py-1">Reject</button>
+            </form>
+        </div>
+        {% elif rec.outcome_note %}
+        <p class="mt-2 text-xs text-slate-500">
+            {{ rec.outcome_note }}
+            {% if rec.project_id %}<a href="/projects/{{ rec.project_id }}" class="underline">View project &rarr;</a>{% endif %}
+        </p>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="mt-3 text-sm text-slate-400">No recommendations yet — request one from a comparison above.</p>
+{% endif %}
+
+<h2 class="text-lg font-semibold mt-8">Creative variants <span class="text-xs font-normal text-slate-400">(Demo data)</span></h2>
+<div class="mt-3 overflow-x-auto">
+<table class="w-full text-sm bg-white border border-slate-200 rounded">
+    <thead class="bg-slate-50 text-left text-xs text-slate-500">
+        <tr>
+            <th class="px-3 py-2">Brand</th><th class="px-3 py-2">Market</th><th class="px-3 py-2">Format</th>
+            <th class="px-3 py-2">Theme</th><th class="px-3 py-2">Impressions</th><th class="px-3 py-2">CTR</th>
+            <th class="px-3 py-2">Engagement</th><th class="px-3 py-2">Conversion</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for i in insights %}
+        <tr class="border-t border-slate-100">
+            <td class="px-3 py-2">{{ i.brand }}</td>
+            <td class="px-3 py-2">{{ i.market }}</td>
+            <td class="px-3 py-2">{{ i.format }}</td>
+            <td class="px-3 py-2">{{ i.variant_theme.value.replace('_', ' ')|title }}</td>
+            <td class="px-3 py-2">{{ "{:,}".format(i.impressions) }}</td>
+            <td class="px-3 py-2">{{ i.ctr }}%</td>
+            <td class="px-3 py-2">{{ i.engagement_rate }}%</td>
+            <td class="px-3 py-2">{{ i.conversion_rate }}%</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
 {% endblock %}
