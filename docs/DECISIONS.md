@@ -166,3 +166,19 @@ Consequences: The `risk_level`/`risk_reason` columns exist in the schema but are
 default (none/null). If a future need requires reading risk state without recomputing
 (e.g. an API consumer, a background report), populating the columns properly would need
 revisiting.
+
+## 013 — Added a live public deployment on Render, reseeding on every boot
+Date: 2026-08-21
+Decision: Added `render.yaml` for a free-tier Render web service, with the start command
+running `python -m app.seed` before `uvicorn` on every boot.
+Alternatives considered: a persistent disk with a periodic reset job; leaving the live demo
+un-deployed (BUILD_PLAN.md's original "second session" scope).
+Why: The owner explicitly asked for a working, publicly reachable demo, not just screenshots.
+A public demo is a shared, mutable database — any visitor can accept/reject recommendations
+or move pipeline cards. Render's free tier has no persistent disk by default, so the SQLite
+file is wiped on every redeploy and on every wake from its ~15-minute inactivity sleep;
+reseeding at boot turns that into a feature — the demo self-heals to a clean state instead of
+staying polluted for the next visitor — rather than fighting it with a paid persistent disk.
+Consequences: State any one visitor changes (an accepted recommendation, a moved card) can
+disappear the next time the service sleeps and wakes. That's the intended tradeoff for a
+public, unauthenticated demo, not a bug — documented in the README.
