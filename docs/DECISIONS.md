@@ -150,3 +150,19 @@ others; centralizing was the only way to guarantee it everywhere without repeati
 route handlers.
 Consequences: One shared template environment for the whole app — also means any future
 global (e.g. current user) only needs to be added once.
+
+## 012 — Project.risk_level stays unpopulated; risk badges computed live
+Date: 2026-08-21
+Decision: Pipeline card and project-detail risk indicators are computed on every request from
+current Assignment/Localisation state (via app/services/attention.py's snapshot), not read
+from or written to the `Project.risk_level` / `risk_reason` columns DATA_MODEL.md defines.
+Alternatives considered: recomputing and writing `risk_level` on every relevant mutation
+(assignment change, localisation update, status change) so the stored column stays accurate.
+Why: A stored-and-synced value needs update hooks on every mutation path that could affect
+it, which is real complexity for a one-day build with no benefit a live computation doesn't
+already provide — risk state changes the moment underlying data changes either way, and nothing
+reads risk_level except the UI, which can just compute it fresh each time.
+Consequences: The `risk_level`/`risk_reason` columns exist in the schema but are always their
+default (none/null). If a future need requires reading risk state without recomputing
+(e.g. an API consumer, a background report), populating the columns properly would need
+revisiting.

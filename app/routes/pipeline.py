@@ -1,14 +1,35 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
-
-from fastapi import HTTPException
 
 from app.config import settings
 from app.database import get_db
 from app.templates_env import templates
-from app.models import Assignment, BriefAnalysis, Deliverable, Localisation, Person, Priority, Project, ProjectStatus
+from app.models import (
+    Assignment,
+    BriefAnalysis,
+    Deliverable,
+    Localisation,
+    LocalisationStatus,
+    Person,
+    PersonRole,
+    Priority,
+    Project,
+    ProjectStatus,
+)
+from app.services.ai.localisation import check_localisation_risk
+from app.services.attention import build_attention_snapshot
+from app.services.localisation_risk import get_localisation_risks
+
+LOC_STATUS_ORDER = [
+    LocalisationStatus.not_started,
+    LocalisationStatus.in_translation,
+    LocalisationStatus.in_review,
+    LocalisationStatus.qa,
+    LocalisationStatus.approved,
+]
 
 router = APIRouter()
 
@@ -96,6 +117,12 @@ def _board_context(db: Session, brand: str | None, market: str | None, priority:
     all_markets = sorted({p.source_market for p in db.query(Project).all()})
     people_by_id = {p.id: p for p in db.query(Person).all()}
 
+    # Risk badges are computed live from the same signals the dashboard uses —
+    # not read from Project.risk_level, which stays unpopulated in V1 rather
+    # than building a separate stored-and-synced value for a demo.
+    snapshot = build_attention_snapshot(db)
+    project_risks = {entry["project_id"]: entry["cause"] for entry in snapshot}
+
     return {
         "columns": columns,
         "status_order": STATUS_ORDER,
@@ -108,6 +135,7 @@ def _board_context(db: Session, brand: str | None, market: str | None, priority:
         "selected_market": market,
         "selected_priority": priority,
         "people_by_id": people_by_id,
+        "project_risks": project_risks,
     }
 
 
@@ -148,6 +176,18 @@ def change_status(project_id: int, request: Request, status: str = Form(...),
     return templates.TemplateResponse(request, "partials/_board.html", context)
 
 
+def _build_localisation_facts(db: Session, project_id: int, on_date: date | None = None) -> dict:
+    on_date = on_date or date.today()
+    flags = [f for f in get_localisation_risks(db, on_date) if f.localisation.project_id == project_id]
+    return {
+        "project_id": project_id,
+        "at_risk": len(flags) > 0,
+        "at_risk_markets": [f.localisation.target_market for f in flags],
+        "reasons": [f.reason for f in flags],
+        "min_days_to_due": min((f.days_to_due for f in flags), default=None),
+    }
+
+
 @router.get("/projects/{project_id}")
 def project_detail(project_id: int, request: Request, db: Session = Depends(get_db)):
     project = db.get(Project, project_id)
@@ -158,8 +198,14 @@ def project_detail(project_id: int, request: Request, db: Session = Depends(get_
     deliverables = db.query(Deliverable).filter_by(project_id=project.id).all()
     assignments = db.query(Assignment).filter_by(project_id=project.id).all()
     localisations = db.query(Localisation).filter_by(project_id=project.id).all()
+    translators = db.query(Person).filter_by(role=PersonRole.translator).all()
 
     people_by_id = {p.id: p for p in db.query(Person).all()}
+
+    risk_assessment = None
+    if localisations:
+        facts = _build_localisation_facts(db, project.id)
+        risk_assessment = check_localisation_risk(facts)
 
     return templates.TemplateResponse(request, "project_detail.html", {
         "project": project,
@@ -168,8 +214,33 @@ def project_detail(project_id: int, request: Request, db: Session = Depends(get_
         "assignments": assignments,
         "localisations": localisations,
         "people_by_id": people_by_id,
+        "translators": translators,
+        "loc_status_order": LOC_STATUS_ORDER,
+        "risk_assessment": risk_assessment,
         "now": date.today(),
     })
+
+
+@router.post("/localisation/{loc_id}/assign")
+def assign_translator(loc_id: int, translator_id: int = Form(...), db: Session = Depends(get_db)):
+    loc = db.get(Localisation, loc_id)
+    if loc is not None:
+        loc.translator_id = translator_id
+        db.commit()
+        return RedirectResponse(url=f"/projects/{loc.project_id}", status_code=303)
+    return RedirectResponse(url="/pipeline", status_code=303)
+
+
+@router.post("/localisation/{loc_id}/advance")
+def advance_localisation(loc_id: int, db: Session = Depends(get_db)):
+    loc = db.get(Localisation, loc_id)
+    if loc is not None:
+        idx = LOC_STATUS_ORDER.index(loc.status)
+        if idx < len(LOC_STATUS_ORDER) - 1:
+            loc.status = LOC_STATUS_ORDER[idx + 1]
+            db.commit()
+        return RedirectResponse(url=f"/projects/{loc.project_id}", status_code=303)
+    return RedirectResponse(url="/pipeline", status_code=303)
 
 
 @router.post("/pipeline/{project_id}/priority")

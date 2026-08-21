@@ -79,17 +79,35 @@
     {% if localisations %}
     <table class="mt-2 w-full text-sm bg-white border border-slate-200 rounded overflow-hidden">
         <thead class="bg-slate-50 text-left text-xs text-slate-500">
-            <tr><th class="px-3 py-2">Market</th><th class="px-3 py-2">Translator</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Review</th><th class="px-3 py-2">QA</th><th class="px-3 py-2">Due</th></tr>
+            <tr><th class="px-3 py-2">Market</th><th class="px-3 py-2">Translator</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Review</th><th class="px-3 py-2">QA</th><th class="px-3 py-2">Due</th><th class="px-3 py-2">Actions</th></tr>
         </thead>
         <tbody>
         {% for l in localisations %}
             <tr class="border-t border-slate-100 {% if not l.translator_id and l.due_date and (l.due_date - now).days <= 4 %}bg-red-50{% endif %}">
                 <td class="px-3 py-2">{{ l.target_market }}</td>
-                <td class="px-3 py-2">{{ people_by_id[l.translator_id].name if l.translator_id in people_by_id else 'Unassigned' }}</td>
+                <td class="px-3 py-2">
+                    {% if l.translator_id in people_by_id %}
+                        {{ people_by_id[l.translator_id].name }}
+                    {% else %}
+                        <form method="post" action="/localisation/{{ l.id }}/assign" class="flex gap-1">
+                            <select name="translator_id" class="border border-slate-300 rounded text-xs px-1 py-0.5">
+                                {% for t in translators %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+                            </select>
+                            <button type="submit" class="text-xs bg-slate-800 text-white rounded px-2 py-0.5">Assign</button>
+                        </form>
+                    {% endif %}
+                </td>
                 <td class="px-3 py-2">{{ l.status.value.replace('_', ' ')|title }}</td>
                 <td class="px-3 py-2">{{ l.review_status.value|title }}</td>
                 <td class="px-3 py-2">{{ l.qa_status.value|title }}</td>
                 <td class="px-3 py-2">{{ l.due_date.strftime('%d %b') if l.due_date else '—' }}</td>
+                <td class="px-3 py-2">
+                    {% if l.status.value != 'approved' %}
+                    <form method="post" action="/localisation/{{ l.id }}/advance">
+                        <button type="submit" class="text-xs bg-slate-200 rounded px-2 py-0.5">Advance</button>
+                    </form>
+                    {% else %}—{% endif %}
+                </td>
             </tr>
         {% endfor %}
         </tbody>
@@ -100,8 +118,23 @@
 </div>
 
 <div class="mt-6">
-    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Risk assessment</h2>
-    <p class="mt-2 text-xs text-slate-400">The deterministic risk rule (Phase 5) will populate this from capacity and localisation signals.</p>
+    <div class="flex items-center gap-2">
+        <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Risk assessment</h2>
+        {% if risk_assessment %}<span class="inline-block px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-700">AI</span>{% endif %}
+    </div>
+    {% if not localisations %}
+    <p class="mt-2 text-xs text-slate-400">No localisation on this project — nothing to assess.</p>
+    {% elif risk_assessment is none %}
+    <p class="mt-2 text-sm text-red-700">The risk assessment did not load. The localisation table above is still accurate.</p>
+    {% elif risk_assessment.at_risk %}
+    <div class="mt-2 bg-red-50 border border-red-200 rounded p-3 text-sm">
+        <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-700 mr-1">{{ risk_assessment.severity|title }}</span>
+        {{ risk_assessment.reason }}
+        <p class="mt-1 text-slate-600">{{ risk_assessment.suggested_action }}</p>
+    </div>
+    {% else %}
+    <p class="mt-2 text-sm text-green-700">No localisation risk detected.</p>
+    {% endif %}
 </div>
 
 <div class="mt-6">

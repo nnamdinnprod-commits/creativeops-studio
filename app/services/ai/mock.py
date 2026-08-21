@@ -224,10 +224,13 @@ def mock_assess_portfolio_attention(snapshot: list[dict]) -> AttentionBrief:
 
 
 def mock_check_localisation_risk(project_localisation_facts: dict) -> LocalisationRisk:
+    """Operates at the project level — a project can have several target markets,
+    and Python (app/services/localisation_risk.py) has already decided which of
+    them are at risk and why. This function only composes the phrasing."""
     at_risk = project_localisation_facts["at_risk"]
-    market = project_localisation_facts["target_market"]
-    due_in_days = project_localisation_facts["due_in_days"]
-    translator_assigned = project_localisation_facts["translator_assigned"]
+    at_risk_markets = project_localisation_facts.get("at_risk_markets", [])
+    reasons = project_localisation_facts.get("reasons", [])
+    min_days_to_due = project_localisation_facts.get("min_days_to_due")
 
     if not at_risk:
         return LocalisationRisk(
@@ -238,18 +241,16 @@ def mock_check_localisation_risk(project_localisation_facts: dict) -> Localisati
             severity="low",
         )
 
-    if not translator_assigned:
-        reason = f"{market} review has no assigned translator with {due_in_days} days to deadline."
-        suggested_action = f"Assign a {market} translator today or move the {market} deadline."
-    else:
-        reason = f"{market} localisation is stalled with only {due_in_days} days to deadline."
-        suggested_action = f"Check in on {market} translation progress today."
-
-    severity = "high" if due_in_days <= 4 else "medium"
+    reason = " ".join(reasons) if reasons else f"{', '.join(at_risk_markets)} localisation is at risk."
+    suggested_action = (
+        f"Assign a translator or resolve the review stall for "
+        f"{', '.join(at_risk_markets)} before it slips further."
+    )
+    severity = "high" if min_days_to_due is not None and min_days_to_due <= 4 else "medium"
 
     return LocalisationRisk(
         at_risk=True,
-        markets_at_risk=[market],
+        markets_at_risk=at_risk_markets,
         reason=reason,
         suggested_action=suggested_action,
         severity=severity,
