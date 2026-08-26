@@ -19,8 +19,13 @@
         {% for item in attention.items %}
         <li class="flex items-start gap-2">
             <span class="inline-block px-1.5 py-0.5 rounded text-xs mt-0.5
-                {% if item.severity == 'high' %}bg-red-100 text-red-700
-                {% elif item.severity == 'medium' %}bg-amber-100 text-amber-700
+                {% if item.cause == 'capacity' %}bg-red-100 text-red-700
+                {% elif item.cause == 'localisation' %}bg-blue-100 text-blue-700
+                {% elif item.cause == 'deadline' %}bg-orange-100 text-orange-700
+                {% else %}bg-amber-100 text-amber-700{% endif %}">{{ item.cause|title }}</span>
+            <span class="inline-block px-1.5 py-0.5 rounded text-xs mt-0.5
+                {% if item.severity == 'high' %}bg-red-50 text-red-600 border border-red-200
+                {% elif item.severity == 'medium' %}bg-amber-50 text-amber-600 border border-amber-200
                 {% else %}bg-slate-100 text-slate-600{% endif %}">{{ item.severity|title }}</span>
             <span>{{ item.statement }} &rarr;
                 <a href="/{{ item.suggested_screen }}" class="underline">{{ item.suggested_screen|title }}</a>
@@ -71,20 +76,22 @@
 
     <div class="bg-white rounded shadow-sm p-4">
         <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Team capacity</h2>
-        <div class="mt-3 text-sm space-y-1">
-            <div class="flex justify-between"><span>Aggregate utilisation</span><span class="font-medium">{{ aggregate_utilisation }}%</span></div>
-            <div class="flex justify-between"><span>Overloaded people</span><span class="font-medium text-red-700">{{ overloaded_count }}</span></div>
-            <div class="flex justify-between"><span>Tight people</span><span class="font-medium text-amber-700">{{ tight_count }}</span></div>
-        </div>
+        <a href="/resources" class="mt-3 block text-sm font-medium hover:underline">
+            <span class="text-red-700">{{ overloaded_count }} of {{ total_people }} over capacity</span> ·
+            <span class="text-amber-700">{{ tight_count }} tight</span> ·
+            <span class="text-green-700">{{ available_count }} available</span>
+        </a>
+        <div class="mt-1 text-xs text-slate-400">Team aggregate {{ aggregate_utilisation }}%</div>
         <a href="/resources" class="text-xs text-slate-500 hover:underline mt-3 inline-block">View resource plan &rarr;</a>
     </div>
 </div>
 
-<div class="bg-white rounded shadow-sm p-4 mt-4">
-    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Localisation progress</h2>
-    <div class="mt-2 text-sm">{{ loc_approved }} of {{ loc_total }} localisation rows approved ({{ loc_pct }}%)</div>
-    <div class="mt-2 w-full bg-slate-100 rounded-full h-2">
-        <div class="bg-purple-500 h-2 rounded-full" style="width: {{ loc_pct }}%"></div>
+<a href="/localisation" class="block bg-white rounded shadow-sm p-4 mt-4 hover:bg-slate-50">
+    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Localisation</h2>
+    <div class="mt-2 text-sm">
+        {% for s in market_summaries %}<span class="{% if s.at_risk %}text-red-700 font-medium{% else %}text-slate-700{% endif %}">{{ s.headline }}</span>{% if not loop.last %} · {% endif %}{% endfor %}
+        {% if not market_summaries %}No localisation in flight.{% endif %}
     </div>
-</div>
+    <div class="mt-1 text-xs text-slate-400">{{ loc_approved }} of {{ loc_total }} rows approved overall</div>
+</a>
 {% endblock %}

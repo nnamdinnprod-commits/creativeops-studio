@@ -27,8 +27,12 @@
                     {% endif %}
                     {% if project.id in project_risks %}
                     {% set cause = project_risks[project.id] %}
-                    <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-700">
-                        Risk: {% if cause == 'capacity_conflict' %}Capacity{% elif cause == 'localisation_risk' %}Localisation{% else %}Brief readiness{% endif %}
+                    <span class="inline-block px-1.5 py-0.5 rounded text-xs
+                        {% if cause == 'capacity' %}bg-red-100 text-red-700
+                        {% elif cause == 'localisation' %}bg-blue-100 text-blue-700
+                        {% elif cause == 'deadline' %}bg-orange-100 text-orange-700
+                        {% else %}bg-amber-100 text-amber-700{% endif %}">
+                        {{ cause|title }}
                     </span>
                     {% endif %}
                 </div>

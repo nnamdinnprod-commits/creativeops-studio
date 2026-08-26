@@ -7,7 +7,15 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.templates_env import templates
-from app.models import Assignment, Person, Project, Recommendation, RecommendationKind, RecommendationStatus
+from app.models import (
+    Assignment,
+    Person,
+    PersonRole,
+    Project,
+    Recommendation,
+    RecommendationKind,
+    RecommendationStatus,
+)
 from app.services.ai.resource import recommend_resource
 from app.services.capacity import all_person_capacities, current_allocation_pct, get_conflicts
 
@@ -62,9 +70,11 @@ def _screen_context(db: Session):
 
 
 @router.get("/resources")
-def resources(request: Request, error: str | None = None, db: Session = Depends(get_db)):
+def resources(request: Request, error: str | None = None, info: str | None = None,
+             db: Session = Depends(get_db)):
     context = _screen_context(db)
     context["recommend_failed"] = error == "recommend_failed"
+    context["recommendation_unchanged"] = info == "recommendation_unchanged"
     return templates.TemplateResponse(request, "resources.html", context)
 
 
@@ -86,9 +96,14 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
     overloaded_allocated = current_allocation_pct(overloaded_assignments, today)
     overloaded_skills = set(s.strip() for s in overloaded.skills.split(",") if s.strip())
 
+    # A producer coordinates rather than produces, and a translator does language
+    # work — neither is a plausible substitute for reassigned creative production
+    # work, regardless of spare capacity or an incidental skill-tag overlap.
+    _INELIGIBLE_ROLES = {PersonRole.producer, PersonRole.translator}
+
     candidates = []
     for person in db.query(Person).all():
-        if person.id == person_id:
+        if person.id == person_id or person.role in _INELIGIBLE_ROLES:
             continue
         person_assignments = db.query(Assignment).filter_by(person_id=person.id).all()
         allocated = current_allocation_pct(person_assignments, today)
@@ -129,9 +144,29 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
 def recommend(request: Request, person_id: int = Form(...), project_id: int = Form(...),
               db: Session = Depends(get_db)):
     facts = _build_conflict_facts(db, person_id, project_id)
-    rec = recommend_resource(facts) if facts is not None else None
+    if facts is None:
+        return RedirectResponse(url="/resources?error=recommend_failed", status_code=303)
+
+    # FEEDBACK_LOG.md A4: requesting a recommendation for a conflict that
+    # already has a pending one replaces it rather than appending — but only
+    # if the underlying facts actually changed. If nothing has changed, don't
+    # silently re-run the model; say so and leave the existing one in place.
+    existing = (
+        db.query(Recommendation)
+        .filter_by(kind=RecommendationKind.resource_reallocation, project_id=project_id,
+                  status=RecommendationStatus.pending)
+        .first()
+    )
+    if existing is not None and json.loads(existing.computed_facts_json) == facts:
+        return RedirectResponse(url="/resources?info=recommendation_unchanged", status_code=303)
+
+    rec = recommend_resource(facts)
     if rec is None:
         return RedirectResponse(url="/resources?error=recommend_failed", status_code=303)
+
+    if existing is not None:
+        db.delete(existing)
+        db.flush()
 
     db.add(Recommendation(
         kind=RecommendationKind.resource_reallocation,

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Localisation — CreativeOps Studio{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold">Localisation</h1>
+<p class="text-slate-500 mt-1 text-sm">Demo data. Which languages, which projects, and where the queue is stuck.</p>
+
+<div class="mt-4">
+    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-2">By market</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {% for s in market_summaries %}
+        <div class="bg-white border rounded p-3 text-sm {% if s.at_risk %}border-red-200{% else %}border-slate-200{% endif %}">
+            <div class="font-medium {% if s.at_risk %}text-red-700{% else %}text-slate-700{% endif %}">{{ s.headline }}</div>
+            <div class="mt-2 text-xs text-slate-500 space-y-0.5">
+                <div>{{ s.volume_in_flight }} in flight</div>
+                <div>
+                    {% if s.translator_ids %}
+                    Assigned: {% for tid in s.translator_ids %}{{ people_by_id[tid].name if tid in people_by_id else '—' }}{% if not loop.last %}, {% endif %}{% endfor %}
+                    {% else %}
+                    No translator assigned in this market
+                    {% endif %}
+                </div>
+                {% if s.oldest_item %}
+                <div>Oldest in queue: {{ projects_by_id[s.oldest_item.project_id].name if s.oldest_item.project_id in projects_by_id else '—' }}
+                    ({{ s.oldest_item.status.value.replace('_', ' ')|title }})</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<form method="get" action="/localisation" class="mt-6 flex flex-wrap gap-3 text-sm items-end">
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Market</label>
+        <select name="market" class="border border-slate-300 rounded px-2 py-1" onchange="this.form.submit()">
+            <option value="">All</option>
+            {% for m in all_markets %}
+            <option value="{{ m }}" {% if m == selected_market %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Stage</label>
+        <select name="stage" class="border border-slate-300 rounded px-2 py-1" onchange="this.form.submit()">
+            <option value="">All</option>
+            {% for s in stage_order %}
+            <option value="{{ s.value }}" {% if s.value == selected_stage %}selected{% endif %}>{{ stage_labels[s] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% if selected_market or selected_stage %}
+    <a href="/localisation" class="text-slate-500 underline text-xs pb-1">Clear filters</a>
+    {% endif %}
+</form>
+
+<div class="mt-4 overflow-x-auto">
+<table class="w-full text-sm bg-white border border-slate-200 rounded">
+    <thead class="bg-slate-50 text-left text-xs text-slate-500">
+        <tr>
+            <th class="px-3 py-2 sticky left-0 bg-slate-50">Project</th>
+            {% for m in all_markets %}<th class="px-3 py-2">{{ m }}</th>{% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+    {% for pid in project_ids %}
+        <tr class="border-t border-slate-100">
+            <td class="px-3 py-2 font-medium">
+                <a href="/projects/{{ pid }}" class="hover:underline">{{ projects_by_id[pid].name }}</a>
+            </td>
+            {% for m in all_markets %}
+            <td class="px-3 py-2">
+                {% set row = grid.get(pid, {}).get(m) %}
+                {% if row %}
+                <span class="inline-block px-1.5 py-0.5 rounded text-xs
+                    {% if row.status.value == 'approved' %}bg-green-100 text-green-700
+                    {% elif row.status.value == 'qa' %}bg-purple-100 text-purple-700
+                    {% elif row.status.value == 'in_review' %}bg-amber-100 text-amber-700
+                    {% elif row.status.value == 'in_translation' %}bg-blue-100 text-blue-700
+                    {% else %}bg-slate-100 text-slate-600{% endif %}">
+                    {{ stage_labels[row.status] }}
+                </span>
+                {% if not row.translator_id %}<span class="text-red-500 text-xs ml-1" title="No translator assigned">&#9888;</span>{% endif %}
+                {% else %}
+                <span class="text-slate-300">—</span>
+                {% endif %}
+            </td>
+            {% endfor %}
+        </tr>
+    {% else %}
+        <tr><td colspan="{{ all_markets|length + 1 }}" class="px-3 py-4 text-slate-400 text-center">No localisation rows match this filter.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

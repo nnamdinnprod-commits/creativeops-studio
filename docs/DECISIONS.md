@@ -182,3 +182,40 @@ staying polluted for the next visitor — rather than fighting it with a paid pe
 Consequences: State any one visitor changes (an accepted recommendation, a moved card) can
 disappear the next time the service sleeps and wakes. That's the intended tradeoff for a
 public, unauthenticated demo, not a bug — documented in the README.
+
+## 014 — V2 Session A: the four owner-reviewed fixes from FEEDBACK_LOG.md
+Date: 2026-08-26
+Decision: Implemented A1–A4 from `creativeops-docs-v2/FEEDBACK_LOG.md`.
+- **A1**: Dashboard's capacity tile leads with the distribution ("N of M over capacity ·
+  tight · available") instead of the aggregate %, which was averaging real problems away.
+  Same `capacity.py` computation, presentation only.
+- **A2**: New `/localisation` screen — project × market grid, color-coded by stage, with a
+  per-market summary (volume in flight, assigned translators, oldest item, risk flagged
+  first). Dashboard's localisation tile now names the bottleneck instead of counting rows.
+  New `summarize_by_market()` in `app/services/localisation_risk.py`, reusing the existing
+  risk check rather than duplicating it.
+- **A3**: Attention causes renamed to four canonical tags (`capacity` / `deadline` / `brief`
+  / `localisation`), shown with consistent colours on both the Dashboard panel and Pipeline
+  cards. Added a deadline rule: a project within 7 working days of its deadline still in an
+  early pipeline stage (Brief/Ready/Assigned) is flagged. FEEDBACK_LOG.md's actual wording —
+  "behind where the schedule implies it should be" — depends on the phase/schedule system
+  from Session B (`PLANNING.md`), which doesn't exist yet; the pipeline-stage check is an
+  honest interim proxy, documented in a code comment, to be revisited once that system lands.
+- **A4**: Requesting a recommendation for a conflict that already has a pending one now
+  replaces it only if the underlying facts changed; if unchanged, nothing is regenerated and
+  the UI says so. Comparison is exact equality on the stored `computed_facts_json`.
+
+Alternatives considered (A3): waiting for Session B before adding any deadline rule at all.
+Why: the four items were independently scoped and shippable now; the schedule-derived version
+can replace the proxy later without changing the attention-panel contract.
+
+**Bug found and fixed while testing A4, not part of the four items:** `resources.py`'s
+candidate-building had no role filter — when no candidate's skill tag matched the overloaded
+person's, it fell back to whoever had the most spare capacity with no role check, and
+recommended reassigning a design project to Jonas, an external translator. Same class of bug
+fixed in Phase 4 for the Intelligence flow's candidate list; this was the sibling code path
+that never got the same fix because nothing had exercised its fallback branch until now.
+Excluded `producer` and `translator` roles from resource-reallocation candidates.
+
+Consequences: None of this was pushed or deployed until the owner asked why the live demo
+still showed the old behaviour — a reminder to say explicitly when work is local-only.

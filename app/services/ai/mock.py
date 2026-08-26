@@ -195,9 +195,10 @@ def mock_insight_to_action(insight_facts: dict, capacity_snapshot: list[dict]) -
 
 
 _CAUSE_PHRASING = {
-    "capacity_conflict": "{name} is at risk — {detail}",
-    "localisation_risk": "{name} is blocked — {detail}",
-    "low_brief_readiness": "{name} cannot safely enter production — {detail}",
+    "capacity": "{name} is at risk — {detail}",
+    "localisation": "{name} is blocked — {detail}",
+    "brief": "{name} cannot safely enter production — {detail}",
+    "deadline": "{name} is running out of runway — {detail}",
 }
 
 

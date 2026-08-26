@@ -8,6 +8,10 @@
 <div class="mt-3 bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700">
     The AI recommendation did not return a usable result. Nothing was saved — try again below.
 </div>
+{% elif recommendation_unchanged %}
+<div class="mt-3 bg-slate-50 border border-slate-200 rounded p-3 text-sm text-slate-600">
+    Existing recommendation still current — the conflict is unchanged since it was generated.
+</div>
 {% endif %}
 
 <table class="mt-6 w-full text-sm border-collapse bg-white shadow-sm rounded overflow-hidden">
