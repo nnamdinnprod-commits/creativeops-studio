@@ -4,6 +4,11 @@
 > information about creative operations workflows. Not affiliated with or connected
 > to any company's systems.
 
+**Live demo:** https://creativeops-studio.onrender.com/dashboard — runs on Render's free
+tier, so the first load after a while takes 30–50 seconds to wake up. The database reseeds
+itself on every boot (see decision 013 in `docs/DECISIONS.md`), so if a previous visitor
+changed something, it self-heals rather than staying polluted.
+
 An independent Creative Operations prototype exploring how AI, creative intelligence and
 production planning could work together in a modern multi-market in-house creative studio.
 It was built in roughly a day with AI-assisted development, using entirely invented data, to
