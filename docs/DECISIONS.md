@@ -352,3 +352,38 @@ Consequences: a past-start scenario is reported (`is_feasible=False`, a working-
 without altering any computed date — "never silently compress" holds structurally, since
 there's no compression logic in this function at all; that arrives with
 `assess_schedule_feasibility`'s options list in step 6.
+
+## 019 — Session B step 3: schedule generation, ProjectPhase persisted
+Date: 2026-08-27
+Decision: Added `ProjectPhase` and a `ProjectPhaseStatus` enum (`not_started` /
+`in_progress` / `complete`) to `app/models/__init__.py`, per `PLANNING.md`'s "Data model
+additions". `Project` gained `project_type_id` (nullable FK) and `volume_factor` (float,
+default 1.0). Added `generate_schedule(db, project)` to `app/services/scheduling.py`, which
+runs `back_schedule()` against the project's type and deadline and persists the result as
+`ProjectPhase` rows, replacing any existing rows for that project. 3 new tests (11 total in
+`tests/test_scheduling.py`, 56 across the suite). No route or screen touches this yet —
+Session B step 4 (timeline view) is where a generated schedule first becomes visible.
+Alternatives considered: inferring `ProjectPhaseStatus`'s values from context vs. asking the
+owner; a bulk `Query.delete()` for replacing a project's old schedule vs. an ORM-level
+per-row delete.
+Why:
+1. **`ProjectPhaseStatus` values aren't specified anywhere** — `PLANNING.md`'s `ProjectPhase`
+   row list names the field but not its values. Inferred `not_started`/`in_progress`/
+   `complete` to match the shape `Deliverable` and `Localisation` already use in this app.
+   Low-stakes and easily revisited (nothing reads this field yet), so not worth a question.
+2. **The "replace, don't duplicate" delete used `Query.delete()` first, and that was a real
+   bug**, not a style preference: SQLite reuses rowids after a bulk delete, and a bulk
+   `Query.delete()` doesn't remove the deleted rows' Python objects from SQLAlchemy's session
+   identity map. Regenerating a schedule then raised `SAWarning: Identity map already had an
+   identity for (...)` on every row, because the newly-inserted replacement rows landed on
+   the same primary keys as the just-deleted ones while the session still thought those keys
+   belonged to the old (deleted) objects. Fixed by querying the existing rows and calling
+   `db.delete()` on each — the ORM-tracked path — instead of the bulk query.
+Consequences: local dev's existing `creativeops.db` didn't have the two new `Project` columns
+or the `project_phases` table — `Base.metadata.create_all()` only creates missing tables, it
+doesn't `ALTER` existing ones. Ran `python -m app.seed --reset` to rebuild the local file;
+confirmed all six screens still render against the reset database. Render's deploy is
+unaffected — decision 013 already has it reseeding from a blank file on every boot, so it
+picks up the new schema automatically on next deploy. `Project.project_type_id` stays
+unset for all seeded/existing projects; nothing in the Brief Assistant's create-project flow
+sets it yet.

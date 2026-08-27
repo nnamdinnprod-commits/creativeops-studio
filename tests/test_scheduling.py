@@ -2,11 +2,22 @@ from datetime import date
 
 import pytest
 
-from app.models import PhaseKind, PhaseTemplate, ProjectType
+from app.models import (
+    PersonRole,
+    PhaseKind,
+    PhaseTemplate,
+    Person,
+    Priority,
+    Project,
+    ProjectPhase,
+    ProjectStatus,
+    ProjectType,
+)
 from app.seed import seed_phase_templates
 from app.services.scheduling import (
     CLIENT_REVIEW_DAYS,
     back_schedule,
+    generate_schedule,
     volume_factor_for,
 )
 
@@ -114,3 +125,69 @@ def test_full_film_template_is_internally_consistent(db_session):
         assert gap >= 1  # never overlapping
         assert earlier.end_date.weekday() < 5
         assert later.start_date.weekday() < 5
+
+
+def _seed_project(db_session, project_type_id=None, deadline=date(2026, 12, 4), volume_factor=1.0):
+    owner = Person(name="Owner", role=PersonRole.producer, capacity_pct=100,
+                   skills="", is_external=False)
+    db_session.add(owner)
+    db_session.flush()
+
+    project = Project(name="P1", brand="Albelli", campaign="C", source_market="NL",
+                      priority=Priority.medium, status=ProjectStatus.brief, deadline=deadline,
+                      owner_id=owner.id, brief_raw="x", project_type_id=project_type_id,
+                      volume_factor=volume_factor)
+    db_session.add(project)
+    db_session.commit()
+    return project
+
+
+def test_generate_schedule_persists_project_phases_matching_back_schedule(db_session):
+    seed_phase_templates(db_session)
+    stills = db_session.query(ProjectType).filter_by(name="Stills").one()
+    project = _seed_project(db_session, project_type_id=stills.id, deadline=date(2026, 10, 30))
+
+    phases = generate_schedule(db_session, project)
+
+    templates = (
+        db_session.query(PhaseTemplate)
+        .filter_by(project_type_id=stills.id)
+        .order_by(PhaseTemplate.sequence)
+        .all()
+    )
+    expected = back_schedule(templates, delivery_date=date(2026, 10, 30))
+
+    assert len(phases) == len(expected.phases)
+    for stored, computed in zip(phases, expected.phases):
+        assert stored.name == computed.name
+        assert stored.start_date == computed.start_date
+        assert stored.end_date == computed.end_date
+        assert stored.is_milestone == computed.is_milestone
+        assert stored.project_id == project.id
+        assert stored.status.value == "not_started"
+        assert stored.assigned_person_id is None
+        assert stored.is_anchored is False
+
+
+def test_generate_schedule_without_project_type_raises(db_session):
+    project = _seed_project(db_session, project_type_id=None)
+
+    with pytest.raises(ValueError):
+        generate_schedule(db_session, project)
+
+
+def test_regenerating_a_schedule_replaces_rather_than_duplicates(db_session):
+    seed_phase_templates(db_session)
+    stills = db_session.query(ProjectType).filter_by(name="Stills").one()
+    project = _seed_project(db_session, project_type_id=stills.id, deadline=date(2026, 10, 30))
+
+    first = generate_schedule(db_session, project)
+    project.deadline = date(2026, 11, 13)
+    db_session.commit()
+    second = generate_schedule(db_session, project)
+
+    stored = db_session.query(ProjectPhase).filter_by(project_id=project.id).all()
+    assert len(stored) == len(first) == len(second)
+    assert second[-1].end_date == date(2026, 11, 13)
+    # The stale first-schedule dates are actually gone, not just outnumbered by coincidence.
+    assert not any(p.end_date == date(2026, 10, 30) for p in stored)

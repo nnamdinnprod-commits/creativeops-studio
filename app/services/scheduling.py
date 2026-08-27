@@ -1,11 +1,14 @@
 """docs/PLANNING.md 'Back-scheduling'. Deterministic — dates and day-counts are computed
-here, never by the model. Session B step 2: this is a pure function over PhaseTemplate rows;
-it does not read or write ProjectPhase (that table doesn't exist until step 3)."""
+here, never by the model. back_schedule() is a pure function over PhaseTemplate rows;
+generate_schedule() is the Session B step 3 addition that persists its output as ProjectPhase
+rows for one project."""
 
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from app.models import PhaseKind, PhaseTemplate
+from sqlalchemy.orm import Session
+
+from app.models import PhaseKind, PhaseTemplate, Project, ProjectPhase, ProjectPhaseStatus
 
 # docs/ASSUMPTIONS.md "Review and approval cycles". Session C builds the editable Assumption
 # table; until then this is the fixed value that table would otherwise hold.
@@ -123,3 +126,41 @@ def back_schedule(
         phases=scheduled, project_start=project_start, delivery_date=delivery_date,
         is_feasible=is_feasible, shortfall_working_days=shortfall,
     )
+
+
+def generate_schedule(db: Session, project: Project) -> list[ProjectPhase]:
+    """docs/PLANNING.md 'Data model additions'. Runs back_schedule() against the project's
+    type and deadline, and persists the result as ProjectPhase rows. Regenerating a schedule
+    replaces the project's existing ProjectPhase rows rather than appending — a schedule is
+    derived from the template and the deadline, not something to accumulate duplicates of."""
+    if project.project_type_id is None:
+        raise ValueError(f"Project {project.id} has no project_type_id — cannot generate a schedule")
+
+    templates = (
+        db.query(PhaseTemplate)
+        .filter_by(project_type_id=project.project_type_id)
+        .order_by(PhaseTemplate.sequence)
+        .all()
+    )
+    result = back_schedule(templates, delivery_date=project.deadline, volume_factor=project.volume_factor)
+
+    # ORM-level delete (not a bulk .delete()) so the session's identity map is kept in sync —
+    # a bulk delete leaves the old Python objects mapped to their primary keys, and SQLite's
+    # rowid reuse means the new rows can be assigned those same keys, which then raises an
+    # identity-map warning when they're flushed.
+    for existing in db.query(ProjectPhase).filter_by(project_id=project.id).all():
+        db.delete(existing)
+
+    phases = [
+        ProjectPhase(
+            project_id=project.id, name=p.name, kind=p.kind,
+            start_date=p.start_date, end_date=p.end_date, is_milestone=p.is_milestone,
+            is_anchored=False, status=ProjectPhaseStatus.not_started, assigned_person_id=None,
+        )
+        for p in result.phases
+    ]
+    db.add_all(phases)
+    db.commit()
+    for phase in phases:
+        db.refresh(phase)
+    return phases

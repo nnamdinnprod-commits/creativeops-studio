@@ -107,6 +107,16 @@ class PhaseKind(str, enum.Enum):
     delivery = "delivery"
 
 
+class ProjectPhaseStatus(str, enum.Enum):
+    """PLANNING.md's data model doesn't enumerate status values for ProjectPhase — inferred
+    to match the not_started/in_progress/... shape used by Deliverable and Localisation
+    elsewhere in this app. Logged as an assumption in DECISIONS.md."""
+
+    not_started = "not_started"
+    in_progress = "in_progress"
+    complete = "complete"
+
+
 class Project(TimestampMixin, Base):
     __tablename__ = "projects"
 
@@ -124,6 +134,11 @@ class Project(TimestampMixin, Base):
     risk_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     localisation_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     estimated_days: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # docs/PLANNING.md (Session 2, not yet wired to the Brief Assistant's create-project
+    # flow) — nullable because every project seeded or created before this column existed
+    # has neither a type nor a reason to have generated a schedule.
+    project_type_id: Mapped[int | None] = mapped_column(ForeignKey("project_types.id"), nullable=True)
+    volume_factor: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
 
 
 class Person(TimestampMixin, Base):
@@ -241,3 +256,23 @@ class PhaseTemplate(TimestampMixin, Base):
     is_milestone: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_client_review: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     scales_with_volume: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class ProjectPhase(TimestampMixin, Base):
+    """docs/PLANNING.md (Session 2). A generated, dated instance of a PhaseTemplate row for
+    one project — produced by app/services/scheduling.py's generate_schedule(), not hand-
+    written. Not yet wired to any route or screen (Session B step 4, the timeline view)."""
+
+    __tablename__ = "project_phases"
+
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    kind: Mapped[PhaseKind] = mapped_column(Enum(PhaseKind), nullable=False)
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    is_milestone: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_anchored: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status: Mapped[ProjectPhaseStatus] = mapped_column(
+        Enum(ProjectPhaseStatus), nullable=False, default=ProjectPhaseStatus.not_started
+    )
+    assigned_person_id: Mapped[int | None] = mapped_column(ForeignKey("people.id"), nullable=True)

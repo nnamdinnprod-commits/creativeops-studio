@@ -141,10 +141,9 @@ stable across runs and unit-testable.
 ## ProjectType / PhaseTemplate
 
 Session 2 addition — see `docs/PLANNING.md` for the full spec (phase templates per type,
-back-scheduling algorithm, timeline view). Not yet wired to `Project` or any screen; `Project`
-does not yet have a `project_type_id` column. Seeded by `app/seed.py`'s
-`seed_phase_templates()`, four types (Film / branded content, Event, Stills, Social /
-AI-generated content), 33 phase rows total.
+back-scheduling algorithm, timeline view). Seeded by `app/seed.py`'s `seed_phase_templates()`,
+four types (Film / branded content, Event, Stills, Social / AI-generated content), 43 phase
+rows total across two owner review rounds.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -159,6 +158,31 @@ AI-generated content), 33 phase rows total.
 | `PhaseTemplate.is_milestone` | bool | |
 | `PhaseTemplate.is_client_review` | bool | |
 | `PhaseTemplate.scales_with_volume` | bool | |
+
+`Project` gained two columns for this: `project_type_id` (FK → ProjectType, nullable — every
+project seeded or created before this column existed has neither a type nor a schedule) and
+`volume_factor` (float, default 1.0). Not yet wired into the Brief Assistant's create-project
+flow — a project gets a type only if set directly, e.g. by a test or a future screen.
+
+## ProjectPhase
+
+A generated, dated instance of a `PhaseTemplate` row for one project. Produced by
+`app/services/scheduling.py`'s `generate_schedule()`, never hand-written. Regenerating a
+project's schedule replaces its existing `ProjectPhase` rows rather than appending.
+
+| Field | Type | Notes |
+|---|---|---|
+| `project_id` | FK → Project | |
+| `name` | str | copied from the source `PhaseTemplate` row |
+| `kind` | enum | `prep` / `production` / `review` / `delivery` |
+| `start_date` / `end_date` | date | computed by `back_schedule()` |
+| `is_milestone` | bool | copied from the source template row |
+| `is_anchored` | bool | always `False` today — anchored-phase support isn't built yet (see `DECISIONS.md` 018) |
+| `status` | enum | `not_started` / `in_progress` / `complete` — `PLANNING.md` doesn't specify values for this field; inferred to match the shape used by `Deliverable`/`Localisation` elsewhere, logged in `DECISIONS.md` 019 |
+| `assigned_person_id` | FK → Person, nullable | unset by `generate_schedule()`; Session B step 5 ("assignments derive from phases") is what populates this |
+
+Not yet wired to any route or screen — Session B step 4 (the timeline view) is where a
+generated schedule first becomes visible.
 
 ## Relationship summary
 
