@@ -313,3 +313,42 @@ logic exists. All milestone rows added are 0 days, so `EXPECTED_TOTAL_DAYS` in
 working-day phase, `Client review 2` at 3 days) — Event, Stills and Social keep their
 original totals (27, 17, 11) even with new rows added, since every addition to those three
 was a 0-day milestone. `EXPECTED_PHASE_COUNTS` updated for all four (14, 9, 9, 11).
+
+## 018 — Session B step 2: back-scheduling service
+Date: 2026-08-27
+Decision: Added `app/services/scheduling.py` — a pure function, `back_schedule()`, taking a
+project type's `PhaseTemplate` rows, a delivery date, and an optional volume factor, and
+returning dated phases. No `ProjectPhase` model and no route touch this yet — step 3
+("schedule generation on a project") is what will persist this function's output. 7 unit
+tests in `tests/test_scheduling.py`, plus 6 pre-existing template tests, still passing.
+Alternatives considered: computing review-phase durations from each `PhaseTemplate` row's own
+`default_days`, matching what's stored; deferring anchored-phase handling entirely vs. noting
+it explicitly as out of scope.
+Why, three implementation choices worth flagging:
+1. **Client-review-duration phases (`kind=review`, not a milestone) use a fixed
+   `CLIENT_REVIEW_DAYS = 3` constant, not the template's stored `default_days`** — this is
+   `PLANNING.md`'s point 6, "client review windows come from ASSUMPTIONS.md, not the
+   template," taken literally. `ASSUMPTIONS.md`'s own editable table is Session C scope, so
+   this is a fixed stand-in for that table's `client_review_days` value until then. **This
+   has a real, visible effect today**: Stills' and Social's `Client review` rows are seeded
+   with `default_days=2`, but the *scheduled* duration for both is now 3 working days — the
+   template's stored value stays as the documented default (matches `PLANNING.md`'s table,
+   which the owner reviewed), but scheduling doesn't use it. **Confirmed with the owner
+   2026-08-27**, after seeing a rendered Stills and Social schedule at a real delivery date
+   (30 Oct 2026) with the 2→3 day shift visible on both — the studio-wide 3-day policy,
+   changeable in one place later, is the intended behavior, not the per-template value.
+2. **Anchored phases are out of scope for this step.** `PLANNING.md`'s back-scheduling
+   section describes them (an event's Live day, a shoot pinned to talent availability) as
+   part of the same algorithm, but anchoring is a per-project-instance fact — it belongs on
+   `ProjectPhase.is_anchored`, which doesn't exist until step 3. Building it now would mean
+   designing an input shape with no real caller. Revisit when step 3 lands.
+3. **Feasibility is data, not prose.** The doc's own example ("Working backwards from 14
+   November, this project needed to start 6 November — 4 working days ago...") is written as
+   a sentence, but that sentence is `assess_schedule_feasibility`'s job (step 6, AI-narrated
+   from computed facts), not this service's. `back_schedule()` returns `is_feasible` and
+   `shortfall_working_days` only — the same rule as everywhere else in this app: Python
+   computes, the model explains.
+Consequences: a past-start scenario is reported (`is_feasible=False`, a working-day count)
+without altering any computed date — "never silently compress" holds structurally, since
+there's no compression logic in this function at all; that arrives with
+`assess_schedule_feasibility`'s options list in step 6.
