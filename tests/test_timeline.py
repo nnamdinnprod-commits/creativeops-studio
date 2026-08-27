@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from app.models import (
     Assignment,
@@ -198,3 +198,41 @@ def test_unassign_route_clears_the_assignment(client, db_session):
     db_session.refresh(retouching)
     assert retouching.assigned_person_id is None
     assert db_session.query(Assignment).filter_by(project_phase_id=retouching.id).count() == 0
+
+
+def test_timeline_shows_a_behind_badge_and_ai_panel_for_an_infeasible_schedule(client, db_session):
+    seed_phase_templates(db_session)
+    owner = _seed_person(db_session)
+    film = db_session.query(ProjectType).filter_by(name="Film / branded content").one()
+    # Film needs ~35 working days; 3 calendar days out is nowhere close, regardless of
+    # what "today" actually is when this test runs.
+    project = Project(name="Tight Turnaround", brand="Hofmann", campaign="C", source_market="ES",
+                      priority=Priority.high, status=ProjectStatus.brief,
+                      deadline=date.today() + timedelta(days=3), owner_id=owner.id, brief_raw="x",
+                      project_type_id=film.id)
+    db_session.add(project)
+    db_session.commit()
+    generate_schedule(db_session, project)
+
+    resp = client.get("/timeline")
+    assert resp.status_code == 200
+    assert "Behind" in resp.text
+    assert "Schedule feasibility" in resp.text
+    assert "working day" in resp.text
+
+
+def test_timeline_does_not_show_behind_badge_for_a_feasible_schedule(client, db_session):
+    seed_phase_templates(db_session)
+    owner = _seed_person(db_session)
+    social = db_session.query(ProjectType).filter_by(name="Social / AI-generated content").one()
+    project = Project(name="Plenty of Runway", brand="Hofmann", campaign="C", source_market="ES",
+                      priority=Priority.medium, status=ProjectStatus.brief,
+                      deadline=date.today() + timedelta(days=90), owner_id=owner.id, brief_raw="x",
+                      project_type_id=social.id)
+    db_session.add(project)
+    db_session.commit()
+    generate_schedule(db_session, project)
+
+    resp = client.get("/timeline")
+    assert resp.status_code == 200
+    assert "Behind" not in resp.text

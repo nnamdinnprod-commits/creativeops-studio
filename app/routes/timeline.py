@@ -5,7 +5,9 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.templates_env import templates
 from app.models import PhaseKind, Person, Project, ProjectPhase, ProjectType
+from app.services.ai.feasibility import assess_schedule_feasibility
 from app.services.assignment import assign_phase, phase_candidates, unassign_phase
+from app.services.scheduling import build_feasibility_facts
 from app.services.timeline import build_timeline
 
 router = APIRouter()
@@ -56,6 +58,14 @@ def timeline(request: Request, brand: str | None = None, market: str | None = No
         and phase.assigned_person_id is None
     }
 
+    # assess_schedule_feasibility (Session B step 6) — only called for a project whose
+    # schedule doesn't fit its deadline; a feasible schedule has nothing to narrate.
+    feasibility_by_project_id = {}
+    for project, phases in projects_with_phases:
+        facts = build_feasibility_facts(phases, project.deadline)
+        if not facts.get("feasible", True):
+            feasibility_by_project_id[project.id] = assess_schedule_feasibility(facts)
+
     return templates.TemplateResponse(request, "timeline.html", {
         "timeline": context,
         "all_brands": sorted({p.brand for p in scheduled_projects}),
@@ -70,6 +80,7 @@ def timeline(request: Request, brand: str | None = None, market: str | None = No
         "candidates_by_phase_id": candidates_by_phase_id,
         "people_by_id": people_by_id,
         "assign_failed": error == "assign_failed",
+        "feasibility_by_project_id": feasibility_by_project_id,
     })
 
 

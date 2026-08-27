@@ -107,3 +107,21 @@ class LocalisationRisk(BaseModel):
     reason: str
     suggested_action: str
     severity: Literal["low", "medium", "high"]
+
+
+# --- 6. assess_schedule_feasibility (Session B) -------------------------------
+
+class ScheduleOption(BaseModel):
+    action: str
+    detail: str
+    recovers_days: int
+
+
+class ScheduleAssessment(BaseModel):
+    feasible: bool
+    shortfall_days: int = 0
+    binding_constraint: str | None = None
+    statement: str
+    options: list[ScheduleOption] = []
+    confidence: Literal["low", "medium", "high"]
+    caveats: list[str] = []

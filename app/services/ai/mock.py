@@ -20,6 +20,8 @@ from app.services.ai.schemas import (
     ProductionRecommendation,
     ResourceImpact,
     ResourceRecommendation,
+    ScheduleAssessment,
+    ScheduleOption,
     SuggestedWindow,
 )
 
@@ -255,4 +257,38 @@ def mock_check_localisation_risk(project_localisation_facts: dict) -> Localisati
         reason=reason,
         suggested_action=suggested_action,
         severity=severity,
+    )
+
+
+def mock_assess_schedule_feasibility(computed_schedule_facts: dict) -> ScheduleAssessment:
+    if computed_schedule_facts.get("feasible", True):
+        return ScheduleAssessment(
+            feasible=True, shortfall_days=0, binding_constraint=None,
+            statement="This schedule fits comfortably within the deadline.",
+            options=[], confidence="high", caveats=[],
+        )
+
+    shortfall = computed_schedule_facts["shortfall_days"]
+    project_start = computed_schedule_facts["project_start"]
+    candidates = computed_schedule_facts.get("binding_constraint_candidates", [])
+    top = candidates[0] if candidates else None
+
+    statement = (
+        f"Working backwards from the deadline, this project needed to start {project_start} "
+        f"— {shortfall} working day{'s' if shortfall != 1 else ''} ago."
+    )
+    if top is not None:
+        statement += (
+            f" {top['phase_name']} ({top['working_days']} working days) is the largest "
+            "single contributor."
+        )
+
+    return ScheduleAssessment(
+        feasible=False,
+        shortfall_days=shortfall,
+        binding_constraint=top["phase_name"] if top else None,
+        statement=statement,
+        options=[ScheduleOption(**opt) for opt in computed_schedule_facts.get("options", [])],
+        confidence="high",
+        caveats=[],
     )

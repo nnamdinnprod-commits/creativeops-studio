@@ -13,6 +13,7 @@ from app.models import PhaseKind, PhaseTemplate, Project, ProjectPhase, ProjectP
 # docs/ASSUMPTIONS.md "Review and approval cycles". Session C builds the editable Assumption
 # table; until then this is the fixed value that table would otherwise hold.
 CLIENT_REVIEW_DAYS = 3
+CLIENT_REVIEW_MINIMUM_DAYS = 2
 
 # docs/ASSUMPTIONS.md "Volume scaling" — deliberately sub-linear, setup cost is fixed.
 VOLUME_SCALE_BANDS: list[tuple[int, int, float]] = [
@@ -43,6 +44,30 @@ def _working_days_before(from_date: date, count: int) -> date:
     for _ in range(count):
         current = _working_day_before(current)
     return current
+
+
+def _working_days_after(from_date: date, count: int) -> date:
+    """`from_date` itself if count is 0, otherwise the date `count` working days later."""
+    current = from_date
+    remaining = count
+    while remaining > 0:
+        current += timedelta(days=1)
+        if current.weekday() < 5:
+            remaining -= 1
+    return current
+
+
+def _working_days_in_range(start: date, end: date) -> int:
+    """Weekdays from start to end inclusive — used for a persisted ProjectPhase, which
+    stores only its start/end dates, not the working-day count that produced them (a
+    phase's own span can cross a weekend without that weekend counting as work)."""
+    count = 0
+    current = start
+    while current <= end:
+        if current.weekday() < 5:
+            count += 1
+        current += timedelta(days=1)
+    return count
 
 
 def _working_days_between(earlier: date, later: date) -> int:
@@ -168,3 +193,64 @@ def generate_schedule(db: Session, project: Project) -> list[ProjectPhase]:
     for phase in phases:
         db.refresh(phase)
     return phases
+
+
+def build_feasibility_facts(
+    phases: list[ProjectPhase], deadline: date, today: date | None = None
+) -> dict:
+    """docs/PLANNING.md 'What the AI does here'. Every number, date, and option here is
+    computed before assess_schedule_feasibility's prompt is built — the model only picks
+    which given candidate to call the binding constraint and writes the sentence; it never
+    moves a number. Returns {"feasible": True} with nothing else when there's no shortfall
+    to explain.
+
+    Compression order (PLANNING.md "Compression order"): review windows first, then
+    revision phases — never a fabrication lead time or an anchored phase. Reviews and
+    revisions are the only two priorities computable today; "overlap phases that don't
+    strictly depend on each other" needs a dependency graph this data model doesn't have,
+    so it's not attempted rather than faked."""
+    today = today or date.today()
+    if not phases:
+        return {"feasible": True}
+
+    project_start = min(p.start_date for p in phases)
+    if project_start >= today:
+        return {"feasible": True}
+
+    shortfall_days = _working_days_between(project_start, today)
+
+    non_milestone = [(p, _working_days_in_range(p.start_date, p.end_date))
+                     for p in phases if not p.is_milestone]
+    ranked = sorted(non_milestone, key=lambda pair: -pair[1])
+    binding_constraint_candidates = [
+        {"phase_name": p.name, "working_days": days} for p, days in ranked[:3]
+    ]
+
+    options = []
+    for p, days in non_milestone:
+        if p.kind == PhaseKind.review and days > CLIENT_REVIEW_MINIMUM_DAYS:
+            options.append({
+                "action": "compress_review",
+                "detail": f"{p.name} {days} days to {CLIENT_REVIEW_MINIMUM_DAYS}",
+                "recovers_days": days - CLIENT_REVIEW_MINIMUM_DAYS,
+            })
+        if "revision" in p.name.lower():
+            options.append({
+                "action": "drop_revisions",
+                "detail": f"drop {p.name} ({days} days)",
+                "recovers_days": days,
+            })
+    options.append({
+        "action": "move_delivery",
+        "detail": f"to {_working_days_after(deadline, shortfall_days).isoformat()}",
+        "recovers_days": shortfall_days,
+    })
+
+    return {
+        "feasible": False,
+        "shortfall_days": shortfall_days,
+        "delivery_date": deadline.isoformat(),
+        "project_start": project_start.isoformat(),
+        "binding_constraint_candidates": binding_constraint_candidates,
+        "options": options,
+    }

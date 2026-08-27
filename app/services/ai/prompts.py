@@ -88,3 +88,22 @@ def build_localisation_prompt(project_localisation_facts: dict) -> str:
         "markets_at_risk, reason, suggested_action, severity."
         + _FOOTER
     )
+
+
+def build_schedule_feasibility_prompt(computed_schedule_facts: dict) -> str:
+    return (
+        "You are a creative operations assistant assessing whether a generated production "
+        "schedule fits its deadline. Feasibility, the shortfall in working days, the "
+        "candidate binding constraints, and every option's recovered days have already "
+        "been computed by deterministic Python — you are choosing which one candidate best "
+        "explains the shortfall and writing one clear, specific sentence a producer can "
+        "act on, not deciding feasibility or inventing a phase or a day count yourself.\n\n"
+        f"Computed facts (JSON):\n{json.dumps(computed_schedule_facts, default=str)}\n\n"
+        "Return an object with: feasible (echo the given value exactly), shortfall_days "
+        "(echo exactly), binding_constraint (must be exactly one of the given "
+        "binding_constraint_candidates' phase_name values, or null if feasible is true), "
+        "statement (name the working-day shortfall and the binding constraint in plain "
+        "language), options (echo the given options list exactly — same items, same order, "
+        "same recovers_days — do not add, remove, or reword any), confidence, caveats."
+        + _FOOTER
+    )

@@ -16,7 +16,9 @@ from app.models import (
 from app.seed import seed_phase_templates
 from app.services.scheduling import (
     CLIENT_REVIEW_DAYS,
+    CLIENT_REVIEW_MINIMUM_DAYS,
     back_schedule,
+    build_feasibility_facts,
     generate_schedule,
     volume_factor_for,
 )
@@ -191,3 +193,68 @@ def test_regenerating_a_schedule_replaces_rather_than_duplicates(db_session):
     assert second[-1].end_date == date(2026, 11, 13)
     # The stale first-schedule dates are actually gone, not just outnumbered by coincidence.
     assert not any(p.end_date == date(2026, 10, 30) for p in stored)
+
+
+def _project_phase(name, start, end, kind=PhaseKind.production, is_milestone=False):
+    return ProjectPhase(
+        project_id=1, name=name, kind=kind, start_date=start, end_date=end,
+        is_milestone=is_milestone, is_anchored=False,
+    )
+
+
+def test_build_feasibility_facts_feasible_when_start_not_in_past():
+    phases = [_project_phase("Work", date(2026, 9, 10), date(2026, 9, 14))]
+    facts = build_feasibility_facts(phases, deadline=date(2026, 9, 14), today=date(2026, 9, 3))
+    assert facts == {"feasible": True}
+
+
+def test_build_feasibility_facts_empty_phases_is_feasible():
+    assert build_feasibility_facts([], deadline=date(2026, 9, 14)) == {"feasible": True}
+
+
+def test_build_feasibility_facts_computes_shortfall_and_candidates():
+    phases = [
+        _project_phase("Concept", date(2026, 9, 3), date(2026, 9, 3), kind=PhaseKind.prep),
+        _project_phase("Client review", date(2026, 9, 4), date(2026, 9, 9), kind=PhaseKind.review),
+        _project_phase("Revisions", date(2026, 9, 10), date(2026, 9, 11), kind=PhaseKind.production),
+        _project_phase("Delivery", date(2026, 9, 14), date(2026, 9, 14), kind=PhaseKind.delivery),
+    ]
+    facts = build_feasibility_facts(phases, deadline=date(2026, 9, 14), today=date(2026, 9, 10))
+
+    assert facts["feasible"] is False
+    assert facts["shortfall_days"] == 5  # working days from 9/3 (Thu) to 9/10 (Thu)
+    assert facts["project_start"] == "2026-09-03"
+
+    candidates = facts["binding_constraint_candidates"]
+    assert len(candidates) <= 3
+    assert candidates[0] == {"phase_name": "Client review", "working_days": 4}
+
+    options = {opt["action"]: opt for opt in facts["options"]}
+    assert options["compress_review"] == {
+        "action": "compress_review", "detail": "Client review 4 days to 2", "recovers_days": 2,
+    }
+    assert options["drop_revisions"] == {
+        "action": "drop_revisions", "detail": "drop Revisions (2 days)", "recovers_days": 2,
+    }
+    assert options["move_delivery"] == {
+        "action": "move_delivery", "detail": "to 2026-09-21", "recovers_days": 5,
+    }
+
+
+def test_build_feasibility_facts_no_compress_review_option_at_or_below_minimum():
+    phases = [
+        _project_phase("Client review", date(2026, 9, 3), date(2026, 9, 4), kind=PhaseKind.review),
+    ]
+    facts = build_feasibility_facts(phases, deadline=date(2026, 9, 4), today=date(2026, 9, 10))
+    actions = {opt["action"] for opt in facts["options"]}
+    assert "compress_review" not in actions
+
+
+def test_build_feasibility_facts_excludes_milestones_from_candidates_and_options():
+    phases = [
+        _project_phase("PPM", date(2026, 9, 3), date(2026, 9, 3), kind=PhaseKind.review, is_milestone=True),
+        _project_phase("Work", date(2026, 9, 3), date(2026, 9, 3), kind=PhaseKind.production),
+    ]
+    facts = build_feasibility_facts(phases, deadline=date(2026, 9, 3), today=date(2026, 9, 10))
+    names = {c["phase_name"] for c in facts["binding_constraint_candidates"]}
+    assert "PPM" not in names

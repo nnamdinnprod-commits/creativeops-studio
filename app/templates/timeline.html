@@ -83,6 +83,9 @@
                 <button type="button" @click="open = !open" class="text-left hover:underline font-medium">
                     <span x-text="open ? '▾' : '▸'"></span> {{ row.project.name }}
                 </button>
+                {% if row.project.id in feasibility_by_project_id %}
+                <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-700 ml-1" title="Behind schedule">Behind</span>
+                {% endif %}
                 <div class="text-xs text-slate-400">{{ row.project.brand }} · {{ row.project.source_market }}</div>
             </div>
             <div class="relative flex-1 py-3 pr-3" style="min-height: 36px;">
@@ -107,6 +110,30 @@
             </div>
         </div>
         <div x-show="open" class="pl-40 pb-3 pr-3">
+            {% if row.project.id in feasibility_by_project_id %}
+                {% set assessment = feasibility_by_project_id[row.project.id] %}
+                <div class="mb-3 bg-red-50 border border-red-200 rounded p-3 text-xs">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="font-semibold text-red-700">Schedule feasibility</span>
+                        <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-700">AI</span>
+                    </div>
+                    {% if assessment is none %}
+                    <p class="text-red-700">The feasibility assessment did not load. This project is still behind schedule — see the bars above.</p>
+                    {% else %}
+                    <p class="text-slate-700">{{ assessment.statement }}</p>
+                    {% if assessment.options %}
+                    <ul class="mt-1.5 space-y-0.5 text-slate-600">
+                        {% for opt in assessment.options %}
+                        <li>&middot; {{ opt.detail }} (recovers {{ opt.recovers_days }} working day{{ 's' if opt.recovers_days != 1 else '' }})</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    {% if assessment.caveats %}
+                    <p class="mt-1.5 text-slate-500 italic">{{ assessment.caveats|join(' ') }}</p>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            {% endif %}
             <table class="w-full text-xs">
                 <tbody>
                 {% for bar in row.bars %}

@@ -5,11 +5,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.templates_env import templates
-from app.models import Localisation, LocalisationStatus, Project, ProjectStatus
+from app.models import Localisation, LocalisationStatus, Project, ProjectPhase, ProjectStatus
+from app.services.ai.feasibility import assess_schedule_feasibility
 from app.services.ai.risk import assess_portfolio_attention
 from app.services.attention import build_attention_snapshot
 from app.services.capacity import all_person_capacities
 from app.services.localisation_risk import summarize_by_market
+from app.services.scheduling import build_feasibility_facts
 
 router = APIRouter()
 
@@ -61,6 +63,24 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     # Risk-carrying markets first, then busiest, capped so the line stays readable.
     market_summaries = summarize_by_market(db, on_date=today)[:3]
 
+    # assess_schedule_feasibility (Session B step 6) — only scheduled projects that don't
+    # fit their deadline get an assessment; a feasible schedule has nothing to narrate.
+    scheduled_ids = [row[0] for row in db.query(ProjectPhase.project_id).distinct().all()]
+    schedule_alerts = []
+    for pid in scheduled_ids:
+        project = next((p for p in projects if p.id == pid), None)
+        if project is None:
+            continue
+        phases = db.query(ProjectPhase).filter_by(project_id=pid).all()
+        facts = build_feasibility_facts(phases, project.deadline, today=today)
+        if facts.get("feasible", True):
+            continue
+        schedule_alerts.append({
+            "project": project,
+            "assessment": assess_schedule_feasibility(facts),
+        })
+    schedule_alerts.sort(key=lambda a: a["project"].deadline)
+
     return templates.TemplateResponse(request, "dashboard.html", {
         "active_count": len(active_projects),
         "on_track_count": len(on_track_projects),
@@ -77,4 +97,5 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         "loc_pct": loc_pct,
         "market_summaries": market_summaries,
         "attention": attention,
+        "schedule_alerts": schedule_alerts,
     })

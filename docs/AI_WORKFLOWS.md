@@ -24,7 +24,8 @@ app/services/ai/
 ├── risk.py          # assess_portfolio_attention, assess_project_risk
 ├── resource.py      # recommend_resource
 ├── insight.py       # insight_to_action
-└── localisation.py  # check_localisation_risk
+├── localisation.py  # check_localisation_risk
+└── feasibility.py   # assess_schedule_feasibility (Session B, DECISIONS.md 022)
 ```
 
 `client.py` exposes one function:
@@ -188,6 +189,41 @@ demonstrate.
 
 The `at_risk` determination is made in Python first; the model supplies phrasing and the
 suggested action.
+
+### 6. `assess_schedule_feasibility(computed_schedule_facts) -> ScheduleAssessment` (Session B)
+
+Wired into `/timeline` (per project) and `/dashboard`'s Schedule tile. See `docs/PLANNING.md`
+"What the AI does here" for the full spec and `docs/DECISIONS.md` 022 for what's built.
+
+```json
+{
+  "feasible": false,
+  "shortfall_days": 30,
+  "binding_constraint": "Pre-production",
+  "statement": "Working backwards from the deadline, this project needed to start 2026-07-16 — 30 working days ago. Pre-production (8 working days) is the largest single contributor.",
+  "options": [
+    {"action": "compress_review", "detail": "Client review 1 3 days to 2", "recovers_days": 1},
+    {"action": "drop_revisions", "detail": "drop Revisions (2 days)", "recovers_days": 2},
+    {"action": "move_delivery", "detail": "to 2026-10-19", "recovers_days": 30}
+  ],
+  "confidence": "high",
+  "caveats": []
+}
+```
+
+`feasible`, `shortfall_days`, and every `options` entry are computed by
+`app/services/scheduling.py`'s `build_feasibility_facts()` (compression order: review
+windows first, then revision phases — never a fabrication lead time or an anchored phase)
+and overwritten from those facts after parsing, exactly like `recommend_resource`'s `impact`
+figures on accept — the model cannot move a number. The model's only real choices are which
+of the given `binding_constraint_candidates` to name as `binding_constraint` (validated
+after parsing; an unfamiliar name falls back to Python's top candidate) and the wording of
+`statement`/`caveats`/`confidence`. Only called for a project whose schedule doesn't fit its
+deadline — a feasible schedule has nothing to narrate, so no call is made and no panel shows.
+
+"Overlap phases that don't strictly depend on each other" (`PLANNING.md`'s third compression
+priority) isn't computed — it needs a phase dependency graph this data model doesn't have.
+Not attempted rather than faked.
 
 ---
 

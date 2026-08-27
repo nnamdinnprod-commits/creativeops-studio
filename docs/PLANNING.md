@@ -225,7 +225,8 @@ at `/timeline` — nothing auto-picks a person. `ProjectPhase` gained a `require
 
 ## What the AI does here
 
-One function, added to `AI_WORKFLOWS.md`:
+**Built** — `app/services/ai/feasibility.py`, wired into `/timeline` and `/dashboard`
+(`DECISIONS.md` 022). One function, added to `AI_WORKFLOWS.md`:
 
 `assess_schedule_feasibility(computed_schedule_facts) -> ScheduleAssessment`
 

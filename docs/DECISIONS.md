@@ -487,3 +487,52 @@ if a producer overrides past what `phase_candidates()` offers (verified in
 existing conflict detection catches it on the Resources screen exactly as it would any other
 overload, which is the intended integration, not a gap. Reset the local dev database again
 (two new columns).
+
+## 022 — Session B step 6: assess_schedule_feasibility, the first Session B AI function
+Date: 2026-08-27
+Decision: Added `app/services/ai/feasibility.py` (`assess_schedule_feasibility`), its
+`ScheduleAssessment`/`ScheduleOption` schemas, mock, and prompt — the sixth AI function,
+following the existing five's exact plumbing (`client.py`/`mock.py`/`prompts.py`/wrapper
+file). The deterministic facts it consumes come from a new
+`app/services/scheduling.py::build_feasibility_facts()`, not from the AI layer — same rule as
+everywhere else: Python computes, the model narrates. Wired into `/timeline` (a red "Behind"
+badge plus a full statement-and-options panel per project, styled like the existing
+localisation-risk panel on project detail) and `/dashboard` (a new "Schedule" tile, styled
+like the existing Localisation tile). Only called for a project whose generated schedule
+doesn't fit its deadline — a feasible one has nothing to narrate, so no call and no panel.
+14 new tests (5 for `build_feasibility_facts()` in `tests/test_scheduling.py`, 5 for the AI
+wrapper/invention-guard/mock in `tests/test_ai_feasibility.py`, 2 route tests in
+`tests/test_timeline.py`, 2 in the new `tests/test_dashboard.py`), 91 across the suite.
+Alternatives considered: letting the model choose `shortfall_days`/`options` itself instead
+of overwriting them after parsing; computing `binding_constraint` deterministically in Python
+instead of letting the model pick from candidates; attempting the third compression priority
+("overlap phases that don't strictly depend on each other").
+Why, three real decisions:
+1. **Every number is recomputed from the facts after parsing, never trusted from the
+   response** — `feasible`, `shortfall_days`, and the entire `options` list are overwritten
+   unconditionally, the same treatment `recommend_resource`'s `impact` figures get on
+   accept. `binding_constraint` is the one field left to the model, and only because
+   `PLANNING.md` says so explicitly ("the model chooses which constraint to name as
+   binding") — even then it's validated against the given
+   `binding_constraint_candidates` after parsing and corrected to Python's own top
+   candidate if the model names anything else (`test_invention_guard_rejects_a_binding_
+   constraint_not_in_candidates`).
+2. **`binding_constraint_candidates` are Python's top 3 non-milestone phases by working-day
+   count**, not a single forced answer — this gives the model a real (bounded) choice to
+   make, consistent with how `recommend_resource` already hands the model a feasible
+   candidate list rather than a single answer.
+3. **The third compression priority is not attempted.** `PLANNING.md`'s compression order
+   is review windows, then revision phases, then phase overlap, then "flag not achievable."
+   The first two are computed (`compress_review` from `ASSUMPTIONS.md`'s
+   `client_review_minimum_days`; `drop_revisions` for any phase named "revision", full
+   removal, matching `PLANNING.md`'s own worked example — "drop the revisions phase," not a
+   partial trim). The third needs a phase dependency graph — nothing in this data model
+   records which phases can run in parallel — so it's left out rather than guessed at.
+   "Flag not achievable" is what the whole panel already does when no option closes the gap.
+Consequences: `move_delivery`'s recovered days always exactly close the shortfall (it's
+defined that way — the new date is `shortfall_days` working days past the current deadline);
+`compress_review` and `drop_revisions` may each recover less, and nothing sums them or
+picks a combination — the panel lists independent moves for a producer to weigh, not a
+solved plan. Verified against the real seed data, not just synthetic tests: both of the
+Timeline's infeasible demo projects (`Spring Lookbook`, `Autumn Prints FR Push` — decision
+020) now show a real computed shortfall and options on both screens.
