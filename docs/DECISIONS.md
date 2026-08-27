@@ -219,3 +219,23 @@ Excluded `producer` and `translator` roles from resource-reallocation candidates
 
 Consequences: None of this was pushed or deployed until the owner asked why the live demo
 still showed the old behaviour — a reminder to say explicitly when work is local-only.
+
+## 015 — Resolved two dangling references found before starting Session B
+Date: 2026-08-27
+Decision: (1) Moved `creativeops-docs-v2/{PLANNING,BRIEF_MODES,ASSUMPTIONS,FEEDBACK_LOG}.md`
+into `docs/` and added all four to the doc table in `CLAUDE.md`, ahead of `FEEDBACK_LOG.md`'s
+own "when starting Session B" housekeeping schedule — the directory was sitting uncommitted
+on disk, so folding it in now was lower-risk than leaving it stray. (2) `BRIEF_MODES.md` and
+`FEEDBACK_LOG.md` both referenced a `SUPERVISION.md` "check 4" that does not exist anywhere
+in the repo or its git history. Owner confirmed the intended referent is the readiness-gate
+refusal — `check_readiness_gate` and `validate_transition` in `app/routes/pipeline.py` — and
+both docs were reworded to point at that code directly instead of a nonexistent file.
+Alternatives considered: writing a new `SUPERVISION.md` to match the reference; leaving the
+reference as-is with a flag to revisit before Session B.
+Why: the owner picked the option that resolves the ambiguity now rather than deferring it.
+Consequences: **A real gap surfaced while resolving this** — `check_readiness_gate` and
+`validate_transition` have no automated test today, despite `BUILD_PLAN.md` Phase 3's exit
+criteria requiring "an invalid transition is refused with a reason." `FEEDBACK_LOG.md` now
+notes this explicitly. This should get a test before or alongside Session B work that touches
+pipeline transitions — it was not in scope to add here since the ask was to resolve the two
+reference/filing issues, not to write new tests.

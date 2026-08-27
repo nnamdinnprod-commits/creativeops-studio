@@ -26,6 +26,10 @@ read the doc that governs it:
 | `docs/BUILD_PLAN.md` | Phase order, time boxes, per-phase exit criteria |
 | `docs/DEMO_DATA.md` | Seed data and the conflicts it must produce |
 | `docs/DECISIONS.md` | Log of architectural decisions and why |
+| `docs/FEEDBACK_LOG.md` | Owner review notes and the prioritised change list (Sessions A/B/C) |
+| `docs/PLANNING.md` | Session 2 spec: phase templates, back-scheduling, timeline view — not yet built |
+| `docs/BRIEF_MODES.md` | Session 2 spec: Quick Estimate / Full Brief modes — not yet built |
+| `docs/ASSUMPTIONS.md` | Session 2 spec: editable planning assumptions and rate bands — not yet built |
 
 If code and docs disagree, stop and ask which is wrong. Do not quietly change the docs to
 match the code.
