@@ -1,10 +1,12 @@
 # Assumptions Library
 
-**Status: the table, seed, and editable screen (`/assumptions`) are built — Session C step 1,
-see `DECISIONS.md` 025.** Not yet wired into anything that reads it live: `PLANNING.md`'s
-back-scheduling (`app/services/scheduling.py`) still uses its own hardcoded constants, and
-`BRIEF_MODES.md`'s Quick Estimate mode (steps 2-4 below) is what will actually consume these
-values — editing a number here has no effect on the app yet, beyond the number itself.
+**Status: built and live.** The table, seed, and editable screen (`/assumptions`) are Session
+C step 1 (`DECISIONS.md` 025); Quick Estimate mode (`/brief`, `app/services/estimate.py`) is
+Session C steps 2–4 (`DECISIONS.md` 026) and is the real consumer — editing a value on
+`/assumptions` and recomputing an open estimate now genuinely changes the numbers, no code
+change required. `PLANNING.md`'s back-scheduling (`app/services/scheduling.py`, Session B)
+is the one thing in the app that still reads its own hardcoded constants rather than this
+table — a deliberate, documented gap (`DECISIONS.md` 025), not an oversight.
 
 ## What this is
 
@@ -103,8 +105,10 @@ How input uncertainty widens an output range.
 
 **Built** (`/assumptions`) — a single editable table, grouped by category. Each row shows
 key, current value, default, and a short note on what it affects. "Changing a value
-recomputes any open estimate or schedule immediately" is not yet true — there's no open
-estimate to recompute until Quick Estimate mode (step 2) exists and reads these values live.
+recomputes any open estimate or schedule immediately" is true for a Quick Estimate — edit a
+value here, then hit Recalculate on `/brief`'s Quick Estimate tab, and the range moves.
+Generated project schedules (`PLANNING.md`'s back-scheduling) are the one exception: they
+still read `app/services/scheduling.py`'s own hardcoded constants, not this table.
 
 The "Confidence bands" table above is two numbers per row (low/high factor per band); the
 editable table flattens that into one row per number — `confidence_high_low_factor`,

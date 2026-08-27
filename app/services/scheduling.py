@@ -46,7 +46,7 @@ def _working_days_before(from_date: date, count: int) -> date:
     return current
 
 
-def _working_days_after(from_date: date, count: int) -> date:
+def working_days_after(from_date: date, count: int) -> date:
     """`from_date` itself if count is 0, otherwise the date `count` working days later."""
     current = from_date
     remaining = count
@@ -242,7 +242,7 @@ def build_feasibility_facts(
             })
     options.append({
         "action": "move_delivery",
-        "detail": f"to {_working_days_after(deadline, shortfall_days).isoformat()}",
+        "detail": f"to {working_days_after(deadline, shortfall_days).isoformat()}",
         "recovers_days": shortfall_days,
     })
 

@@ -18,6 +18,8 @@ from app.services.ai.schemas import (
     LocalisationRisk,
     ProductionDeliverable,
     ProductionRecommendation,
+    QuickEstimate,
+    QuickEstimateAssumption,
     ResourceImpact,
     ResourceRecommendation,
     ScheduleAssessment,
@@ -46,6 +48,20 @@ _CHANNEL_DELIVERABLE_MAP = {
 }
 _HEDGE_WORDS = ["ideally", "maybe", "probably", "not sure", "tbc", "tbd", "i think", "who signs off"]
 _WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+_NUMBER_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "a dozen": 12, "twenty": 20,
+}
+# Checked in this order — "event"/"film" keywords are unambiguous; "shoot" alone is not
+# (it also drives the original_photography toggle), so it's deliberately not a work_type
+# signal on its own.
+_WORK_TYPE_KEYWORDS = [
+    ("event", ["event", "activation", "fabrication", "live show"]),
+    ("film", ["film", "video", "commercial", "branded content"]),
+    ("stills", ["photo", "photography", "lookbook", "catalogue"]),
+    ("social", ["social", "campaign", "ai-generated", "ai generated"]),
+]
 
 
 def mock_analyse_brief(raw_text: str) -> BriefExtraction:
@@ -291,4 +307,95 @@ def mock_assess_schedule_feasibility(computed_schedule_facts: dict) -> ScheduleA
         options=[ScheduleOption(**opt) for opt in computed_schedule_facts.get("options", [])],
         confidence="high",
         caveats=[],
+    )
+
+
+def _infer_work_type(text: str) -> str:
+    for work_type, keywords in _WORK_TYPE_KEYWORDS:
+        if any(kw in text for kw in keywords):
+            return work_type
+    return "social"  # BRIEF_MODES.md's own worked example — the most common minimal ask
+
+
+_VOLUME_HEDGE_WORDS = ["or so", "roughly", "about", "around", "ish"]
+
+
+def _infer_asset_count(text: str) -> tuple[int, str]:
+    # A hedged number ("six or so assets") is a stated ballpark, not a confirmed count —
+    # BRIEF_MODES.md's own example treats it as assumed, not inferred.
+    source = "assumed" if any(h in text for h in _VOLUME_HEDGE_WORDS) else "inferred"
+    digit_match = re.search(r"(\d+)\s*(?:assets?|statics?|variants?|deliverables?)", text)
+    if digit_match:
+        return int(digit_match.group(1)), source
+    for word, value in _NUMBER_WORDS.items():
+        if re.search(rf"\b{re.escape(word)}\b", text):
+            return value, source
+    return 6, "assumed"
+
+
+def _infer_original_photography(text: str) -> tuple[bool, str]:
+    if re.search(r"no\s+(?:original\s+)?(?:shoot|photography|photo shoot)", text):
+        return False, "inferred"
+    if "shoot" in text or "photography" in text:
+        return True, "inferred"
+    return False, "assumed"
+
+
+def mock_quick_estimate(raw_text: str) -> QuickEstimate:
+    text = raw_text.lower()
+
+    work_type = _infer_work_type(text)
+    asset_count, volume_confidence = _infer_asset_count(text)
+    original_photography, photography_source = _infer_original_photography(text)
+    markets = sorted({code for word, code in _MARKET_WORDS.items()
+                      if re.search(rf"\b{re.escape(word)}\b", text)})
+    localisation_required = len(markets) > 0
+
+    review_rounds = 2  # ASSUMPTIONS.md's default_review_rounds — mocks don't read the DB
+    review_match = re.search(r"(\d+)\s*(?:client\s*)?review", text)
+    review_source = "default"
+    if review_match:
+        review_rounds = int(review_match.group(1))
+        review_source = "inferred"
+
+    assumptions = [
+        QuickEstimateAssumption(key="asset_count", value=asset_count, source=volume_confidence),
+        QuickEstimateAssumption(key="original_photography", value=original_photography,
+                                source=photography_source),
+        QuickEstimateAssumption(key="review_rounds", value=review_rounds, source=review_source),
+    ]
+
+    inferred_count = sum(1 for a in assumptions if a.source == "inferred") + (1 if markets else 0)
+    if inferred_count >= 4:
+        confidence = "high"
+    elif inferred_count >= 2:
+        confidence = "medium"
+    elif inferred_count >= 1:
+        confidence = "low_medium"
+    else:
+        confidence = "low"
+
+    if volume_confidence != "inferred":
+        single_best_question = "How many assets, and are they all static?"
+    elif not markets:
+        single_best_question = "Which market is this for?"
+    elif photography_source != "inferred":
+        single_best_question = "Is any original photography or filming needed, or is this working from existing assets?"
+    else:
+        single_best_question = "Is there a target delivery date, or is 'as soon as possible' the real constraint?"
+
+    caveats = ["No deadline given; earliest delivery is calculated from today."]
+    if volume_confidence == "assumed":
+        caveats.append(f"Asset count assumed at {asset_count} — confirming it would narrow the range.")
+
+    return QuickEstimate(
+        work_type=work_type,
+        inferred_volume=asset_count,
+        volume_confidence=volume_confidence,
+        markets=markets,
+        localisation_required=localisation_required,
+        assumptions=assumptions,
+        single_best_question=single_best_question,
+        confidence=confidence,
+        caveats=caveats,
     )

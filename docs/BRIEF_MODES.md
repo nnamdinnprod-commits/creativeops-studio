@@ -1,6 +1,8 @@
 # Brief Assistant — Quick and Full Modes
 
-**Status: specification for session 2. Amends the Brief Assistant in `PRODUCT_SPEC.md`.**
+**Status: built** (`/brief`, defaults to Quick Estimate; `?mode=full` for the unchanged Full
+Brief mode) — Session C steps 2–4, see `DECISIONS.md` 026. Amends the Brief Assistant in
+`PRODUCT_SPEC.md`.
 
 ## The flaw being fixed
 
@@ -57,6 +59,24 @@ Toggle "original photography" on and a shoot phase appears with its own lead tim
 the toggling you asked for, in a form that requires no configuration screen: the assumptions
 *are* the interface.
 
+**Built**, with two deliberate simplifications from the description above (`DECISIONS.md`
+026):
+- Volume scaling applies to every production-kind phase for the matched work type, not only
+  rows `PhaseTemplate` happens to flag `scales_with_volume` — today that's only Film's Shoot
+  and Delivery rows (`DECISIONS.md` 016). Without this, asset count would have had zero
+  effect on the estimate for Event, Stills, and Social — including this section's own
+  worked example.
+- Toggling original photography adds a synthetic lead-time line (`talent_booking_lead_days`)
+  rather than a new named phase with its own dates — a quick estimate produces a day/cost
+  range, not a dated schedule, so there's no phase list for a new phase to join.
+- `confidence` and `single_best_question` are set once, at the initial AI call, and don't
+  change on recompute — only the numeric controls (asset count, photography, review rounds,
+  and confidence itself, which is also directly editable) trigger a recompute. Recompute
+  never calls the model again.
+- No persistence yet — "can be saved for reference" isn't built. Every estimate is
+  recomputed from the form state carried in hidden fields; nothing survives a page refresh
+  that drops that state.
+
 ---
 
 ## Full Brief mode
@@ -91,7 +111,8 @@ you promise one."
 
 ## Costing
 
-Deterministic, from `ASSUMPTIONS.md`:
+**Built** (`app/services/estimate.py`'s `compute_estimate()`). Deterministic, from
+`ASSUMPTIONS.md`:
 
 ```
 for each phase in the scheduled template:
@@ -104,6 +125,12 @@ Low and high factors come from the confidence band — wider input uncertainty, 
 range. Costs are computed in Python and shown as ranges, never as single figures, and always
 labelled indicative.
 
+As built, each cost line's own low/high comes from that role's `RateBand` range first — a
+line's low uses the role's low rate, its high the role's high rate — and *then* the
+confidence factors widen that already-ranged sum further, compounding rate uncertainty with
+input uncertainty. Duration has no rate-band range to start from, so its low/high comes from
+the confidence factors alone.
+
 Rate bands live in `ASSUMPTIONS.md` and are editable. They are stated as the studio's own
 planning assumptions, not as market data.
 
@@ -111,7 +138,7 @@ planning assumptions, not as market data.
 
 ## AI contract
 
-`quick_estimate(minimal_input) -> QuickEstimate`
+**Built** (`app/services/ai/estimate.py`). `quick_estimate(minimal_input) -> QuickEstimate`
 
 ```json
 {
@@ -137,7 +164,14 @@ assumptions are settled. Same rule as everywhere else: the model reads the reque
 does the arithmetic.
 
 `single_best_question` is the highest-value field in that payload. It is the tool telling a
-producer where the uncertainty actually is.
+producer where the uncertainty actually is. **Built** as a dedicated highlighted callout on
+the Quick Estimate screen, above the assumption controls — Session C step 4.
+
+`work_type` is constrained to exactly the four `ProjectType` names `PLANNING.md` seeded
+(`film` / `event` / `stills` / `social`), since that's what the phase template lookup needs.
+`confidence` uses `ASSUMPTIONS.md`'s 4-level scale (`high`/`medium`/`low_medium`/`low`), not
+the 3-level scale (`low`/`medium`/`high`) every other AI function in this app uses — this is
+the one function that reads `ASSUMPTIONS.md` directly, so it uses that scale.
 
 ---
 

@@ -125,3 +125,29 @@ class ScheduleAssessment(BaseModel):
     options: list[ScheduleOption] = []
     confidence: Literal["low", "medium", "high"]
     caveats: list[str] = []
+
+
+# --- 7. quick_estimate (Session C) --------------------------------------------
+
+class QuickEstimateAssumption(BaseModel):
+    key: str
+    # bool before float: bool is a subclass of int in Python, and Pydantic's smart-union
+    # mode would otherwise coerce False/True into 0.0/1.0 if float were tried first.
+    value: bool | float | str
+    source: Literal["inferred", "assumed", "default"]
+    editable: bool = True
+
+
+class QuickEstimate(BaseModel):
+    work_type: Literal["film", "event", "stills", "social"]
+    inferred_volume: int
+    volume_confidence: Literal["inferred", "assumed", "default"]
+    markets: list[str] = []
+    localisation_required: bool = False
+    assumptions: list[QuickEstimateAssumption] = []
+    single_best_question: str
+    # ASSUMPTIONS.md's confidence bands are a 4-level scale (high/medium/low_medium/low),
+    # not this app's usual 3-level Literal — quick_estimate is the one function that reads
+    # ASSUMPTIONS.md directly, so it uses that scale rather than the app-wide one.
+    confidence: Literal["high", "medium", "low_medium", "low"]
+    caveats: list[str] = []

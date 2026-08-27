@@ -28,8 +28,8 @@ read the doc that governs it:
 | `docs/DECISIONS.md` | Log of architectural decisions and why |
 | `docs/FEEDBACK_LOG.md` | Owner review notes and the prioritised change list (Sessions A/B/C) |
 | `docs/PLANNING.md` | Session 2 spec: phase templates, back-scheduling, timeline view — not yet built |
-| `docs/BRIEF_MODES.md` | Quick Estimate / Full Brief modes — Quick Estimate not yet built |
-| `docs/ASSUMPTIONS.md` | Editable planning assumptions and rate bands — built (`/assumptions`), not yet consumed elsewhere |
+| `docs/BRIEF_MODES.md` | Quick Estimate / Full Brief modes — both built (`/brief`) |
+| `docs/ASSUMPTIONS.md` | Editable planning assumptions and rate bands — built (`/assumptions`), live-consumed by Quick Estimate |
 
 If code and docs disagree, stop and ask which is wrong. Do not quietly change the docs to
 match the code.

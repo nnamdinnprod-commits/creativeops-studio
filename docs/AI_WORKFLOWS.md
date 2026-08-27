@@ -25,7 +25,8 @@ app/services/ai/
 ├── resource.py      # recommend_resource
 ├── insight.py       # insight_to_action
 ├── localisation.py  # check_localisation_risk
-└── feasibility.py   # assess_schedule_feasibility (Session B, DECISIONS.md 022)
+├── feasibility.py   # assess_schedule_feasibility (Session B, DECISIONS.md 022)
+└── estimate.py      # quick_estimate (Session C, DECISIONS.md 026)
 ```
 
 `client.py` exposes one function:
@@ -57,7 +58,10 @@ underlying numbers.
 
 ---
 
-## The five functions
+## The functions
+
+Five from V1, plus `assess_schedule_feasibility` (Session B) and `quick_estimate`
+(Session C).
 
 ### 1. `analyse_brief(raw_text) -> BriefExtraction`
 
@@ -224,6 +228,40 @@ deadline — a feasible schedule has nothing to narrate, so no call is made and 
 "Overlap phases that don't strictly depend on each other" (`PLANNING.md`'s third compression
 priority) isn't computed — it needs a phase dependency graph this data model doesn't have.
 Not attempted rather than faked.
+
+### 7. `quick_estimate(raw_text) -> QuickEstimate` (Session C)
+
+Wired into `/brief` (the default mode). See `docs/BRIEF_MODES.md` for the full spec and
+`docs/DECISIONS.md` 026 for what's built vs. simplified.
+
+```json
+{
+  "work_type": "social",
+  "inferred_volume": 6,
+  "volume_confidence": "assumed",
+  "markets": ["DE"],
+  "localisation_required": true,
+  "assumptions": [
+    {"key": "asset_count", "value": 6, "source": "assumed", "editable": true},
+    {"key": "original_photography", "value": false, "source": "inferred", "editable": true},
+    {"key": "review_rounds", "value": 2, "source": "default", "editable": true}
+  ],
+  "single_best_question": "How many assets, and are they all static?",
+  "confidence": "low_medium",
+  "caveats": ["No deadline given; earliest delivery is calculated from today."]
+}
+```
+
+Unlike every other function here, this one doesn't narrate around Python-computed facts —
+it's the extraction step, closer in shape to `analyse_brief` (function 1). It reads raw text
+and infers the request's shape; `app/services/estimate.py`'s `compute_estimate()` is what
+turns the settled assumptions into a duration, a cost range, and an earliest delivery date.
+Recomputing after a producer edits a control (asset count, the photography toggle, review
+rounds, or confidence) never calls this function again — it's pure Python from there, reading
+`Assumption`/`RateBand` live.
+
+`work_type` is constrained to the four seeded `ProjectType` names; `confidence` uses
+`ASSUMPTIONS.md`'s 4-level scale, not this doc's usual 3-level one.
 
 ---
 

@@ -640,3 +640,58 @@ Consequences: editing a value on `/assumptions` today only changes that stored n
 verified this is honestly labeled in `ASSUMPTIONS.md` rather than implying live effect. The
 screen is real and functional (seeded, editable, resettable, tested) but inert until step 2
 reads from it.
+
+## 026 — Session C steps 2–4: Quick Estimate mode, Session C complete
+Date: 2026-08-27
+Decision: Built Quick Estimate mode in full — steps 2, 3, and 4 landed together rather than
+sequentially, since costing (3) and the prominent `single_best_question` callout (4) are
+naturally part of the same screen and the same deterministic pass over phase templates as
+duration (2), not separable work. Added:
+- The 7th AI function, `quick_estimate` (`app/services/ai/estimate.py`,
+  `QuickEstimate`/`QuickEstimateAssumption` schemas, mock, prompt) — reads raw text and infers
+  the request's shape, closer in kind to `analyse_brief` than the six facts-narrating
+  functions, since there's no pre-computed fact set for it to narrate around.
+- `app/services/estimate.py`'s `compute_estimate()` — deterministic duration, cost, and
+  earliest-delivery calculation reading `Assumption`/`RateBand` live via
+  `app/services/assumptions.py` (step 1's real payoff moment) and the matched `ProjectType`'s
+  `PhaseTemplate` rows.
+- `/brief` now defaults to Quick Estimate mode, with Full Brief moved behind `?mode=full` —
+  the Full Brief routes/logic are otherwise untouched (`app/routes/pipeline.py`'s readiness
+  gate, `check_readiness_gate`, still stands exactly as `BRIEF_MODES.md` requires between an
+  estimate and a commitment).
+- Recompute is pure Python: editing asset count, the photography toggle, review rounds, or
+  confidence resubmits to `/brief/quick-estimate/recompute`, which never calls the model
+  again — state that must survive the round trip (raw text, work type, markets, the AI's
+  `single_best_question`/`caveats`) travels via hidden form fields, not a new DB table.
+34 new tests (`tests/test_estimate.py`, `tests/test_ai_quick_estimate.py`,
+`tests/test_quick_estimate_route.py`), 137 across the suite.
+Alternatives considered: building steps 2–4 as three separate, sequential commits; scaling
+volume only for `PhaseTemplate` rows already flagged `scales_with_volume`; persisting
+QuickEstimate results in a new table so they could be revisited later.
+Why, two real decisions and one bug caught before it shipped:
+1. **A real, pre-existing gap surfaced immediately while wiring this up**: only Film's
+   `PhaseTemplate` rows carry `scales_with_volume=True` (`DECISIONS.md` 016) — Event, Stills,
+   and Social have none. First-pass testing showed asset count doing *nothing* to the
+   estimate for "social," `BRIEF_MODES.md`'s own primary worked example. Fixed by making
+   Quick Estimate's own volume rule coarser and self-contained: every production-kind phase
+   scales, not only rows carrying the flag. This is a deliberate divergence from
+   `back_schedule()`'s per-phase flag (documented in both `BRIEF_MODES.md` and this entry),
+   not a fix to Session B's code — that flag stays exactly as tuned for precise generated
+   schedules; Quick Estimate is a coarser tool by nature and gets its own, simpler rule.
+   Regression-tested across all four work types (`test_asset_count_affects_duration_for_
+   every_work_type`).
+2. **Costing compounds two sources of range**, not one: each cost line's low/high first
+   comes from that role's own `RateBand` range, and the confidence factor then widens that
+   already-ranged sum further. `BRIEF_MODES.md`'s formula (`range = sum(lines) ×
+   (low_factor, high_factor)`) reads as a single point sum widened once; duration has no
+   rate-band range to start from, so its low/high genuinely is just the confidence factor
+   applied to one number. Documented explicitly in `BRIEF_MODES.md` since this is a real
+   interpretive choice, not the only valid reading of that formula.
+3. **No persistence.** `BRIEF_MODES.md` only says an estimate "can be saved for reference,"
+   not that it must be — a new table for estimate history felt like real, avoidable scope for
+   a first pass, so state round-trips through hidden form fields instead. A page refresh
+   loses an in-progress estimate; regenerating from the same raw text is the workaround today.
+Consequences: Session C (all 4 steps) is now complete — logged in `FEEDBACK_LOG.md`.
+`ASSUMPTIONS.md`'s one remaining honest gap: `PLANNING.md`'s back-scheduling
+(`app/services/scheduling.py`, Session B) still reads its own hardcoded constants, not this
+table — noted explicitly there, not silently left inconsistent.

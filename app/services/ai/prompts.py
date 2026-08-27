@@ -107,3 +107,28 @@ def build_schedule_feasibility_prompt(computed_schedule_facts: dict) -> str:
         "same recovers_days — do not add, remove, or reword any), confidence, caveats."
         + _FOOTER
     )
+
+
+def build_quick_estimate_prompt(raw_text: str) -> str:
+    return (
+        "You are a creative operations assistant turning a one-line, incomplete production "
+        "request into a scoped set of assumptions a duration and cost estimate can be built "
+        "from. Infer what you can; where information is missing, choose a sensible default "
+        "and label it as assumed rather than asking for more input. You do not compute a "
+        "duration, a cost, or a delivery date yourself — those come from a phase template "
+        "and rate card once your assumptions are settled.\n\n"
+        f"Minimal request:\n{raw_text}\n\n"
+        "Return an object with: work_type (exactly one of: film, event, stills, social), "
+        "inferred_volume (a number of assets/deliverables), volume_confidence (inferred if "
+        "a number was stated, assumed if you picked a plausible default, default if you "
+        "fell back to a studio-wide default), markets (list of ISO-ish market codes), "
+        "localisation_required, assumptions (list of {key, value, source, editable} — "
+        "include at least asset_count, original_photography (bool), and review_rounds; "
+        "source is inferred/assumed/default matching how confident you are in that "
+        "specific value), single_best_question (the one question that would most narrow "
+        "this estimate if the producer answered it — this is the most useful field in the "
+        "response, do not leave it generic), confidence (exactly one of: high, medium, "
+        "low_medium, low), caveats. There is never a deadline in this input — always note "
+        "in caveats that the earliest delivery is calculated from today."
+        + _FOOTER
+    )
