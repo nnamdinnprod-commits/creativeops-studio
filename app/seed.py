@@ -22,11 +22,13 @@ from app.models import (
     PhaseTemplate,
     Priority,
     Project,
+    ProjectPhase,
     ProjectStatus,
     ProjectType,
     SubStatus,
     VariantTheme,
 )
+from app.services.scheduling import generate_schedule
 
 TODAY = date.today()
 
@@ -464,6 +466,38 @@ def seed_phase_templates(session):
     session.commit()
 
 
+# Session B step 4 needs at least a few generated schedules for the Timeline screen to show
+# anything. Rather than invent new demo projects (DEMO_DATA.md's "Scale" section fixes the
+# set at 12), three of the existing twelve are given a project type here — their deadlines
+# are left exactly as DEMO_DATA.md set them, never edited for this. No seeded project
+# describes a physical event, so the Event template has no demo instance.
+#
+# Deliberately NOT Winter Campaign Refresh / Loyalty Relaunch Teaser — those two carry the
+# capacity-overload and reassignment conflicts DEMO_DATA.md requires (Alex's ~95% load and
+# Maya's headroom), and their deadlines are explicitly load-bearing for that story.
+#
+# The three picked land across the honest range PLANNING.md itself describes: Mother's Day
+# Static Set has enough runway for a feasible Social schedule; Spring Lookbook is mildly
+# short for Stills; Autumn Prints FR Push is well short for Film — a real demonstration of
+# "when the computed start is in the past, say so," not a contrived one.
+DEMO_SCHEDULE_PROJECTS = {
+    "Mother's Day Static Set": "Social / AI-generated content",
+    "Spring Lookbook": "Stills",
+    "Autumn Prints FR Push": "Film / branded content",
+}
+
+
+def seed_demo_schedules(session):
+    types_by_name = {t.name: t for t in session.query(ProjectType).all()}
+    for project_name, type_name in DEMO_SCHEDULE_PROJECTS.items():
+        project = session.query(Project).filter_by(name=project_name).one_or_none()
+        if project is None:
+            continue
+        project.project_type_id = types_by_name[type_name].id
+        session.flush()
+        generate_schedule(session, project)
+
+
 def reset():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
@@ -489,6 +523,12 @@ def main():
         else:
             seed_phase_templates(session)
             print("Phase templates created: 4 project types, 43 phase template rows.")
+
+        if session.query(ProjectPhase).count() > 0:
+            print("Demo schedules already present — skipping.")
+        else:
+            seed_demo_schedules(session)
+            print("Demo schedules generated for 3 projects (Social, Stills, Film).")
     finally:
         session.close()
 

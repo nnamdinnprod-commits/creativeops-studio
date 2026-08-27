@@ -181,8 +181,8 @@ project's schedule replaces its existing `ProjectPhase` rows rather than appendi
 | `status` | enum | `not_started` / `in_progress` / `complete` — `PLANNING.md` doesn't specify values for this field; inferred to match the shape used by `Deliverable`/`Localisation` elsewhere, logged in `DECISIONS.md` 019 |
 | `assigned_person_id` | FK → Person, nullable | unset by `generate_schedule()`; Session B step 5 ("assignments derive from phases") is what populates this |
 
-Not yet wired to any route or screen — Session B step 4 (the timeline view) is where a
-generated schedule first becomes visible.
+Rendered read-only at `/timeline` (`DECISIONS.md` 020) — nothing writes `status` or
+`assigned_person_id` from the UI yet.
 
 ## Relationship summary
 

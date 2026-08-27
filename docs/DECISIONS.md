@@ -387,3 +387,54 @@ unaffected — decision 013 already has it reseeding from a blank file on every 
 picks up the new schema automatically on next deploy. `Project.project_type_id` stays
 unset for all seeded/existing projects; nothing in the Brief Assistant's create-project flow
 sets it yet.
+
+## 020 — Session B step 4: the timeline view
+Date: 2026-08-27
+Decision: Added `/timeline` (`app/routes/timeline.py`, `app/templates/timeline.html`) and a
+new positioning-math module, `app/services/timeline.py`, scoped to exactly what
+`FEEDBACK_LOG.md`'s step 4 names: projects down the left, weeks across the top, phase bars
+coloured by `kind`, milestones as diamonds, a today line. Filters (brand/market/type/owner)
+came from `PLANNING.md`'s fuller Timeline view spec and mirror the existing filter pattern on
+Pipeline and Localisation. Per-project rows collapse by default (one bar-track per project,
+which already reads cleanly since a project's own phases never overlap) and expand via an
+Alpine `x-show` toggle into a per-phase table — the "click to expand into per-phase rows"
+requirement. A hand-built CSS bar chart, not a Gantt library, per `PLANNING.md`'s explicit
+instruction. 8 new tests in `tests/test_timeline.py` (64 across the suite); all seven screens
+re-verified via `TestClient`, and the rendered HTML inspected directly (bar/week percentages,
+row ordering) since no browser automation was available in this session — flagging that
+explicitly rather than claiming a visual check that didn't happen.
+Deliberately **not** built here, both because `FEEDBACK_LOG.md`'s step 4 doesn't name them and
+because they depend on state that doesn't exist yet:
+- **Conflict-outlined bars** ("a phase bar is outlined as a conflict when a role it requires
+  has no person with capacity in that window") — `ProjectPhase.assigned_person_id` is always
+  null until step 5 derives assignments from phases; there's nothing to check capacity against
+  yet.
+- **The milestone meeting list beside the timeline** — that's step 7 by name.
+- **Any feasibility messaging on-screen** — `back_schedule()`'s `is_feasible`/
+  `shortfall_working_days` aren't surfaced here at all. Saying that plainly, per `PLANNING.md`'s
+  "when the computed start is in the past" instruction, is `assess_schedule_feasibility`'s job
+  (step 6, AI-narrated from computed facts) — the bars simply render wherever their dates land,
+  including left of the today line when a schedule doesn't fit.
+Alternatives considered: inventing new demo projects to populate the screen vs. giving three of
+the existing twelve a `project_type_id`; picking those three for thematic fit alone vs. also
+checking feasibility.
+Why: `DEMO_DATA.md` fixes the seed at 12 projects — adding more would contradict a documented
+"Scale" decision, so three existing projects were typed instead, with their `DEMO_DATA.md`
+deadlines left completely untouched. Candidates were screened against two rules: (1) never
+touch Winter Campaign Refresh or Loyalty Relaunch Teaser's deadlines or type them for this —
+those two carry `DEMO_DATA.md`'s required capacity-overload/reassignment conflict, and Winter
+Campaign Refresh's deadline is explicitly named ("one deadline this week") as load-bearing for
+it; (2) prefer a spread of feasibility outcomes over uniformly comfortable ones, since a
+mildly- or badly-infeasible schedule is exactly the honest scenario `PLANNING.md`'s
+back-scheduling section describes, not a bug to hide. Final picks, checked by computing actual
+calendar days from today against each template's total working-day need: **Mother's Day
+Static Set** → Social (deadline 24 days out against ~15-16 needed — comfortably feasible),
+**Spring Lookbook** → Stills (15 days out against ~24 needed — mildly short, and the best
+thematic fit for a photography template), **Autumn Prints FR Push** → Film (10 days out
+against ~49 needed — badly short, but it exercises the largest template, 14 rows, on screen).
+No seeded project describes a physical event, so Event has no demo instance; the screen
+doesn't need every type represented to prove itself.
+Consequences: three of the twelve V1 demo projects now also carry a `project_type_id` and a
+generated `ProjectPhase` schedule; nothing about their status, deadline, assignments, or
+localisation rows changed, so their role in `DEMO_DATA.md`'s five required conflicts is intact.
+Reset the local dev database again (new table, same reason as decision 019).

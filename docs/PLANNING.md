@@ -171,6 +171,10 @@ physical constraints, not policy.
 
 ## Timeline view
 
+**Built** (`/timeline`, `app/routes/timeline.py`, `app/services/timeline.py`,
+`app/templates/timeline.html`, `DECISIONS.md` 020) — except the conflict-outline rule and the
+milestone meeting list, both noted below where they weren't yet buildable.
+
 Projects down the left, weeks across the top, phase bars between.
 
 - One row per project; click to expand into per-phase rows
@@ -180,7 +184,8 @@ Projects down the left, weeks across the top, phase bars between.
 - A vertical "today" line
 - Filter by brand, market, type, owner
 - A phase bar is outlined as a conflict when a role it requires has no person with capacity
-  in that window
+  in that window — **not yet**: `ProjectPhase.assigned_person_id` is always null until step 5
+  derives assignments from phases, so there's no capacity fact to check yet
 
 **Do not use a month-grid calendar.** It cannot show a three-week phase or a dependency,
 which is most of what matters here. **Do not import a Gantt library** — configuration will
@@ -189,6 +194,7 @@ fraction of the time.
 
 Milestone meetings surface as a list beside the timeline: what meeting, which project, which
 date, derived from the schedule. That list is the practical output a producer takes away.
+**Not yet built** — step 7.
 
 ---
 
