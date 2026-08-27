@@ -151,13 +151,17 @@ def generate_schedule(db: Session, project: Project) -> list[ProjectPhase]:
     for existing in db.query(ProjectPhase).filter_by(project_id=project.id).all():
         db.delete(existing)
 
+    # templates and result.phases are index-aligned: back_schedule() sorts by sequence
+    # internally the same way `templates` is already sorted here, and never drops or
+    # reorders a row.
     phases = [
         ProjectPhase(
             project_id=project.id, name=p.name, kind=p.kind,
             start_date=p.start_date, end_date=p.end_date, is_milestone=p.is_milestone,
             is_anchored=False, status=ProjectPhaseStatus.not_started, assigned_person_id=None,
+            required_roles=template.required_roles,
         )
-        for p in result.phases
+        for template, p in zip(templates, result.phases)
     ]
     db.add_all(phases)
     db.commit()

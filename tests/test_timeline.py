@@ -1,6 +1,7 @@
 from datetime import date
 
 from app.models import (
+    Assignment,
     PersonRole,
     PhaseKind,
     Person,
@@ -128,3 +129,72 @@ def test_route_brand_filter_excludes_non_matching_projects(client, db_session):
     assert "Shoot Project" in matching.text
     assert "Shoot Project" not in non_matching.text
     assert "No scheduled projects match this filter" in non_matching.text
+
+
+def _seed_project_with_schedule(db_session):
+    seed_phase_templates(db_session)
+    owner = _seed_person(db_session)
+    stills = db_session.query(ProjectType).filter_by(name="Stills").one()
+    project = Project(name="Shoot Project", brand="Hofmann", campaign="C", source_market="ES",
+                      priority=Priority.medium, status=ProjectStatus.brief,
+                      deadline=date(2026, 12, 1), owner_id=owner.id, brief_raw="x",
+                      project_type_id=stills.id)
+    db_session.add(project)
+    db_session.commit()
+    generate_schedule(db_session, project)
+    retouching = (
+        db_session.query(ProjectPhase)
+        .filter_by(project_id=project.id, name="Retouching")
+        .one()
+    )
+    return project, retouching
+
+
+def test_assign_route_assigns_a_role_matched_candidate(client, db_session):
+    _project, retouching = _seed_project_with_schedule(db_session)
+    designer = Person(name="Dana", role=PersonRole.designer, capacity_pct=100,
+                      skills="", is_external=False)
+    db_session.add(designer)
+    db_session.commit()
+
+    resp = client.post(f"/timeline/phases/{retouching.id}/assign",
+                       data={"person_id": designer.id}, follow_redirects=False)
+    assert resp.status_code == 303
+
+    db_session.refresh(retouching)
+    assert retouching.assigned_person_id == designer.id
+
+    page = client.get("/timeline")
+    assert "Dana" in page.text
+    assert "Unassign" in page.text
+
+
+def test_assign_route_rejects_a_role_mismatched_person(client, db_session):
+    _project, retouching = _seed_project_with_schedule(db_session)
+    translator = Person(name="Jonas", role=PersonRole.translator, capacity_pct=100,
+                        skills="", is_external=True)
+    db_session.add(translator)
+    db_session.commit()
+
+    resp = client.post(f"/timeline/phases/{retouching.id}/assign",
+                       data={"person_id": translator.id}, follow_redirects=False)
+    assert resp.status_code == 303
+    assert "error=assign_failed" in resp.headers["location"]
+
+    db_session.refresh(retouching)
+    assert retouching.assigned_person_id is None
+
+
+def test_unassign_route_clears_the_assignment(client, db_session):
+    _project, retouching = _seed_project_with_schedule(db_session)
+    designer = Person(name="Dana", role=PersonRole.designer, capacity_pct=100,
+                      skills="", is_external=False)
+    db_session.add(designer)
+    db_session.commit()
+    client.post(f"/timeline/phases/{retouching.id}/assign", data={"person_id": designer.id})
+
+    client.post(f"/timeline/phases/{retouching.id}/unassign")
+
+    db_session.refresh(retouching)
+    assert retouching.assigned_person_id is None
+    assert db_session.query(Assignment).filter_by(project_phase_id=retouching.id).count() == 0

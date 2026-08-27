@@ -210,10 +210,16 @@ ProjectPhase     id, project_id, name, kind, start_date, end_date,
 
 `Project` gains `project_type_id` and `volume_factor`.
 
-**Assignments derive from phases.** When a schedule is generated, each production phase
-requiring a role creates a candidate assignment for that window. This is the change that
-makes capacity real — and it means the capacity service in `app/services/capacity.py` needs
-no rewrite, only a different source of assignment rows.
+**Assignments derive from phases — built** (`app/services/assignment.py`, `DECISIONS.md` 021).
+When a schedule is generated, each production phase requiring a role creates a candidate
+assignment for that window. This is the change that makes capacity real — and the capacity
+service in `app/services/capacity.py` needed no rewrite, only a different source of
+assignment rows, exactly as this section originally promised. `phase_candidates()` proposes
+role-matched, capacity-available people (most-available first); a human still clicks Assign
+at `/timeline` — nothing auto-picks a person. `ProjectPhase` gained a `required_roles` column
+(copied from the source `PhaseTemplate` row) and `Assignment` gained a nullable
+`project_phase_id`, neither in this doc's original column list — both documented in
+`DECISIONS.md` 021.
 
 ---
 

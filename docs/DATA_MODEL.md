@@ -53,6 +53,7 @@ Links a person to a project for a period at a percentage.
 | `start_date` | date | |
 | `end_date` | date | |
 | `role_on_project` | str, nullable | |
+| `project_phase_id` | FK → ProjectPhase, nullable | Session 2 addition — set only when `app/services/assignment.py`'s `assign_phase()` created this row, so a reassignment can find and replace exactly that row (`DECISIONS.md` 021) |
 
 Overlap across assignments is what creates capacity conflicts. The seed data must produce
 at least two genuine overlaps.
@@ -179,10 +180,11 @@ project's schedule replaces its existing `ProjectPhase` rows rather than appendi
 | `is_milestone` | bool | copied from the source template row |
 | `is_anchored` | bool | always `False` today — anchored-phase support isn't built yet (see `DECISIONS.md` 018) |
 | `status` | enum | `not_started` / `in_progress` / `complete` — `PLANNING.md` doesn't specify values for this field; inferred to match the shape used by `Deliverable`/`Localisation` elsewhere, logged in `DECISIONS.md` 019 |
-| `assigned_person_id` | FK → Person, nullable | unset by `generate_schedule()`; Session B step 5 ("assignments derive from phases") is what populates this |
+| `assigned_person_id` | FK → Person, nullable | set by `app/services/assignment.py`'s `assign_phase()`, at `/timeline` (`DECISIONS.md` 021) |
+| `required_roles` | str | not in `PLANNING.md`'s column list — comma-separated `PersonRole` values, copied from the source `PhaseTemplate` row at generation time so a phase is self-sufficient for candidate matching even without its template (`DECISIONS.md` 021) |
 
-Rendered read-only at `/timeline` (`DECISIONS.md` 020) — nothing writes `status` or
-`assigned_person_id` from the UI yet.
+Rendered at `/timeline` (`DECISIONS.md` 020); production, non-milestone phases are assignable
+there (`DECISIONS.md` 021). Nothing writes `status` yet.
 
 ## Relationship summary
 

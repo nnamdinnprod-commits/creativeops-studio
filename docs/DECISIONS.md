@@ -438,3 +438,52 @@ Consequences: three of the twelve V1 demo projects now also carry a `project_typ
 generated `ProjectPhase` schedule; nothing about their status, deadline, assignments, or
 localisation rows changed, so their role in `DEMO_DATA.md`'s five required conflicts is intact.
 Reset the local dev database again (new table, same reason as decision 019).
+
+## 021 — Session B step 5: assignments derive from phases
+Date: 2026-08-27
+Decision: Added `app/services/assignment.py` (`phase_candidates()`, `assign_phase()`,
+`unassign_phase()`) and wired an Assign/Unassign control into `/timeline`'s per-phase expand
+view. `ProjectPhase` gained `required_roles` (copied from the source `PhaseTemplate` row by
+`generate_schedule()`) and `Assignment` gained a nullable `project_phase_id`, so a
+reassignment can find and replace exactly the row it produced rather than guessing among a
+person's other assignments on the same project. `app/services/capacity.py` was **not
+touched** — confirmed by a route-to-Resources-screen check (assign a phase in the running
+app, then load `/resources` and see the same person's allocation reflect it), matching
+`PLANNING.md`'s own promise for this step. 20 new tests (10 in `tests/test_assignment.py`, 6
+more in `tests/test_timeline.py`, 77 across the suite).
+Alternatives considered: auto-picking a person deterministically inside `generate_schedule()`
+instead of surfacing candidates for a human to choose from; a phase-derived assignment
+allocated at 100% (one person, fully dedicated) instead of 50%; checking a candidate's
+capacity only at the phase's start date instead of across its whole window.
+Why, three real decisions:
+1. **A human still clicks Assign — nothing auto-picks a person.** `PLANNING.md`'s "creates a
+   candidate assignment" reads ambiguously between "proposes a candidate" and "commits an
+   assignment automatically." Given `CLAUDE.md`'s non-negotiable that AI recommends and
+   humans decide, and this codebase's existing candidate-then-click pattern (`resources.py`'s
+   reassignment flow), auto-picking a specific person felt like the wrong default even for
+   non-AI deterministic logic — a phase's assignee is a real staffing decision, not just
+   arithmetic.
+2. **The phase-assignment allocation default started at 100%, and that was a real problem,
+   not a style choice.** Checked against the actual seeded roster (`DEMO_DATA.md`'s people
+   are mostly 20-55% allocated already, never fully free) before finalizing: at 100% required,
+   `phase_candidates()` returned empty for most of the three demo projects' production phases
+   — the feature would have looked broken on first use. Lowered to 50 ("a phase is usually a
+   significant piece of someone's workload, not the whole of it"), verified empirically that
+   6 of 9 production phases across the three demo schedules then found at least one candidate.
+3. **`assign_phase()` refuses milestones and non-`production`-kind phases outright**, reading
+   `PLANNING.md`'s "each production phase requiring a role" literally — a milestone is a
+   0-duration meeting, not assignable work. Also refuses a role mismatch, the same rule
+   `DECISIONS.md` 014 fixed for the resource-reallocation candidate list.
+4. **Capacity is checked across the phase's full date window** (via `capacity.py`'s existing
+   `allocation_timeline()`, composed not duplicated), not just its start date — a multi-day
+   phase can run into a person's other commitments partway through, and a start-date-only
+   check would miss that. Point-in-time checks are the existing convention elsewhere in this
+   app (`person_capacity()`, `_build_conflict_facts()`); window-max is more correct here
+   specifically because production phases commonly span several days, unlike the rest of the
+   app's mostly point-in-time question ("is this person overloaded right now").
+Consequences: assigning someone who's already tight or overloaded elsewhere is still possible
+if a producer overrides past what `phase_candidates()` offers (verified in
+`test_overload_created_by_a_phase_assignment_is_visible_to_get_conflicts`) — `capacity.py`'s
+existing conflict detection catches it on the Resources screen exactly as it would any other
+overload, which is the intended integration, not a gap. Reset the local dev database again
+(two new columns).

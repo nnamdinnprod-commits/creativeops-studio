@@ -160,6 +160,11 @@ class Assignment(TimestampMixin, Base):
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     role_on_project: Mapped[str | None] = mapped_column(String, nullable=True)
+    # docs/PLANNING.md "Assignments derive from phases" (Session B step 5). Null for every
+    # hand-seeded or AI-recommended Assignment — set only when app/services/assignment.py's
+    # assign_phase() creates this row from a ProjectPhase, so a reassignment can find and
+    # replace exactly the row it produced rather than guessing by person_id/project_id alone.
+    project_phase_id: Mapped[int | None] = mapped_column(ForeignKey("project_phases.id"), nullable=True)
 
 
 class Deliverable(TimestampMixin, Base):
@@ -261,7 +266,7 @@ class PhaseTemplate(TimestampMixin, Base):
 class ProjectPhase(TimestampMixin, Base):
     """docs/PLANNING.md (Session 2). A generated, dated instance of a PhaseTemplate row for
     one project — produced by app/services/scheduling.py's generate_schedule(), not hand-
-    written. Not yet wired to any route or screen (Session B step 4, the timeline view)."""
+    written. Rendered at /timeline (Session B step 4); assignable at /timeline (step 5)."""
 
     __tablename__ = "project_phases"
 
@@ -276,3 +281,9 @@ class ProjectPhase(TimestampMixin, Base):
         Enum(ProjectPhaseStatus), nullable=False, default=ProjectPhaseStatus.not_started
     )
     assigned_person_id: Mapped[int | None] = mapped_column(ForeignKey("people.id"), nullable=True)
+    # Not in PLANNING.md's ProjectPhase column list — copied from the source PhaseTemplate row
+    # at generation time (generate_schedule()) so this row is self-sufficient for candidate
+    # matching even if the template changes later, or (once built) a producer inserts an
+    # ad-hoc phase with no source template row at all. Same comma-separated PersonRole
+    # convention as PhaseTemplate.required_roles and Person.skills.
+    required_roles: Mapped[str] = mapped_column(String, nullable=False, default="")
