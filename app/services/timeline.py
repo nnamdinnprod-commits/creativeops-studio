@@ -123,3 +123,14 @@ def milestone_list(
         if phase.is_milestone
     ]
     return sorted(entries, key=lambda e: (e.phase.start_date, e.project.name, e.phase.name))
+
+
+def conflicted_phase_ids(candidates_by_phase_id: dict[int, list]) -> set[int]:
+    """docs/PLANNING.md 'Timeline view': "A phase bar is outlined as a conflict when a role
+    it requires has no person with capacity in that window." Takes the same
+    candidates_by_phase_id the route already builds from app/services/assignment.py's
+    phase_candidates() (unassigned, production, non-milestone phases only — an assigned
+    phase isn't a staffing gap, whatever its assignee's workload looks like elsewhere; that's
+    capacity.py's job on the Resources screen, not this rule's). A phase with an empty
+    candidate list has no one who could realistically take it on."""
+    return {phase_id for phase_id, candidates in candidates_by_phase_id.items() if not candidates}

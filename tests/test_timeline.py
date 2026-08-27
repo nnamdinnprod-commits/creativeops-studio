@@ -13,7 +13,14 @@ from app.models import (
 )
 from app.seed import seed_phase_templates
 from app.services.scheduling import generate_schedule
-from app.services.timeline import build_timeline, day_position_pct, milestone_list, week_starts
+from app.services.assignment import PhaseCandidate
+from app.services.timeline import (
+    build_timeline,
+    conflicted_phase_ids,
+    day_position_pct,
+    milestone_list,
+    week_starts,
+)
 
 
 def _phase(project_id, name, start, end, kind=PhaseKind.production, is_milestone=False):
@@ -111,6 +118,23 @@ def test_milestone_list_empty_when_no_milestones():
     phases = [_phase(1, "Work", date(2026, 9, 7), date(2026, 9, 11))]
 
     assert milestone_list([(project, phases)]) == []
+
+
+def test_conflicted_phase_ids_flags_only_empty_candidate_lists():
+    owner = Person(id=1, name="Dana", role=PersonRole.designer, capacity_pct=100,
+                   skills="", is_external=False)
+    candidate = PhaseCandidate(person=owner, allocated_pct=0, available_pct=100)
+
+    candidates_by_phase_id = {
+        10: [],           # no one available — a conflict
+        11: [candidate],  # someone available — not a conflict
+    }
+
+    assert conflicted_phase_ids(candidates_by_phase_id) == {10}
+
+
+def test_conflicted_phase_ids_empty_input_is_empty():
+    assert conflicted_phase_ids({}) == set()
 
 
 def _seed_person(db_session):
@@ -270,3 +294,46 @@ def test_timeline_does_not_show_behind_badge_for_a_feasible_schedule(client, db_
     resp = client.get("/timeline")
     assert resp.status_code == 200
     assert "Behind" not in resp.text
+
+
+def test_timeline_outlines_a_phase_with_no_available_candidate(client, db_session):
+    _project, _retouching = _seed_project_with_schedule(db_session)
+    # No designer exists in the roster at all — Retouching (requires "designer") has
+    # zero candidates by construction.
+    resp = client.get("/timeline")
+    assert resp.status_code == 200
+    assert "ring-2 ring-red-600" in resp.text
+    assert "no one with capacity for this role" in resp.text.lower()
+
+
+def test_timeline_does_not_outline_a_phase_once_a_candidate_exists(client, db_session):
+    _project, retouching = _seed_project_with_schedule(db_session)
+    # Stills also has a Shoot phase requiring senior_designer, which stays unfilled here —
+    # only Retouching (designer) should stop being flagged, so compare counts, not absence.
+    before = client.get("/timeline").text.count("ring-2 ring-red-600")
+
+    designer = Person(name="Dana", role=PersonRole.designer, capacity_pct=100,
+                      skills="", is_external=False)
+    db_session.add(designer)
+    db_session.commit()
+
+    after = client.get("/timeline").text.count("ring-2 ring-red-600")
+    assert after == before - 1
+
+
+def test_timeline_stops_computing_candidates_for_a_phase_once_assigned(client, db_session):
+    """An assigned phase is dropped from candidates_by_phase_id entirely (app/routes/
+    timeline.py only computes candidates for phase.assigned_person_id is None), so it can
+    never be outlined as a conflict regardless of who else could theoretically take it on."""
+    _project, retouching = _seed_project_with_schedule(db_session)
+    designer = Person(name="Dana", role=PersonRole.designer, capacity_pct=100,
+                      skills="", is_external=False)
+    db_session.add(designer)
+    db_session.commit()
+    client.post(f"/timeline/phases/{retouching.id}/assign", data={"person_id": designer.id})
+
+    resp = client.get("/timeline")
+    assert resp.status_code == 200
+    # Shoot (senior_designer) is still unfilled and still flagged — only Retouching, now
+    # assigned, is excluded from the check.
+    assert resp.text.count("ring-2 ring-red-600") == 1

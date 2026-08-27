@@ -8,7 +8,7 @@ from app.models import PhaseKind, Person, Project, ProjectPhase, ProjectType
 from app.services.ai.feasibility import assess_schedule_feasibility
 from app.services.assignment import assign_phase, phase_candidates, unassign_phase
 from app.services.scheduling import build_feasibility_facts
-from app.services.timeline import build_timeline, milestone_list
+from app.services.timeline import build_timeline, conflicted_phase_ids, milestone_list
 
 router = APIRouter()
 
@@ -58,6 +58,7 @@ def timeline(request: Request, brand: str | None = None, market: str | None = No
         if phase.kind == PhaseKind.production and not phase.is_milestone
         and phase.assigned_person_id is None
     }
+    conflicted_ids = conflicted_phase_ids(candidates_by_phase_id)
 
     # assess_schedule_feasibility (Session B step 6) — only called for a project whose
     # schedule doesn't fit its deadline; a feasible schedule has nothing to narrate.
@@ -83,6 +84,7 @@ def timeline(request: Request, brand: str | None = None, market: str | None = No
         "assign_failed": error == "assign_failed",
         "feasibility_by_project_id": feasibility_by_project_id,
         "milestones": milestones,
+        "conflicted_phase_ids": conflicted_ids,
     })
 
 

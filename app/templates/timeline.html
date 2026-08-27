@@ -104,9 +104,10 @@
                     {% if bar.phase.kind.value == 'prep' %}bg-slate-400
                     {% elif bar.phase.kind.value == 'production' %}bg-blue-500
                     {% elif bar.phase.kind.value == 'review' %}bg-amber-500
-                    {% else %}bg-green-500{% endif %}"
+                    {% else %}bg-green-500{% endif %}
+                    {% if bar.phase.id in conflicted_phase_ids %}ring-2 ring-red-600{% endif %}"
                     style="left: {{ bar.left_pct }}%; width: {{ bar.width_pct }}%;"
-                    title="{{ bar.phase.name }} — {{ bar.phase.start_date }} to {{ bar.phase.end_date }}"></div>
+                    title="{{ bar.phase.name }} — {{ bar.phase.start_date }} to {{ bar.phase.end_date }}{% if bar.phase.id in conflicted_phase_ids %} — no one with capacity for this role{% endif %}"></div>
                 {% endif %}
                 {% endfor %}
             </div>
@@ -187,6 +188,7 @@
     <span><span class="inline-block w-3 h-3 bg-green-500 rounded-sm align-middle"></span> Delivery</span>
     <span><span class="inline-block w-2.5 h-2.5 bg-slate-700 rotate-45 align-middle"></span> Milestone</span>
     <span><span class="inline-block w-0.5 h-3 bg-red-400 align-middle"></span> Today</span>
+    <span><span class="inline-block w-3 h-3 bg-blue-500 rounded-sm align-middle" style="box-shadow: 0 0 0 2px #dc2626;"></span> No one with capacity for this role</span>
 </div>
 </div>
 

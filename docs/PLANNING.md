@@ -171,10 +171,8 @@ physical constraints, not policy.
 
 ## Timeline view
 
-**Built** (`/timeline`, `app/routes/timeline.py`, `app/services/timeline.py`,
-`app/templates/timeline.html`, `DECISIONS.md` 020 and 023) — except the conflict-outline rule
-noted below, which still isn't buildable (needs step 5's assignment data, which now exists,
-but no code reads it for this purpose yet).
+**Built in full** (`/timeline`, `app/routes/timeline.py`, `app/services/timeline.py`,
+`app/templates/timeline.html`, `DECISIONS.md` 020, 023, 024).
 
 Projects down the left, weeks across the top, phase bars between.
 
@@ -185,8 +183,10 @@ Projects down the left, weeks across the top, phase bars between.
 - A vertical "today" line
 - Filter by brand, market, type, owner
 - A phase bar is outlined as a conflict when a role it requires has no person with capacity
-  in that window — **not yet**: `ProjectPhase.assigned_person_id` is always null until step 5
-  derives assignments from phases, so there's no capacity fact to check yet
+  in that window — **built** (`conflicted_phase_ids()` in `app/services/timeline.py`,
+  `DECISIONS.md` 024). Applies only to unassigned production phases; once a phase has an
+  assignee it's no longer a staffing gap, whatever that person's workload looks like
+  elsewhere — that's `capacity.py`'s job on the Resources screen, not this rule's.
 
 **Do not use a month-grid calendar.** It cannot show a three-week phase or a dependency,
 which is most of what matters here. **Do not import a Gantt library** — configuration will

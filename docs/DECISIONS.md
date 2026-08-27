@@ -568,3 +568,36 @@ Consequences: none beyond the two functions sharing one input — no new schema,
 5 built the assignment data this would read, but nothing consumes it for this yet — a real,
 still-open gap worth a look before calling the Timeline view entirely finished, separate from
 Session B's own step list which is now fully done.
+
+## 024 — Conflict-outline rule closed: PLANNING.md's Timeline view now fully built
+Date: 2026-08-27
+Decision: Added `conflicted_phase_ids()` to `app/services/timeline.py` — takes the route's
+already-computed `candidates_by_phase_id` (from `app/services/assignment.py`'s
+`phase_candidates()`, step 5) and returns the set of phase ids with an empty candidate list.
+Wired into `/timeline`: a red ring (`ring-2 ring-red-600`) on any unassigned production
+phase's bar with no one who could realistically take it on, visible in the collapsed view
+without expanding a row — a bar's tooltip also states the reason. Legend entry added. 5 new
+tests (2 pure-function, 3 route-level), 98 across the suite. Verified against the real seed
+data: 3 phase bars across the three demo schedules are flagged, all in roles this studio's
+roster is thin on (motion design).
+Alternatives considered: also checking assigned phases for whether their assignee has since
+become overloaded elsewhere; querying the database fresh inside `conflicted_phase_ids()`
+instead of reusing the route's already-computed dict.
+Why:
+1. **Only unassigned phases are checked.** PLANNING.md's literal wording is "a role it
+   requires has no person with capacity" — a staffing-gap fact, not an overload fact. Once a
+   phase has an assignee, the gap is closed by definition; whether that specific person is
+   now stretched thin elsewhere is a different, already-covered question (`capacity.py`'s
+   `get_conflicts()`, surfaced on the Resources screen and the dashboard's capacity tile).
+   Conflating the two would make this rule redundant with a screen that already does it
+   better, and would flicker a phase's outline on and off based on unrelated assignments
+   elsewhere in the portfolio — confusing for a rule that's supposed to answer "is this
+   specific piece of work staffable."
+2. **`conflicted_phase_ids()` takes the dict, not the database.** The route already builds
+   `candidates_by_phase_id` for the assign-picker UI (step 5); recomputing `phase_candidates()`
+   a second time for the same phases would double the query cost and risk the two checks
+   silently disagreeing if one code path changed without the other. One computation now
+   drives both the picker and the outline.
+Consequences: this closes the last open item from `PLANNING.md`'s Timeline view section —
+every bullet in that spec is now built, not just Session B's own numbered step list.
+`DECISIONS.md` 020's original "except the conflict-outline rule" caveat no longer applies.
