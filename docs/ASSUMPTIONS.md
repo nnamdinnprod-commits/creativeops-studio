@@ -1,12 +1,16 @@
 # Assumptions Library
 
-**Status: built and live.** The table, seed, and editable screen (`/assumptions`) are Session
-C step 1 (`DECISIONS.md` 025); Quick Estimate mode (`/brief`, `app/services/estimate.py`) is
-Session C steps 2–4 (`DECISIONS.md` 026) and is the real consumer — editing a value on
-`/assumptions` and recomputing an open estimate now genuinely changes the numbers, no code
-change required. `PLANNING.md`'s back-scheduling (`app/services/scheduling.py`, Session B)
-is the one thing in the app that still reads its own hardcoded constants rather than this
-table — a deliberate, documented gap (`DECISIONS.md` 025), not an oversight.
+**Status: built and live everywhere.** The table, seed, and editable screen (`/assumptions`)
+are Session C step 1 (`DECISIONS.md` 025); Quick Estimate mode (`/brief`,
+`app/services/estimate.py`) is Session C steps 2–4 (`DECISIONS.md` 026); `PLANNING.md`'s
+back-scheduling (`app/services/scheduling.py`) reads `client_review_days` and
+`client_review_minimum_days` live too (`DECISIONS.md` 027) — editing either on
+`/assumptions` and regenerating a project's schedule changes its review-phase durations, no
+code change required. The one remaining gap: `app/services/scheduling.py`'s volume-scaling
+bands are still hardcoded, because nothing in the app derives a project's `volume_factor`
+from an asset count on the generated-schedule path — `Project.volume_factor` is a stored
+field, set directly, not computed here. `volume_factor_for()` accepts an override for the day
+a caller needs to wire it live.
 
 ## What this is
 
@@ -105,10 +109,11 @@ How input uncertainty widens an output range.
 
 **Built** (`/assumptions`) — a single editable table, grouped by category. Each row shows
 key, current value, default, and a short note on what it affects. "Changing a value
-recomputes any open estimate or schedule immediately" is true for a Quick Estimate — edit a
-value here, then hit Recalculate on `/brief`'s Quick Estimate tab, and the range moves.
-Generated project schedules (`PLANNING.md`'s back-scheduling) are the one exception: they
-still read `app/services/scheduling.py`'s own hardcoded constants, not this table.
+recomputes any open estimate or schedule immediately" is true both ways now: edit a value
+and hit Recalculate on `/brief`'s Quick Estimate tab and the range moves; edit
+`client_review_days` and regenerate a project's schedule (`PLANNING.md`'s back-scheduling)
+and its review-phase dates move too (`DECISIONS.md` 027). Volume-scaling bands are the one
+exception — see the Status note above.
 
 The "Confidence bands" table above is two numbers per row (low/high factor per band); the
 editable table flattens that into one row per number — `confidence_high_low_factor`,

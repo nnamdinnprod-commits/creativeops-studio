@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 
 from app.models import (
+    Assumption,
     PersonRole,
     PhaseKind,
     PhaseTemplate,
@@ -13,7 +14,7 @@ from app.models import (
     ProjectStatus,
     ProjectType,
 )
-from app.seed import seed_phase_templates
+from app.seed import seed_assumptions, seed_phase_templates
 from app.services.scheduling import (
     CLIENT_REVIEW_DAYS,
     CLIENT_REVIEW_MINIMUM_DAYS,
@@ -146,6 +147,7 @@ def _seed_project(db_session, project_type_id=None, deadline=date(2026, 12, 4), 
 
 def test_generate_schedule_persists_project_phases_matching_back_schedule(db_session):
     seed_phase_templates(db_session)
+    seed_assumptions(db_session)
     stills = db_session.query(ProjectType).filter_by(name="Stills").one()
     project = _seed_project(db_session, project_type_id=stills.id, deadline=date(2026, 10, 30))
 
@@ -180,6 +182,7 @@ def test_generate_schedule_without_project_type_raises(db_session):
 
 def test_regenerating_a_schedule_replaces_rather_than_duplicates(db_session):
     seed_phase_templates(db_session)
+    seed_assumptions(db_session)
     stills = db_session.query(ProjectType).filter_by(name="Stills").one()
     project = _seed_project(db_session, project_type_id=stills.id, deadline=date(2026, 10, 30))
 
@@ -258,3 +261,37 @@ def test_build_feasibility_facts_excludes_milestones_from_candidates_and_options
     facts = build_feasibility_facts(phases, deadline=date(2026, 9, 3), today=date(2026, 9, 10))
     names = {c["phase_name"] for c in facts["binding_constraint_candidates"]}
     assert "PPM" not in names
+
+
+def test_generate_schedule_reads_client_review_days_live(db_session):
+    """The core promise: editing /assumptions and regenerating a schedule changes the
+    persisted ProjectPhase durations, no code change required (DECISIONS.md 027)."""
+    seed_phase_templates(db_session)
+    seed_assumptions(db_session)
+    stills = db_session.query(ProjectType).filter_by(name="Stills").one()
+    project = _seed_project(db_session, project_type_id=stills.id, deadline=date(2026, 10, 30))
+
+    baseline = generate_schedule(db_session, project)
+    baseline_review = next(p for p in baseline if p.name == "Client review")
+    baseline_days = (baseline_review.end_date - baseline_review.start_date).days + 1
+
+    review_assumption = db_session.query(Assumption).filter_by(key="client_review_days").one()
+    review_assumption.value_numeric = 10
+    db_session.commit()
+
+    updated = generate_schedule(db_session, project)
+    updated_review = next(p for p in updated if p.name == "Client review")
+    updated_days = (updated_review.end_date - updated_review.start_date).days + 1
+
+    assert updated_days > baseline_days
+
+
+def test_generate_schedule_without_assumptions_seeded_raises(db_session):
+    """Documents the hard dependency this introduces — see the ordering fix in
+    app/seed.py's main() (Assumptions must seed before demo schedules)."""
+    seed_phase_templates(db_session)
+    stills = db_session.query(ProjectType).filter_by(name="Stills").one()
+    project = _seed_project(db_session, project_type_id=stills.id, deadline=date(2026, 10, 30))
+
+    with pytest.raises(ValueError, match="client_review_days"):
+        generate_schedule(db_session, project)

@@ -2,6 +2,7 @@ from datetime import date, timedelta
 
 from app.models import (
     Assignment,
+    Assumption,
     PersonRole,
     PhaseKind,
     Person,
@@ -11,7 +12,7 @@ from app.models import (
     ProjectStatus,
     ProjectType,
 )
-from app.seed import seed_phase_templates
+from app.seed import seed_assumptions, seed_phase_templates
 from app.services.scheduling import generate_schedule
 from app.services.assignment import PhaseCandidate
 from app.services.timeline import (
@@ -153,6 +154,7 @@ def test_route_renders_empty_state_with_no_schedules(client, db_session):
 
 def test_route_renders_a_generated_schedule(client, db_session):
     seed_phase_templates(db_session)
+    seed_assumptions(db_session)
     owner = _seed_person(db_session)
     stills = db_session.query(ProjectType).filter_by(name="Stills").one()
     project = Project(name="Shoot Project", brand="Hofmann", campaign="C", source_market="ES",
@@ -171,6 +173,7 @@ def test_route_renders_a_generated_schedule(client, db_session):
 
 def test_route_brand_filter_excludes_non_matching_projects(client, db_session):
     seed_phase_templates(db_session)
+    seed_assumptions(db_session)
     owner = _seed_person(db_session)
     stills = db_session.query(ProjectType).filter_by(name="Stills").one()
     project = Project(name="Shoot Project", brand="Hofmann", campaign="C", source_market="ES",
@@ -191,6 +194,7 @@ def test_route_brand_filter_excludes_non_matching_projects(client, db_session):
 
 def _seed_project_with_schedule(db_session):
     seed_phase_templates(db_session)
+    seed_assumptions(db_session)
     owner = _seed_person(db_session)
     stills = db_session.query(ProjectType).filter_by(name="Stills").one()
     project = Project(name="Shoot Project", brand="Hofmann", campaign="C", source_market="ES",
@@ -260,6 +264,7 @@ def test_unassign_route_clears_the_assignment(client, db_session):
 
 def test_timeline_shows_a_behind_badge_and_ai_panel_for_an_infeasible_schedule(client, db_session):
     seed_phase_templates(db_session)
+    seed_assumptions(db_session)
     owner = _seed_person(db_session)
     film = db_session.query(ProjectType).filter_by(name="Film / branded content").one()
     # Film needs ~35 working days; 3 calendar days out is nowhere close, regardless of
@@ -281,6 +286,7 @@ def test_timeline_shows_a_behind_badge_and_ai_panel_for_an_infeasible_schedule(c
 
 def test_timeline_does_not_show_behind_badge_for_a_feasible_schedule(client, db_session):
     seed_phase_templates(db_session)
+    seed_assumptions(db_session)
     owner = _seed_person(db_session)
     social = db_session.query(ProjectType).filter_by(name="Social / AI-generated content").one()
     project = Project(name="Plenty of Runway", brand="Hofmann", campaign="C", source_market="ES",
@@ -337,3 +343,27 @@ def test_timeline_stops_computing_candidates_for_a_phase_once_assigned(client, d
     # Shoot (senior_designer) is still unfilled and still flagged — only Retouching, now
     # assigned, is excluded from the check.
     assert resp.text.count("ring-2 ring-red-600") == 1
+
+
+def test_timeline_feasibility_panel_reflects_a_live_edited_assumption(client, db_session):
+    """DECISIONS.md 027: editing client_review_minimum_days on /assumptions changes the
+    compress_review option shown for an infeasible schedule, no code change required."""
+    seed_phase_templates(db_session)
+    seed_assumptions(db_session)
+    owner = _seed_person(db_session)
+    film = db_session.query(ProjectType).filter_by(name="Film / branded content").one()
+    project = Project(name="Tight Turnaround", brand="Hofmann", campaign="C", source_market="ES",
+                      priority=Priority.high, status=ProjectStatus.brief,
+                      deadline=date.today() + timedelta(days=3), owner_id=owner.id, brief_raw="x",
+                      project_type_id=film.id)
+    db_session.add(project)
+    db_session.commit()
+    generate_schedule(db_session, project)
+
+    minimum = db_session.query(Assumption).filter_by(key="client_review_minimum_days").one()
+    minimum.value_numeric = 1
+    db_session.commit()
+
+    resp = client.get("/timeline")
+    assert resp.status_code == 200
+    assert "days to 1" in resp.text  # the compressed-to value, not the hardcoded default of 2

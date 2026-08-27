@@ -695,3 +695,52 @@ Consequences: Session C (all 4 steps) is now complete — logged in `FEEDBACK_LO
 `ASSUMPTIONS.md`'s one remaining honest gap: `PLANNING.md`'s back-scheduling
 (`app/services/scheduling.py`, Session B) still reads its own hardcoded constants, not this
 table — noted explicitly there, not silently left inconsistent.
+
+## 027 — Wire app/services/scheduling.py to read live Assumption values
+Date: 2026-08-27
+Decision: `back_schedule()` and `build_feasibility_facts()` now take `client_review_days` /
+`client_review_minimum_days` as parameters (defaulting to the existing hardcoded constants,
+which stay as fallbacks for callers with no `Assumption` table to read — tests, mainly).
+`generate_schedule()` fetches `client_review_days` live via
+`app/services/assumptions.py`'s `get_value()` and passes it in; the `/dashboard` and
+`/timeline` routes do the same for `client_review_minimum_days` before calling
+`build_feasibility_facts()`. `volume_factor_for()` gained an equivalent optional `bands`
+override for consistency, though nothing calls it live yet — see below. 4 new tests, 140
+across the suite.
+Alternatives considered: giving `back_schedule()` a `db: Session` parameter directly instead
+of threading the resolved value through as a plain argument; wiring `volume_factor_for()`
+to a live caller as part of this same change.
+Why:
+1. **`back_schedule()` stays a pure function, no `db` parameter.** Its whole design (Session
+   B, decision 018) was deliberately DB-free and directly testable — dozens of existing
+   tests call it standalone with synthetic `PhaseTemplate` rows. Threading a resolved
+   `client_review_days: int` through as a parameter (the same pattern `volume_factor` and
+   `today` already use) gets the live value in without breaking that contract; only
+   `generate_schedule()`, which already has `db`, needs to know where the value comes from.
+2. **`volume_factor_for()` was not wired to a live caller**, despite gaining the same
+   `bands` override. Checked first: `generate_schedule()` never calls it — it passes
+   `Project.volume_factor` straight through, a stored field set directly, not derived from
+   an asset count anywhere in the schedule-generation path. Wiring a function with no real
+   caller to live data would have been theatre; the override exists for whenever a future
+   caller needs it (the same shape `estimate.py`'s own `volume_factor_for()` already uses),
+   not because anything reads it today. Documented explicitly in `ASSUMPTIONS.md` rather
+   than silently calling the job done.
+3. **Two real bugs caught by testing this against the actual seed path, not just fixtures**,
+   both fixed before landing:
+   - `app/seed.py`'s `main()` called `seed_demo_schedules()` (which calls
+     `generate_schedule()`) *before* `seed_assumptions()` — a fresh `--reset` would have
+     crashed generating the three demo schedules, since `client_review_days` wouldn't exist
+     yet. Caught by actually running `python -m app.seed --reset`, not just the test suite
+     (whose fixtures seed explicitly and in whatever order each test chose, masking the
+     bug). Fixed by reordering: assumptions now seed before demo schedules.
+   - The `/dashboard` and `/timeline` routes fetched `client_review_minimum_days`
+     unconditionally, before checking whether there were any scheduled projects at all —
+     an empty dashboard or timeline would have crashed on a database with no seeded
+     `Assumption` rows. Fixed by gating the fetch behind "is there at least one scheduled
+     project," the same condition that already guarded whether the value would ever be used.
+Consequences: `generate_schedule()` (and therefore any route that calls it, and `app/seed.py`)
+now hard-depends on the `Assumption` table being seeded first — existing tests that called
+`generate_schedule()` without seeding assumptions were updated to seed them
+(`tests/test_scheduling.py`, `tests/test_timeline.py`, `tests/test_dashboard.py`). Verified
+against a real `--reset` run, not just pytest, given the ordering bug this same change
+introduced and then caught.

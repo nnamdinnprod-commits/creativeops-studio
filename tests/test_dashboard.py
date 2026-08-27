@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from app.models import PersonRole, Person, Priority, Project, ProjectStatus, ProjectType
-from app.seed import seed_phase_templates
+from app.seed import seed_assumptions, seed_phase_templates
 from app.services.scheduling import generate_schedule
 
 
@@ -13,6 +13,7 @@ def test_dashboard_renders_with_no_scheduled_projects(client, db_session):
 
 def test_dashboard_schedule_tile_flags_an_infeasible_project(client, db_session):
     seed_phase_templates(db_session)
+    seed_assumptions(db_session)
     owner = Person(name="Owner", role=PersonRole.producer, capacity_pct=100,
                    skills="", is_external=False)
     db_session.add(owner)

@@ -9,13 +9,18 @@ from datetime import date, timedelta
 from sqlalchemy.orm import Session
 
 from app.models import PhaseKind, PhaseTemplate, Project, ProjectPhase, ProjectPhaseStatus
+from app.services.assumptions import get_value
 
-# docs/ASSUMPTIONS.md "Review and approval cycles". Session C builds the editable Assumption
-# table; until then this is the fixed value that table would otherwise hold.
+# docs/ASSUMPTIONS.md "Review and approval cycles". Fallback defaults for callers with no
+# Assumption table to read (tests, or any standalone use of back_schedule()/
+# build_feasibility_facts()) — generate_schedule() and the routes below fetch the live
+# Assumption value and pass it in explicitly instead of relying on these. DECISIONS.md 027.
 CLIENT_REVIEW_DAYS = 3
 CLIENT_REVIEW_MINIMUM_DAYS = 2
 
 # docs/ASSUMPTIONS.md "Volume scaling" — deliberately sub-linear, setup cost is fixed.
+# Fallback default; see volume_factor_for()'s own note on why nothing wires this to the
+# live Assumption table today.
 VOLUME_SCALE_BANDS: list[tuple[int, int, float]] = [
     (1, 6, 1.0),
     (7, 15, 1.6),
@@ -24,8 +29,15 @@ VOLUME_SCALE_BANDS: list[tuple[int, int, float]] = [
 ]
 
 
-def volume_factor_for(asset_count: int) -> float:
-    for low, high, factor in VOLUME_SCALE_BANDS:
+def volume_factor_for(asset_count: int, bands: list[tuple[int, int, float]] | None = None) -> float:
+    """`bands` defaults to the hardcoded VOLUME_SCALE_BANDS. Unlike client_review_days
+    below, nothing in this app currently calls this function on a path that generates a
+    persisted schedule — generate_schedule() reads Project.volume_factor directly (a stored
+    field, not derived from an asset count here), so there's no live caller to wire up yet.
+    The bands parameter exists so a future caller can pass live values the same way
+    generate_schedule() already does for client_review_days."""
+    bands = bands or VOLUME_SCALE_BANDS
+    for low, high, factor in bands:
         if low <= asset_count <= high:
             return factor
     raise ValueError(f"asset_count {asset_count} is outside the supported 1-60 range")
@@ -107,14 +119,17 @@ def back_schedule(
     delivery_date: date,
     volume_factor: float = 1.0,
     today: date | None = None,
+    client_review_days: int = CLIENT_REVIEW_DAYS,
 ) -> BackScheduleResult:
     """Walks the template in reverse from delivery_date. Each phase ends one working day
     before the next phase begins (PLANNING.md point 2); the last phase ends on delivery_date
     itself. Client-review-duration phases (kind=review, not a milestone) take their duration
-    from CLIENT_REVIEW_DAYS rather than the template's stored default_days — PLANNING.md
-    point 6: review windows are a studio-wide policy, not a per-phase one. Milestones stay
-    zero-duration regardless of kind. Never compresses to make a past start date disappear —
-    it reports the shortfall instead (PLANNING.md "Never silently compress")."""
+    from client_review_days rather than the template's stored default_days — PLANNING.md
+    point 6: review windows are a studio-wide policy, not a per-phase one.
+    generate_schedule() passes the live ASSUMPTIONS.md value; the CLIENT_REVIEW_DAYS default
+    here is only for callers with no Assumption table to read (DECISIONS.md 027). Milestones
+    stay zero-duration regardless of kind. Never compresses to make a past start date
+    disappear — it reports the shortfall instead (PLANNING.md "Never silently compress")."""
     today = today or date.today()
     ordered = sorted(phase_templates, key=lambda p: p.sequence)
 
@@ -127,7 +142,7 @@ def back_schedule(
         if template.is_milestone:
             working_days = 0
         elif template.kind == PhaseKind.review:
-            working_days = CLIENT_REVIEW_DAYS
+            working_days = client_review_days
         else:
             working_days = template.default_days
             if template.scales_with_volume:
@@ -157,7 +172,10 @@ def generate_schedule(db: Session, project: Project) -> list[ProjectPhase]:
     """docs/PLANNING.md 'Data model additions'. Runs back_schedule() against the project's
     type and deadline, and persists the result as ProjectPhase rows. Regenerating a schedule
     replaces the project's existing ProjectPhase rows rather than appending — a schedule is
-    derived from the template and the deadline, not something to accumulate duplicates of."""
+    derived from the template and the deadline, not something to accumulate duplicates of.
+    Reads client_review_days live from the Assumption table (DECISIONS.md 027) — editing it
+    on /assumptions and regenerating a project's schedule changes its review-phase durations,
+    no code change required."""
     if project.project_type_id is None:
         raise ValueError(f"Project {project.id} has no project_type_id — cannot generate a schedule")
 
@@ -167,7 +185,10 @@ def generate_schedule(db: Session, project: Project) -> list[ProjectPhase]:
         .order_by(PhaseTemplate.sequence)
         .all()
     )
-    result = back_schedule(templates, delivery_date=project.deadline, volume_factor=project.volume_factor)
+    client_review_days = int(get_value(db, "client_review_days"))
+    result = back_schedule(templates, delivery_date=project.deadline,
+                           volume_factor=project.volume_factor,
+                           client_review_days=client_review_days)
 
     # ORM-level delete (not a bulk .delete()) so the session's identity map is kept in sync —
     # a bulk delete leaves the old Python objects mapped to their primary keys, and SQLite's
@@ -196,7 +217,8 @@ def generate_schedule(db: Session, project: Project) -> list[ProjectPhase]:
 
 
 def build_feasibility_facts(
-    phases: list[ProjectPhase], deadline: date, today: date | None = None
+    phases: list[ProjectPhase], deadline: date, today: date | None = None,
+    client_review_minimum_days: int = CLIENT_REVIEW_MINIMUM_DAYS,
 ) -> dict:
     """docs/PLANNING.md 'What the AI does here'. Every number, date, and option here is
     computed before assess_schedule_feasibility's prompt is built — the model only picks
@@ -208,7 +230,9 @@ def build_feasibility_facts(
     revision phases — never a fabrication lead time or an anchored phase. Reviews and
     revisions are the only two priorities computable today; "overlap phases that don't
     strictly depend on each other" needs a dependency graph this data model doesn't have,
-    so it's not attempted rather than faked."""
+    so it's not attempted rather than faked. client_review_minimum_days defaults to the
+    hardcoded constant for callers with no Assumption table to read — the dashboard and
+    timeline routes pass the live value (DECISIONS.md 027)."""
     today = today or date.today()
     if not phases:
         return {"feasible": True}
@@ -228,11 +252,11 @@ def build_feasibility_facts(
 
     options = []
     for p, days in non_milestone:
-        if p.kind == PhaseKind.review and days > CLIENT_REVIEW_MINIMUM_DAYS:
+        if p.kind == PhaseKind.review and days > client_review_minimum_days:
             options.append({
                 "action": "compress_review",
-                "detail": f"{p.name} {days} days to {CLIENT_REVIEW_MINIMUM_DAYS}",
-                "recovers_days": days - CLIENT_REVIEW_MINIMUM_DAYS,
+                "detail": f"{p.name} {days} days to {client_review_minimum_days}",
+                "recovers_days": days - client_review_minimum_days,
             })
         if "revision" in p.name.lower():
             options.append({

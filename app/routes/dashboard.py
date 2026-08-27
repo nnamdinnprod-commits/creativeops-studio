@@ -8,6 +8,7 @@ from app.templates_env import templates
 from app.models import Localisation, LocalisationStatus, Project, ProjectPhase, ProjectStatus
 from app.services.ai.feasibility import assess_schedule_feasibility
 from app.services.ai.risk import assess_portfolio_attention
+from app.services.assumptions import get_value
 from app.services.attention import build_attention_snapshot
 from app.services.capacity import all_person_capacities
 from app.services.localisation_risk import summarize_by_market
@@ -65,21 +66,27 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
 
     # assess_schedule_feasibility (Session B step 6) — only scheduled projects that don't
     # fit their deadline get an assessment; a feasible schedule has nothing to narrate.
+    # client_review_minimum_days is read live from Assumption (DECISIONS.md 027) — only
+    # fetched when there's at least one scheduled project, so a dashboard with none never
+    # depends on the Assumption table being seeded.
     scheduled_ids = [row[0] for row in db.query(ProjectPhase.project_id).distinct().all()]
     schedule_alerts = []
-    for pid in scheduled_ids:
-        project = next((p for p in projects if p.id == pid), None)
-        if project is None:
-            continue
-        phases = db.query(ProjectPhase).filter_by(project_id=pid).all()
-        facts = build_feasibility_facts(phases, project.deadline, today=today)
-        if facts.get("feasible", True):
-            continue
-        schedule_alerts.append({
-            "project": project,
-            "assessment": assess_schedule_feasibility(facts),
-        })
-    schedule_alerts.sort(key=lambda a: a["project"].deadline)
+    if scheduled_ids:
+        client_review_minimum_days = int(get_value(db, "client_review_minimum_days"))
+        for pid in scheduled_ids:
+            project = next((p for p in projects if p.id == pid), None)
+            if project is None:
+                continue
+            phases = db.query(ProjectPhase).filter_by(project_id=pid).all()
+            facts = build_feasibility_facts(phases, project.deadline, today=today,
+                                            client_review_minimum_days=client_review_minimum_days)
+            if facts.get("feasible", True):
+                continue
+            schedule_alerts.append({
+                "project": project,
+                "assessment": assess_schedule_feasibility(facts),
+            })
+        schedule_alerts.sort(key=lambda a: a["project"].deadline)
 
     return templates.TemplateResponse(request, "dashboard.html", {
         "active_count": len(active_projects),

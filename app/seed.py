@@ -595,17 +595,19 @@ def main():
             seed_phase_templates(session)
             print("Phase templates created: 4 project types, 43 phase template rows.")
 
-        if session.query(ProjectPhase).count() > 0:
-            print("Demo schedules already present — skipping.")
-        else:
-            seed_demo_schedules(session)
-            print("Demo schedules generated for 3 projects (Social, Stills, Film).")
-
         if session.query(Assumption).count() > 0:
             print("Assumptions already present — skipping.")
         else:
             seed_assumptions(session)
             print("Assumptions created: 21 assumption rows, 6 rate bands.")
+
+        # Must come after seed_assumptions(): generate_schedule() now reads
+        # client_review_days live from the Assumption table (DECISIONS.md 027).
+        if session.query(ProjectPhase).count() > 0:
+            print("Demo schedules already present — skipping.")
+        else:
+            seed_demo_schedules(session)
+            print("Demo schedules generated for 3 projects (Social, Stills, Film).")
     finally:
         session.close()
 
