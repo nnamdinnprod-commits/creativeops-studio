@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Assumptions — CreativeOps Studio{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold">Planning Assumptions</h1>
+<p class="text-slate-500 mt-1 text-sm">Demo data. Planning assumptions — editable studio defaults, not regulatory or market data.</p>
+
+<form method="post" action="/assumptions/reset" class="mt-4">
+    <button type="submit" class="text-xs text-slate-500 underline hover:text-slate-700">Reset all to defaults</button>
+</form>
+
+{% for category in category_order %}
+<div class="bg-white rounded shadow-sm p-4 mt-4">
+    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">{{ category }}</h2>
+    <div class="mt-2 overflow-x-auto">
+    <table class="w-full text-sm">
+        <thead class="text-left text-xs text-slate-500">
+            <tr>
+                <th class="py-1 pr-3">Key</th>
+                <th class="py-1 pr-3">Value</th>
+                <th class="py-1 pr-3">Default</th>
+                <th class="py-1 pr-3">Affects</th>
+                <th class="py-1">Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for a in by_category[category] %}
+        <tr class="border-t border-slate-100">
+            <td class="py-2 pr-3 font-mono text-xs text-slate-700">{{ a.key }}</td>
+            <td class="py-2 pr-3">
+                <form method="post" action="/assumptions/{{ a.id }}/update" class="flex items-center gap-1">
+                    <input type="number" step="any" name="value_numeric" value="{{ '%g' % a.value_numeric }}"
+                           class="border border-slate-300 rounded px-2 py-0.5 w-20 text-sm">
+                    <span class="text-xs text-slate-400">{{ a.unit }}</span>
+                    <button type="submit" class="text-xs text-blue-600 underline">Save</button>
+                </form>
+            </td>
+            <td class="py-2 pr-3 text-xs text-slate-400">{{ '%g' % a.default_value }}</td>
+            <td class="py-2 pr-3 text-xs text-slate-400">{{ a.affects }}</td>
+            <td class="py-2 text-xs text-slate-500">{{ a.description }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% endfor %}
+
+<div class="bg-white rounded shadow-sm p-4 mt-4">
+    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Day rate bands</h2>
+    <p class="text-xs text-slate-400 mt-1">Stated as ranges, in euros — the studio's own planning figures, not market data.</p>
+    <div class="mt-2 overflow-x-auto">
+    <table class="w-full text-sm">
+        <thead class="text-left text-xs text-slate-500">
+            <tr>
+                <th class="py-1 pr-3">Role</th>
+                <th class="py-1 pr-3">Rate range (per day)</th>
+                <th class="py-1">Currency</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for rb in rate_bands %}
+        <tr class="border-t border-slate-100">
+            <td class="py-2 pr-3">{{ rb.role.value.replace('_', ' ')|title }}</td>
+            <td class="py-2 pr-3">
+                <form method="post" action="/assumptions/rate-bands/{{ rb.id }}/update" class="flex items-center gap-2">
+                    <input type="number" step="any" name="low" value="{{ '%g' % rb.low }}"
+                           class="border border-slate-300 rounded px-2 py-0.5 w-20 text-sm">
+                    <span class="text-slate-400">–</span>
+                    <input type="number" step="any" name="high" value="{{ '%g' % rb.high }}"
+                           class="border border-slate-300 rounded px-2 py-0.5 w-20 text-sm">
+                    <button type="submit" class="text-xs text-blue-600 underline">Save</button>
+                </form>
+            </td>
+            <td class="py-2 text-xs text-slate-400">{{ rb.currency }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% endblock %}

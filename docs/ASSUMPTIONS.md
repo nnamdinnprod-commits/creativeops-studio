@@ -1,6 +1,10 @@
 # Assumptions Library
 
-**Status: specification for session 2.**
+**Status: the table, seed, and editable screen (`/assumptions`) are built — Session C step 1,
+see `DECISIONS.md` 025.** Not yet wired into anything that reads it live: `PLANNING.md`'s
+back-scheduling (`app/services/scheduling.py`) still uses its own hardcoded constants, and
+`BRIEF_MODES.md`'s Quick Estimate mode (steps 2-4 below) is what will actually consume these
+values — editing a number here has no effect on the app yet, beyond the number itself.
 
 ## What this is
 
@@ -97,12 +101,19 @@ How input uncertainty widens an output range.
 
 ## Interface
 
-A single editable table, grouped by category. Each row shows key, current value, default,
-and a short note on what it affects. Changing a value recomputes any open estimate or
-schedule immediately.
+**Built** (`/assumptions`) — a single editable table, grouped by category. Each row shows
+key, current value, default, and a short note on what it affects. "Changing a value
+recomputes any open estimate or schedule immediately" is not yet true — there's no open
+estimate to recompute until Quick Estimate mode (step 2) exists and reads these values live.
+
+The "Confidence bands" table above is two numbers per row (low/high factor per band); the
+editable table flattens that into one row per number — `confidence_high_low_factor`,
+`confidence_high_high_factor`, and so on — since `ASSUMPTIONS.md`'s own data model gives
+every `Assumption` row a single `value_numeric`, not a pair.
 
 A "reset to defaults" control, because a demo will be run several times and someone will
-have been experimenting.
+have been experimenting. Built — resets every `Assumption` row's `value_numeric` to its
+`default_value`. `RateBand` isn't part of the reset (see Data model below).
 
 ## Labelling rule
 
@@ -121,3 +132,5 @@ RateBand     id, role, low, high, currency
 ```
 
 Seeded from the tables above. Editable through the interface. Reset restores the seed.
+`RateBand` has no `default_value` column in this model — a changed rate stays changed until
+edited back by hand; only `Assumption` rows are affected by "reset to defaults."

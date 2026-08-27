@@ -287,3 +287,33 @@ class ProjectPhase(TimestampMixin, Base):
     # ad-hoc phase with no source template row at all. Same comma-separated PersonRole
     # convention as PhaseTemplate.required_roles and Person.skills.
     required_roles: Mapped[str] = mapped_column(String, nullable=False, default="")
+
+
+class Assumption(TimestampMixin, Base):
+    """docs/ASSUMPTIONS.md (Session 3). The studio's own editable planning heuristics —
+    review cycle lengths, lead times, volume scaling, confidence bands. Every value here is
+    a judgement call the studio can change, never regulatory or market data (ASSUMPTIONS.md
+    is explicit about that distinction). Seeded by app/seed.py's seed_assumptions()."""
+
+    __tablename__ = "assumptions"
+
+    category: Mapped[str] = mapped_column(String, nullable=False)
+    key: Mapped[str] = mapped_column(String, nullable=False)
+    value_numeric: Mapped[float | None] = mapped_column(Float, nullable=True)
+    value_text: Mapped[str | None] = mapped_column(String, nullable=True)
+    unit: Mapped[str | None] = mapped_column(String, nullable=True)
+    default_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    affects: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class RateBand(TimestampMixin, Base):
+    """docs/ASSUMPTIONS.md (Session 3). One row per PersonRole — the studio's own day-rate
+    planning figures, stated as a range, never presented as market data."""
+
+    __tablename__ = "rate_bands"
+
+    role: Mapped[PersonRole] = mapped_column(Enum(PersonRole), nullable=False)
+    low: Mapped[float] = mapped_column(Float, nullable=False)
+    high: Mapped[float] = mapped_column(Float, nullable=False)
+    currency: Mapped[str] = mapped_column(String, nullable=False, default="EUR")

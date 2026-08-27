@@ -98,9 +98,11 @@ even without derived assignments.
 
 ## Session C — estimation, if there is a third session
 
+**In progress** as of 2026-08-27 — step 1 done, see `DECISIONS.md` 025.
+
 Read `BRIEF_MODES.md` and `ASSUMPTIONS.md`.
 
-1. `Assumption` and `RateBand` tables, seeded, with the editable table screen
+1. `Assumption` and `RateBand` tables, seeded, with the editable table screen — **done**
 2. Quick Estimate mode with assumption controls and recomputation
 3. Indicative costing from the rate bands
 4. `single_best_question` surfaced prominently — it is the most useful thing on that screen

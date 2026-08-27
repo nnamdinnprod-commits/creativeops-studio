@@ -601,3 +601,42 @@ Why:
 Consequences: this closes the last open item from `PLANNING.md`'s Timeline view section —
 every bullet in that spec is now built, not just Session B's own numbered step list.
 `DECISIONS.md` 020's original "except the conflict-outline rule" caveat no longer applies.
+
+## 025 — Session C step 1: Assumption and RateBand tables, editable screen
+Date: 2026-08-27
+Decision: Added `Assumption` and `RateBand` models, `app/seed.py`'s `seed_assumptions()` (21
+`Assumption` rows across the four categories `ASSUMPTIONS.md` names, 6 `RateBand` rows — one
+per `PersonRole`), `app/services/assumptions.py` (`get_value`, `get_rate_band`, `reset_all`),
+and `/assumptions` — a grouped, inline-editable table plus a "reset all to defaults" button,
+following the exact plumbing pattern established for every other screen this session (thin
+route, deterministic service, Jinja template, nav link). 13 new tests in
+`tests/test_assumptions.py`, 111 across the suite.
+Alternatives considered: wiring `app/services/scheduling.py`'s hardcoded `CLIENT_REVIEW_DAYS`/
+`VOLUME_SCALE_BANDS` constants to read live from this table as part of this same step;
+modeling "Confidence bands" as a dedicated two-column table instead of flattening it into
+paired `Assumption` rows.
+Why:
+1. **Not wiring Session B's constants to this table now, deliberately.** `ASSUMPTIONS.md`'s
+   "Changing a value recomputes any open estimate or schedule immediately" is a real
+   requirement, but there's no "open estimate" yet to recompute — that's Quick Estimate mode
+   (step 2), the actual payoff moment for "editable, recomputes." Retrofitting Session B's
+   already-tested, already-committed `back_schedule()`/`volume_factor_for()` in the same step
+   that introduces the new tables would mean two different kinds of change (new feature +
+   refactor of settled code) landing together, with no visible demo moment to justify the
+   risk yet. `ASSUMPTIONS.md` and `DATA_MODEL.md` both say so explicitly now, rather than
+   silently leaving the gap implicit. Revisit when step 2/3 actually need it.
+2. **"Confidence bands" flattened to one `Assumption` row per number**, not a dedicated
+   two-column table. `ASSUMPTIONS.md`'s own `Assumption` schema gives every row exactly one
+   `value_numeric` — the source table's low/high-factor pairs (`high` → 0.95/1.10, etc.)
+   become two rows each (`confidence_high_low_factor`, `confidence_high_high_factor`, ...),
+   8 rows total. Matches the doc's literal data model rather than inventing a second table
+   the doc doesn't ask for.
+3. **`RateBand` has no reset-to-defaults behavior** — `ASSUMPTIONS.md`'s own `RateBand`
+   columns (`id, role, low, high, currency`) have no `default_value` field, unlike
+   `Assumption`. A changed rate stays changed until edited back by hand; "reset all to
+   defaults" only touches `Assumption` rows. Followed the doc's data model rather than adding
+   a column it doesn't specify.
+Consequences: editing a value on `/assumptions` today only changes that stored number —
+verified this is honestly labeled in `ASSUMPTIONS.md` rather than implying live effect. The
+screen is real and functional (seeded, editable, resettable, tested) but inert until step 2
+reads from it.

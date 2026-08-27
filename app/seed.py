@@ -10,6 +10,7 @@ from datetime import date, timedelta
 from app.database import Base, SessionLocal, engine
 from app.models import (
     Assignment,
+    Assumption,
     CreativeInsight,
     Deliverable,
     DeliverableStatus,
@@ -25,6 +26,7 @@ from app.models import (
     ProjectPhase,
     ProjectStatus,
     ProjectType,
+    RateBand,
     SubStatus,
     VariantTheme,
 )
@@ -498,6 +500,75 @@ def seed_demo_schedules(session):
         generate_schedule(session, project)
 
 
+# --- Assumptions and rate bands (docs/ASSUMPTIONS.md, Session 3) ---
+# category, key, value, unit, description, affects — default_value is set equal to value at
+# seed time, per ASSUMPTIONS.md's "reset restores the seed."
+ASSUMPTIONS: list[tuple[str, str, float, str, str, str]] = [
+    ("Review and approval cycles", "client_review_days", 3, "days",
+     "Length of a standard client review round", "scheduling, costing"),
+    ("Review and approval cycles", "client_review_minimum_days", 2, "days",
+     "Floor when compressing a review window", "scheduling"),
+    ("Review and approval cycles", "internal_review_days", 1, "days",
+     "Length of an internal review round", "scheduling, costing"),
+    ("Review and approval cycles", "default_review_rounds", 2, "rounds",
+     "Client review rounds assumed for an estimate with none stated", "costing"),
+    ("Review and approval cycles", "localisation_review_days", 2, "days",
+     "Review time per target market for localisation", "scheduling, costing"),
+    ("Lead times", "fabrication_lead_days", 15, "days",
+     "Event fabrication lead time — usually the binding constraint", "scheduling"),
+    ("Lead times", "talent_booking_lead_days", 10, "days",
+     "Lead time to book talent for a shoot", "scheduling"),
+    ("Lead times", "location_permit_lead_days", 12, "days",
+     "Lead time for a location permit — varies by market; a planning figure only", "scheduling"),
+    ("Lead times", "translation_turnaround_days", 3, "days",
+     "Standard-volume translation turnaround per market", "scheduling, costing"),
+    ("Volume scaling", "volume_scale_1_6", 1.0, "factor",
+     "Duration multiplier for 1-6 assets", "scheduling, costing"),
+    ("Volume scaling", "volume_scale_7_15", 1.6, "factor",
+     "Duration multiplier for 7-15 assets", "scheduling, costing"),
+    ("Volume scaling", "volume_scale_16_30", 2.5, "factor",
+     "Duration multiplier for 16-30 assets", "scheduling, costing"),
+    ("Volume scaling", "volume_scale_31_60", 3.8, "factor",
+     "Duration multiplier for 31-60 assets", "scheduling, costing"),
+    ("Confidence bands", "confidence_high_low_factor", 0.95, "factor",
+     "High-confidence estimate range, low multiplier", "costing"),
+    ("Confidence bands", "confidence_high_high_factor", 1.10, "factor",
+     "High-confidence estimate range, high multiplier", "costing"),
+    ("Confidence bands", "confidence_medium_low_factor", 0.85, "factor",
+     "Medium-confidence estimate range, low multiplier", "costing"),
+    ("Confidence bands", "confidence_medium_high_factor", 1.25, "factor",
+     "Medium-confidence estimate range, high multiplier", "costing"),
+    ("Confidence bands", "confidence_low_medium_low_factor", 0.75, "factor",
+     "Low-medium-confidence estimate range, low multiplier", "costing"),
+    ("Confidence bands", "confidence_low_medium_high_factor", 1.40, "factor",
+     "Low-medium-confidence estimate range, high multiplier", "costing"),
+    ("Confidence bands", "confidence_low_low_factor", 0.60, "factor",
+     "Low-confidence estimate range, low multiplier", "costing"),
+    ("Confidence bands", "confidence_low_high_factor", 1.70, "factor",
+     "Low-confidence estimate range, high multiplier", "costing"),
+]
+
+RATE_BANDS: list[tuple[PersonRole, float, float]] = [
+    (PersonRole.producer, 450, 650),
+    (PersonRole.senior_designer, 500, 700),
+    (PersonRole.designer, 350, 500),
+    (PersonRole.motion_designer, 450, 650),
+    (PersonRole.copywriter, 400, 550),
+    (PersonRole.translator, 300, 450),
+]
+
+
+def seed_assumptions(session):
+    for category, key, value, unit, description, affects in ASSUMPTIONS:
+        session.add(Assumption(
+            category=category, key=key, value_numeric=value, value_text=None, unit=unit,
+            default_value=value, description=description, affects=affects,
+        ))
+    for role, low, high in RATE_BANDS:
+        session.add(RateBand(role=role, low=low, high=high, currency="EUR"))
+    session.commit()
+
+
 def reset():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
@@ -529,6 +600,12 @@ def main():
         else:
             seed_demo_schedules(session)
             print("Demo schedules generated for 3 projects (Social, Stills, Film).")
+
+        if session.query(Assumption).count() > 0:
+            print("Assumptions already present — skipping.")
+        else:
+            seed_assumptions(session)
+            print("Assumptions created: 21 assumption rows, 6 rate bands.")
     finally:
         session.close()
 

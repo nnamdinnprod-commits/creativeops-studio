@@ -200,3 +200,29 @@ CreativeInsight ── (brand, market) ─→ informs Recommendation
 
 CreativeInsight links to projects loosely by brand and market rather than by FK, because
 an insight is about a market's creative performance, not about one project.
+
+## Assumption / RateBand
+
+Session 3 addition — see `docs/ASSUMPTIONS.md` for the full spec and `docs/DECISIONS.md` 025
+for what's built vs. not yet wired. Seeded by `app/seed.py`'s `seed_assumptions()`: 21
+`Assumption` rows across four categories (Review and approval cycles, Lead times, Volume
+scaling, Confidence bands), 6 `RateBand` rows (one per `PersonRole`). Rendered and editable
+at `/assumptions`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `Assumption.category` | str | one of the four category names above |
+| `Assumption.key` | str | unique, e.g. `client_review_days` |
+| `Assumption.value_numeric` | float, nullable | the live value |
+| `Assumption.value_text` | str, nullable | unused today — every seeded assumption is numeric |
+| `Assumption.unit` | str, nullable | e.g. `days`, `factor`, `rounds` |
+| `Assumption.default_value` | float, nullable | what "reset to defaults" restores |
+| `Assumption.description` | text | shown in the UI as a short note on what it affects |
+| `Assumption.affects` | str, nullable | e.g. `scheduling, costing` |
+| `RateBand.role` | enum (`PersonRole`) | one row per role |
+| `RateBand.low` / `RateBand.high` | float | day-rate range |
+| `RateBand.currency` | str | always `EUR` today — multi-currency is out of scope per `BRIEF_MODES.md` |
+
+Not yet read by `app/services/scheduling.py` (which still uses its own hardcoded
+`CLIENT_REVIEW_DAYS`/`VOLUME_SCALE_BANDS` constants) or by anything else — Quick Estimate
+mode (Session C step 2) is the first real consumer.
