@@ -744,3 +744,44 @@ now hard-depends on the `Assumption` table being seeded first — existing tests
 (`tests/test_scheduling.py`, `tests/test_timeline.py`, `tests/test_dashboard.py`). Verified
 against a real `--reset` run, not just pytest, given the ordering bug this same change
 introduced and then caught.
+
+## 028 — Ran the full demo end to end; rewrote DEMO_SCRIPT.md to match
+Date: 2026-08-27
+Decision: Executed `docs/DEMO_SCRIPT.md`'s entire 8-step walkthrough against a real
+`uvicorn` process from a cold `python -m app.seed --reset` (`AI_PROVIDER=mock`), driving
+every click via HTTP request rather than trusting the script's claims. Every refusal
+message, computed number, and outcome matched *except* two, both caused by real product
+changes made after the script was originally written — not app bugs. Rewrote the script to
+match current behavior and added a 9th step (Timeline and planning) covering Sessions B and
+C, which had no demo coverage at all. Re-ran the complete rewritten script end to end,
+sequentially, against a fresh reset to confirm every new claim too, including the step 8
+assign interaction. Reset the local dev database afterward — a demo run mutates real state,
+same as decision 013's reasoning for reseeding Render on every boot.
+Alternatives considered: leaving the stale numbers and adding a footnote; making step 8
+optional-and-separate rather than integrating it into the numbered flow; hardcoding step 8's
+exact dates and figures the way earlier steps do.
+Why, two real discrepancies and one design choice for the new step:
+1. **Dashboard's "2 projects need intervention" is now 4.** Session A's deadline rule
+   (decision 014, added after this script was written) flags two more projects
+   (`Loyalty Relaunch Teaser`, `Loyalty App Push`) for running out of runway. The original
+   two items are unchanged and still the ones the rest of the demo resolves — the script now
+   says "4" honestly but keeps the spoken walkthrough focused on the same two, naming the
+   other two only in passing.
+2. **Step 6's recommendation names Alex, not Maya — because step 4 already ran.** This isn't
+   a bug: `mock_insight_to_action` correctly reads live capacity, and step 4's accepted
+   reassignment already pushed Maya to 100% by the time step 6 runs. The original script's
+   worked example was never actually true for someone following its own steps in order.
+   Fixed by updating the quoted example to Alex and adding an explicit note explaining why,
+   so a presenter isn't confused if a future change shifts it again.
+3. **Step 8 deliberately doesn't quote exact dates or day-counts the way steps 1–7 sometimes
+   do**, even though every one of its numbers was verified live. Its content (a project's
+   feasibility shortfall, its milestone dates, which phase is "behind") depends on how many
+   working days have elapsed since the seed ran — genuinely time-sensitive in a way step 6's
+   effort estimate or step 3's percentages aren't. Describing the pattern ("names the
+   working-day shortfall and the phase most responsible") instead of the number keeps the
+   script from going stale the way the original step 1 count already had.
+Consequences: `docs/DEMO_SCRIPT.md` now covers all 9 screens the app has, not 6. Total run
+time grew from ~6.2 minutes (the original steps already summed past the "5 Minutes" the old
+title claimed) to ~7.3 minutes with step 8 included — retitled honestly, and step 8 marked as
+the first thing to cut if time is short, since steps 1–7 are unchanged in substance and still
+carry the whole argument on their own.
