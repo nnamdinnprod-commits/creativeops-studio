@@ -36,61 +36,98 @@ Phase fields: `name`, `default_days`, `kind` (`prep` / `production` / `review` /
 
 Milestones are zero-duration markers at phase boundaries. They are where meetings go.
 
+Owner review round 2 (2026-08-27, see `DECISIONS.md` 017) added the client-approval and
+milestone columns below, plus a **Budget sign-off** milestone in every template, placed right
+after that template's concept-approval point. Both Budget sign-off and Film's Pre-PPM are
+client-facing.
+
 ### Film / branded content
 
-| Phase | Days | Kind | Notes |
-|---|---|---|---|
-| Brief & scoping | 2 | prep | |
-| Pre-production | 8 | prep | treatment, casting, locations, permits |
-| **PPM** | 0 | milestone | pre-production meeting — client sign-off on approach |
-| Shoot | 2 | production | scales with volume |
-| Offline edit | 5 | production | |
-| Client review 1 | 3 | review | |
-| Revisions | 2 | production | |
-| VFX & grade | 3 | production | |
-| Audio mix | 2 | production | |
-| **Final approval** | 3 | review | milestone at end |
-| Delivery & versioning | 2 | delivery | scales with volume |
+| Phase | Days | Kind | Milestone | Client review | Notes |
+|---|---|---|---|---|---|
+| Brief & scoping | 2 | prep | | | |
+| Pre-production | 8 | prep | | | treatment, casting, locations, permits |
+| **Pre-PPM** | 0 | review | ✓ | ✓ | client check-in ahead of PPM |
+| **PPM** | 0 | review | ✓ | ✓ | pre-production meeting — client sign-off on approach |
+| **Budget sign-off** | 0 | review | ✓ | ✓ | |
+| Shoot | 2 | production | | | scales with volume |
+| Offline edit | 5 | production | | | |
+| Client review 1 | 3 | review | | ✓ | |
+| Revisions | 2 | production | | | |
+| **Client review 2** | 3 | review | | ✓ | second review round, after revisions |
+| VFX & grade | 3 | production | | | |
+| Audio mix | 2 | production | | | |
+| **Final approval** | 3 | review | | ✓ | milestone at end |
+| Delivery & versioning | 2 | delivery | | | scales with volume |
 
 ### Event
 
-| Phase | Days | Kind | Notes |
-|---|---|---|---|
-| Brief & scoping | 2 | prep | |
-| Concept & design | 5 | prep | |
-| **Fabrication cutoff** | 0 | milestone | hard gate — build cannot start before design lock |
-| Fabrication & build | 15 | production | longest lead time; usually the binding constraint |
-| **Running order meeting** | 0 | milestone | |
-| Rehearsal | 1 | production | |
-| Live | 1 | production | fixed date — see "anchored phases" below |
-| Wrap & asset delivery | 3 | delivery | |
+| Phase | Days | Kind | Milestone | Client review | Notes |
+|---|---|---|---|---|---|
+| Brief & scoping | 2 | prep | | ✓ | |
+| Concept & design | 5 | prep | | ✓ | |
+| **Budget sign-off** | 0 | review | ✓ | ✓ | |
+| **Fabrication cutoff** | 0 | prep | ✓ | ✓ | hard gate — build cannot start before design lock |
+| Fabrication & build | 15 | production | | | longest lead time; usually the binding constraint |
+| **Running order meeting** | 0 | production | ✓ | ✓ | |
+| Rehearsal | 1 | production | | ✓ | |
+| Live | 1 | production | | | fixed date — see "anchored phases" below |
+| Wrap & asset delivery | 3 | delivery | | ✓ | |
+
+Client approval sits at every stage except Fabrication & build and Live — those two are
+execution windows, not decision points.
 
 ### Stills
 
-| Phase | Days | Kind |
-|---|---|---|
-| Brief & scoping | 1 | prep |
-| Pre-production | 4 | prep |
-| Shoot | 1 | production |
-| Selects & client review | 3 | review |
-| Retouching | 4 | production |
-| Client review | 2 | review |
-| Delivery & resizing | 2 | delivery |
+| Phase | Days | Kind | Milestone | Client review |
+|---|---|---|---|---|
+| Brief & scoping | 1 | prep | | |
+| Pre-production | 4 | prep | | |
+| **PPM** | 0 | review | ✓ | ✓ |
+| **Budget sign-off** | 0 | review | ✓ | ✓ |
+| Shoot | 1 | production | | |
+| Selects & client review | 3 | review | | ✓ |
+| Retouching | 4 | production | | |
+| Client review | 2 | review | | ✓ |
+| Delivery & resizing | 2 | delivery | | |
 
 ### Social / AI-generated content
 
-| Phase | Days | Kind |
-|---|---|---|
-| Brief & scoping | 1 | prep |
-| Concept & scripting | 2 | prep |
-| Generation & production | 3 | production |
-| Client review | 2 | review |
-| Revisions | 1 | production |
-| Localisation handoff | 1 | delivery |
-| Delivery | 1 | delivery |
+| Phase | Days | Kind | Milestone | Client review |
+|---|---|---|---|---|
+| Brief & scoping | 1 | prep | | |
+| **Brief approval** | 0 | review | ✓ | ✓ |
+| Concept & scripting | 2 | prep | | |
+| **Concept approval** | 0 | review | ✓ | ✓ |
+| **Budget sign-off** | 0 | review | ✓ | ✓ |
+| Generation & production | 3 | production | | |
+| Client review | 2 | review | | ✓ |
+| Revisions | 1 | production | | |
+| **Final approval** | 0 | review | ✓ | ✓ |
+| Localisation handoff | 1 | delivery | | |
+| Delivery | 1 | delivery | | |
 
 Localisation phases from `PRODUCT_SPEC.md` attach after `Localisation handoff` for any
 project with target markets, one track per market, running in parallel.
+
+### Editability and ad-hoc phases — confirmed requirement, not yet built
+
+Owner review round 2 also confirmed two capabilities this section only specs, since they
+need an editing screen that doesn't exist yet (`docs/FEEDBACK_LOG.md`'s own sequencing puts
+UI at step 4, the timeline view):
+
+- **Per-project day counts are editable.** The values above are defaults, not fixed. Once a
+  project's schedule is generated (`ProjectPhase` rows, step 3), a producer can adjust any
+  phase's day count to match their reality; the `PhaseTemplate` default is untouched.
+- **Producers can insert ad-hoc phase rows** a template doesn't anticipate — e.g. a
+  "Sourcing talent" row for a Film project involving a celebrity. An inserted row needs the
+  same fields as any `ProjectPhase` (name, days, kind, required roles) and slots into the
+  existing sequence; it does not get written back into the shared `PhaseTemplate`, so one
+  project's one-off addition doesn't change what every other project of that type starts
+  from.
+
+Build these alongside the timeline view (step 4) or schedule generation (step 3), not before
+— there's no schedule to edit until a project has one.
 
 ---
 

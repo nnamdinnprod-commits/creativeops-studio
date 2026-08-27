@@ -100,6 +100,13 @@ class RecommendationStatus(str, enum.Enum):
     rejected = "rejected"
 
 
+class PhaseKind(str, enum.Enum):
+    prep = "prep"
+    production = "production"
+    review = "review"
+    delivery = "delivery"
+
+
 class Project(TimestampMixin, Base):
     __tablename__ = "projects"
 
@@ -209,3 +216,28 @@ class BriefAnalysis(TimestampMixin, Base):
     missing_fields_json: Mapped[str] = mapped_column(Text, nullable=False)
     blocking_reasons: Mapped[str] = mapped_column(Text, nullable=False)
     created_project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), nullable=True)
+
+
+class ProjectType(TimestampMixin, Base):
+    """docs/PLANNING.md (Session 2, not yet wired to Project or the UI)."""
+
+    __tablename__ = "project_types"
+
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class PhaseTemplate(TimestampMixin, Base):
+    """docs/PLANNING.md (Session 2, not yet wired to Project or the UI)."""
+
+    __tablename__ = "phase_templates"
+
+    project_type_id: Mapped[int] = mapped_column(ForeignKey("project_types.id"), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    default_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[PhaseKind] = mapped_column(Enum(PhaseKind), nullable=False)
+    required_roles: Mapped[str] = mapped_column(String, nullable=False, default="")
+    is_milestone: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_client_review: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    scales_with_volume: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

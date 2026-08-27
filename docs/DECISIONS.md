@@ -240,3 +240,76 @@ requiring "an invalid transition is refused with a reason." Closed immediately a
 allowed, backward-always-allowed, low readiness blocks past Ready, readiness at threshold
 passes, no-brief-analysis is ungated). `docs/FEEDBACK_LOG.md`'s note about the gap now reads
 as historical rather than a live TODO.
+
+## 016 — Session B step 1: ProjectType and PhaseTemplate models, seeded from PLANNING.md
+Date: 2026-08-27
+Decision: Added `ProjectType` and `PhaseTemplate` to `app/models/__init__.py` and a
+`PhaseKind` enum (`prep`/`production`/`review`/`delivery`), plus `seed_phase_templates()` in
+`app/seed.py`, seeding the four templates from `docs/PLANNING.md` (Film / branded content —
+11 phases, Event — 8, Stills — 7, Social / AI-generated content — 7; 33 rows total). Called
+from `seed.py`'s `main()` with its own idempotency check, independent of the existing
+Person-count check. No UI, no `Project.project_type_id` column yet — per `FEEDBACK_LOG.md`'s
+own sequencing, step 1 is models and seed data only. Added the entities to `DATA_MODEL.md`
+(reference, not duplicate) and 6 tests in `tests/test_phase_templates.py`.
+Alternatives considered: leaving `required_roles` blank until Session B needs it for real;
+asking the owner to specify roles per phase before writing any seed data.
+Why: two judgment calls were needed that `PLANNING.md`'s phase tables don't settle, and
+neither seemed worth blocking on:
+1. **`required_roles` per phase.** `PLANNING.md`'s tables (Phase/Days/Kind/Notes) have no
+   role column, though `PhaseTemplate`'s own schema calls for one. Roles were inferred from
+   each phase's name/notes against the existing `PersonRole` enum, which has no
+   director/DP/fabricator roles — "producer" stands in for externally-vendor-coordinated work
+   like shoot crews and fabrication builds. This is a placeholder, not a studio judgement call
+   the way `ASSUMPTIONS.md`'s rate bands are — it should be reviewed once Session B actually
+   uses these roles to build assignment candidates.
+2. **Three rows list "milestone" as their `Kind`** (PPM, Fabrication cutoff, Running order
+   meeting) — not one of the four `PhaseKind` values `PLANNING.md` itself defines. Reclassified
+   each to the real kind whose boundary it sits on (PPM → review, since it's a client sign-off;
+   Fabrication cutoff → prep, the gate before build starts; Running order meeting →
+   production) and set `is_milestone=True` with `default_days=0` on those three only. `Final
+   approval` also carries a "milestone at end" note but has 3 days of duration in the same
+   table, so it stays `is_milestone=False` — a milestone marker attached to the end of a
+   phase that has duration is a different thing from a zero-duration phase, and the schema
+   only has one `is_milestone` flag per row, not a separate "milestone at boundary" concept.
+Consequences: `required_roles` values are a placeholder inference, not a reviewed spec — flag
+this explicitly if Session B step 5 (assignments derived from phases) is scheduled, since
+that's the point these values start driving real capacity numbers. Nothing else in the app
+reads these two tables yet, so getting the roles wrong here has no live-app consequence today.
+
+## 017 — Owner review round 2: more approval checkpoints, budget sign-off, editability confirmed
+Date: 2026-08-27
+Decision: Updated all four phase templates in `app/seed.py` and `docs/PLANNING.md`
+(43 phase rows total, up from 33):
+- **Film**: added `Pre-PPM` (client-facing check-in) before the existing `PPM`; added
+  `Budget sign-off` after `PPM` (also client-facing); added a second client review
+  (`Client review 2`) after `Revisions`, alongside the existing one after `Offline edit`.
+- **Event**: `is_client_review=True` on every phase except `Fabrication & build` and `Live`;
+  added `Budget sign-off` after `Concept & design` (client-facing).
+- **Stills**: added a `PPM` milestone (client approval of approach) after `Pre-production`;
+  added `Budget sign-off` right after it (client-facing).
+- **Social**: added `Brief approval` after `Brief & scoping`, `Concept approval` after
+  `Concept & scripting`, `Budget sign-off` right after that (client-facing), and `Final
+  approval` after `Revisions` — on top of the existing `Client review` after `Generation &
+  production`.
+- Confirmed two capabilities as requirements (documented in `PLANNING.md`, not built): a
+  project's phase day counts become editable once a schedule exists, and producers can insert
+  ad-hoc phase rows a template doesn't anticipate (e.g. "Sourcing talent" for a celebrity
+  shoot) without writing back into the shared template.
+Alternatives considered: building a minimal edit screen now, ahead of `FEEDBACK_LOG.md`'s own
+step ordering (step 4, the timeline view, is where schedule UI was supposed to land). Also
+considered, and reversed same-session: `Budget sign-off` and `Pre-PPM` were first drafted as
+internal-only (`is_client_review=False`) on the assumption that budget approval is a
+finance/business gate distinct from creative review — owner corrected this immediately, both
+are client-facing, `is_client_review=True` on all four `Budget sign-off` rows and on Film's
+`Pre-PPM`.
+Why: the owner chose to document the editability requirement now and build it when there's an
+actual schedule (`ProjectPhase` rows, step 3) to edit — editing a template with no generated
+instance to preview against would need throwaway UI.
+Consequences: "A week before" (Pre-PPM's timing relative to PPM) still isn't encoded as an
+actual day gap — there's no back-scheduling logic yet to consume it (Session B step 2), so
+today's row only fixes its position in sequence, not a duration offset; revisit once that
+logic exists. All milestone rows added are 0 days, so `EXPECTED_TOTAL_DAYS` in
+`tests/test_phase_templates.py` only changed for Film (32 → 35, from the one new
+working-day phase, `Client review 2` at 3 days) — Event, Stills and Social keep their
+original totals (27, 17, 11) even with new rows added, since every addition to those three
+was a 0-day milestone. `EXPECTED_PHASE_COUNTS` updated for all four (14, 9, 9, 11).

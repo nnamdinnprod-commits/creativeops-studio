@@ -18,9 +18,12 @@ from app.models import (
     LocalisationStatus,
     Person,
     PersonRole,
+    PhaseKind,
+    PhaseTemplate,
     Priority,
     Project,
     ProjectStatus,
+    ProjectType,
     SubStatus,
     VariantTheme,
 )
@@ -371,6 +374,96 @@ def seed(session):
     session.commit()
 
 
+# --- Phase templates (docs/PLANNING.md) ---
+# PLANNING.md's phase tables give sequence/name/days/kind/notes only — no required_roles
+# column, though PhaseTemplate's schema calls for one. Roles below are inferred from each
+# phase's notes and PersonRole's existing values (this studio's role set has no
+# director/DP/fabricator — "producer" stands in for external-vendor-coordinated work like
+# shoot crews and fabrication). Also, three rows (PPM, Fabrication cutoff, Running order
+# meeting) list "milestone" as their Kind in PLANNING.md's own tables, which isn't one of
+# the four PhaseKind values that same doc defines (prep/production/review/delivery) — they're
+# milestones via is_milestone=True below, with `kind` reclassified to whichever of the four
+# buckets the phase boundary actually sits in. Logged as an assumption in DECISIONS.md 016.
+#
+# Owner review round 2 (DECISIONS.md 017) added more approval/milestone checkpoints per
+# type, plus a "Budget sign-off" milestone after each template's concept-approval point.
+# Both Budget sign-off and Film's "Pre-PPM" are client-facing (is_client_review=True) per
+# owner confirmation. Neither milestone yet carries an explicit day-gap from its neighbour
+# (e.g. "a week before PPM") — there's no back-scheduling logic to consume that yet (Session
+# B step 2); sequence order is all that's encoded today.
+# Session B step 2 (back-scheduling) or a later review is the place to correct any of this.
+PHASE_TEMPLATES: dict[str, tuple[str, list[tuple]]] = {
+    "Film / branded content": ("Longer-form video and branded content.", [
+        # sequence, name, default_days, kind, required_roles, is_milestone, is_client_review, scales_with_volume
+        (1, "Brief & scoping", 2, PhaseKind.prep, "producer", False, False, False),
+        (2, "Pre-production", 8, PhaseKind.prep, "producer,senior_designer", False, False, False),
+        (3, "Pre-PPM", 0, PhaseKind.review, "producer", True, True, False),
+        (4, "PPM", 0, PhaseKind.review, "producer", True, True, False),
+        (5, "Budget sign-off", 0, PhaseKind.review, "producer", True, True, False),
+        (6, "Shoot", 2, PhaseKind.production, "producer,senior_designer", False, False, True),
+        (7, "Offline edit", 5, PhaseKind.production, "motion_designer", False, False, False),
+        (8, "Client review 1", 3, PhaseKind.review, "producer", False, True, False),
+        (9, "Revisions", 2, PhaseKind.production, "motion_designer", False, False, False),
+        (10, "Client review 2", 3, PhaseKind.review, "producer", False, True, False),
+        (11, "VFX & grade", 3, PhaseKind.production, "motion_designer", False, False, False),
+        (12, "Audio mix", 2, PhaseKind.production, "motion_designer", False, False, False),
+        # 3-day review phase with a milestone marker at its end, per PLANNING.md's note —
+        # not itself zero-duration, so is_milestone stays False (see DECISIONS.md 016).
+        (13, "Final approval", 3, PhaseKind.review, "producer", False, True, False),
+        (14, "Delivery & versioning", 2, PhaseKind.delivery, "producer", False, False, True),
+    ]),
+    "Event": ("Live and experiential events.", [
+        (1, "Brief & scoping", 2, PhaseKind.prep, "producer", False, True, False),
+        (2, "Concept & design", 5, PhaseKind.prep, "senior_designer,designer", False, True, False),
+        (3, "Budget sign-off", 0, PhaseKind.review, "producer", True, True, False),
+        (4, "Fabrication cutoff", 0, PhaseKind.prep, "producer", True, True, False),
+        (5, "Fabrication & build", 15, PhaseKind.production, "producer", False, False, False),
+        (6, "Running order meeting", 0, PhaseKind.production, "producer", True, True, False),
+        (7, "Rehearsal", 1, PhaseKind.production, "producer", False, True, False),
+        (8, "Live", 1, PhaseKind.production, "producer", False, False, False),
+        (9, "Wrap & asset delivery", 3, PhaseKind.delivery, "producer", False, True, False),
+    ]),
+    "Stills": ("Photography.", [
+        (1, "Brief & scoping", 1, PhaseKind.prep, "producer", False, False, False),
+        (2, "Pre-production", 4, PhaseKind.prep, "producer", False, False, False),
+        (3, "PPM", 0, PhaseKind.review, "producer", True, True, False),
+        (4, "Budget sign-off", 0, PhaseKind.review, "producer", True, True, False),
+        (5, "Shoot", 1, PhaseKind.production, "senior_designer", False, False, False),
+        (6, "Selects & client review", 3, PhaseKind.review, "producer", False, True, False),
+        (7, "Retouching", 4, PhaseKind.production, "designer", False, False, False),
+        (8, "Client review", 2, PhaseKind.review, "producer", False, True, False),
+        (9, "Delivery & resizing", 2, PhaseKind.delivery, "designer", False, False, False),
+    ]),
+    "Social / AI-generated content": ("Social-first and AI-generated assets.", [
+        (1, "Brief & scoping", 1, PhaseKind.prep, "producer", False, False, False),
+        (2, "Brief approval", 0, PhaseKind.review, "producer", True, True, False),
+        (3, "Concept & scripting", 2, PhaseKind.prep, "copywriter", False, False, False),
+        (4, "Concept approval", 0, PhaseKind.review, "producer", True, True, False),
+        (5, "Budget sign-off", 0, PhaseKind.review, "producer", True, True, False),
+        (6, "Generation & production", 3, PhaseKind.production, "designer,motion_designer", False, False, False),
+        (7, "Client review", 2, PhaseKind.review, "producer", False, True, False),
+        (8, "Revisions", 1, PhaseKind.production, "designer", False, False, False),
+        (9, "Final approval", 0, PhaseKind.review, "producer", True, True, False),
+        (10, "Localisation handoff", 1, PhaseKind.delivery, "translator", False, False, False),
+        (11, "Delivery", 1, PhaseKind.delivery, "producer", False, False, False),
+    ]),
+}
+
+
+def seed_phase_templates(session):
+    for type_name, (description, phases) in PHASE_TEMPLATES.items():
+        project_type = ProjectType(name=type_name, description=description)
+        session.add(project_type)
+        session.flush()  # assign id
+        for seq, name, days, kind, roles, is_milestone, is_client_review, scales in phases:
+            session.add(PhaseTemplate(
+                project_type_id=project_type.id, sequence=seq, name=name, default_days=days,
+                kind=kind, required_roles=roles, is_milestone=is_milestone,
+                is_client_review=is_client_review, scales_with_volume=scales,
+            ))
+    session.commit()
+
+
 def reset():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
@@ -386,10 +479,16 @@ def main():
     try:
         if session.query(Person).count() > 0:
             print("Seed data already present — skipping (use --reset to start clean).")
-            return
-        seed(session)
-        print("Seed data created: 8 people, 12 projects, 10 assignments, "
-              "18 deliverables, 20 localisation rows, 24 creative insights.")
+        else:
+            seed(session)
+            print("Seed data created: 8 people, 12 projects, 10 assignments, "
+                  "18 deliverables, 20 localisation rows, 24 creative insights.")
+
+        if session.query(ProjectType).count() > 0:
+            print("Phase templates already present — skipping.")
+        else:
+            seed_phase_templates(session)
+            print("Phase templates created: 4 project types, 43 phase template rows.")
     finally:
         session.close()
 

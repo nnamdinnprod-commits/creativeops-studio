@@ -138,6 +138,28 @@ The readiness score is computed by `app/services/brief.py` from the extraction, 
 fixed weighted rubric. The model extracts fields; Python scores them. This keeps the score
 stable across runs and unit-testable.
 
+## ProjectType / PhaseTemplate
+
+Session 2 addition — see `docs/PLANNING.md` for the full spec (phase templates per type,
+back-scheduling algorithm, timeline view). Not yet wired to `Project` or any screen; `Project`
+does not yet have a `project_type_id` column. Seeded by `app/seed.py`'s
+`seed_phase_templates()`, four types (Film / branded content, Event, Stills, Social /
+AI-generated content), 33 phase rows total.
+
+| Field | Type | Notes |
+|---|---|---|
+| `ProjectType.name` | str | |
+| `ProjectType.description` | text, nullable | |
+| `PhaseTemplate.project_type_id` | FK → ProjectType | |
+| `PhaseTemplate.sequence` | int | 1-indexed, contiguous per type |
+| `PhaseTemplate.name` | str | |
+| `PhaseTemplate.default_days` | int | 0 for a pure zero-duration milestone marker |
+| `PhaseTemplate.kind` | enum | `prep` / `production` / `review` / `delivery` |
+| `PhaseTemplate.required_roles` | str | comma-separated `PersonRole` values, same convention as `Person.skills` |
+| `PhaseTemplate.is_milestone` | bool | |
+| `PhaseTemplate.is_client_review` | bool | |
+| `PhaseTemplate.scales_with_volume` | bool | |
+
 ## Relationship summary
 
 ```
