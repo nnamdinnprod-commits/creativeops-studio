@@ -96,3 +96,30 @@ def build_timeline(
         rows=rows, range_start=range_start, range_end=range_end,
         week_marks=week_marks, today_pct=today_pct,
     )
+
+
+@dataclass(frozen=True)
+class MilestoneEntry:
+    project: Project
+    phase: ProjectPhase
+    is_past: bool
+
+
+def milestone_list(
+    projects_with_phases: list[tuple[Project, list[ProjectPhase]]],
+    today: date | None = None,
+) -> list[MilestoneEntry]:
+    """docs/PLANNING.md 'Timeline view': "Milestone meetings surface as a list beside the
+    timeline: what meeting, which project, which date, derived from the schedule." Reuses
+    whatever project set and filters the caller already applied to the timeline itself —
+    this is the same milestones, listed rather than plotted. Past milestones stay in the
+    list rather than being dropped (a milestone that should already have happened is real
+    information, not noise), flagged via is_past for the template to mute."""
+    today = today or date.today()
+    entries = [
+        MilestoneEntry(project=project, phase=phase, is_past=phase.start_date < today)
+        for project, phases in projects_with_phases
+        for phase in phases
+        if phase.is_milestone
+    ]
+    return sorted(entries, key=lambda e: (e.phase.start_date, e.project.name, e.phase.name))

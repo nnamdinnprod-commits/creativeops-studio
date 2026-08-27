@@ -73,6 +73,10 @@ If the underlying facts have not changed, say so rather than silently re-running
 
 ## Session B — planning, in this order
 
+**Complete** as of 2026-08-27 — all seven steps below are built; see `DECISIONS.md` 016–023
+for what each one actually landed and the judgment calls made along the way. `PLANNING.md`
+carries an inline "Built" marker on every section this touched.
+
 Read `PLANNING.md` first. Build in this sequence; each step is independently demonstrable,
 so a short session still lands something.
 

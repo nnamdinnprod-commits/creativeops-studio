@@ -8,7 +8,7 @@ from app.models import PhaseKind, Person, Project, ProjectPhase, ProjectType
 from app.services.ai.feasibility import assess_schedule_feasibility
 from app.services.assignment import assign_phase, phase_candidates, unassign_phase
 from app.services.scheduling import build_feasibility_facts
-from app.services.timeline import build_timeline
+from app.services.timeline import build_timeline, milestone_list
 
 router = APIRouter()
 
@@ -42,6 +42,7 @@ def timeline(request: Request, brand: str | None = None, market: str | None = No
         projects_with_phases.append((project, phases))
 
     context = build_timeline(projects_with_phases)
+    milestones = milestone_list(projects_with_phases)
 
     owners = sorted(
         {people_by_id[p.owner_id] for p in scheduled_projects if p.owner_id in people_by_id},
@@ -81,6 +82,7 @@ def timeline(request: Request, brand: str | None = None, market: str | None = No
         "people_by_id": people_by_id,
         "assign_failed": error == "assign_failed",
         "feasibility_by_project_id": feasibility_by_project_id,
+        "milestones": milestones,
     })
 
 

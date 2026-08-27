@@ -536,3 +536,35 @@ picks a combination — the panel lists independent moves for a producer to weig
 solved plan. Verified against the real seed data, not just synthetic tests: both of the
 Timeline's infeasible demo projects (`Spring Lookbook`, `Autumn Prints FR Push` — decision
 020) now show a real computed shortfall and options on both screens.
+
+## 023 — Session B step 7: milestone meeting list, Session B complete
+Date: 2026-08-27
+Decision: Added `milestone_list()` to `app/services/timeline.py` — a pure function over the
+same `projects_with_phases` the route already builds for the bar chart, so the meeting list
+respects whatever brand/market/type/owner filter is active rather than showing an unfiltered
+superset. Sorted chronologically (start date, then project name, then phase name for stable
+ties). Rendered as a new sidebar card on `/timeline`, restructuring the page into a
+`md:flex` layout: the bar chart (unchanged, still horizontally scrollable on its own) on the
+left, a fixed-width "Milestone meetings" card on the right, each entry linking to
+`/projects/{id}`. 2 new tests in `tests/test_timeline.py`, 93 across the suite. This was the
+last step in `FEEDBACK_LOG.md`'s Session B sequence — Session B is now complete end to end
+(steps 1–7), logged in `FEEDBACK_LOG.md`.
+Alternatives considered: dropping past milestones from the list entirely; querying fresh from
+the database inside `milestone_list()` instead of reusing the route's already-filtered
+`projects_with_phases`.
+Why:
+1. **Past milestones stay in the list, visually muted (`opacity-50`), not dropped.** A
+   milestone that should already have happened is real information — especially now that
+   step 6 already shows some of these same projects as behind schedule — not noise to hide.
+   Dropping it would silently disagree with the "Behind" badge sitting right next to it in
+   the same view.
+2. **`milestone_list()` takes the already-loaded, already-filtered phase data** rather than
+   querying the database itself, the same shape as `build_timeline()` right above it in the
+   same file. One filter pass in the route now drives both the chart and the list — they can
+   never silently disagree about which projects are in scope.
+Consequences: none beyond the two functions sharing one input — no new schema, no new route.
+`PLANNING.md`'s remaining unbuilt item for the Timeline view is the conflict-outline rule
+(a phase bar outlined when its required role has no one with capacity in that window); step
+5 built the assignment data this would read, but nothing consumes it for this yet — a real,
+still-open gap worth a look before calling the Timeline view entirely finished, separate from
+Session B's own step list which is now fully done.

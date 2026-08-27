@@ -13,7 +13,7 @@ from app.models import (
 )
 from app.seed import seed_phase_templates
 from app.services.scheduling import generate_schedule
-from app.services.timeline import build_timeline, day_position_pct, week_starts
+from app.services.timeline import build_timeline, day_position_pct, milestone_list, week_starts
 
 
 def _phase(project_id, name, start, end, kind=PhaseKind.production, is_milestone=False):
@@ -77,6 +77,40 @@ def test_build_timeline_today_outside_range_is_none():
 
     context = build_timeline([(project, phases)], today=date(2027, 1, 1))
     assert context.today_pct is None
+
+
+def test_milestone_list_includes_only_milestones_sorted_chronologically():
+    p1 = Project(id=1, name="P1", brand="Albelli", campaign="C", source_market="NL",
+                priority=Priority.medium, status=ProjectStatus.brief,
+                deadline=date(2026, 9, 18), owner_id=1, brief_raw="x")
+    p2 = Project(id=2, name="P2", brand="Photobox", campaign="C", source_market="UK",
+                priority=Priority.medium, status=ProjectStatus.brief,
+                deadline=date(2026, 9, 20), owner_id=1, brief_raw="x")
+    phases_p1 = [
+        _phase(1, "Work", date(2026, 9, 7), date(2026, 9, 11)),
+        _phase(1, "Final approval", date(2026, 9, 16), date(2026, 9, 16),
+              kind=PhaseKind.review, is_milestone=True),
+    ]
+    phases_p2 = [
+        _phase(2, "PPM", date(2026, 9, 9), date(2026, 9, 9),
+              kind=PhaseKind.review, is_milestone=True),
+    ]
+
+    entries = milestone_list([(p1, phases_p1), (p2, phases_p2)], today=date(2026, 9, 10))
+
+    assert [e.phase.name for e in entries] == ["PPM", "Final approval"]
+    assert [e.project.name for e in entries] == ["P2", "P1"]
+    assert entries[0].is_past is True   # PPM on 9/9, today is 9/10
+    assert entries[1].is_past is False  # Final approval on 9/16, today is 9/10
+
+
+def test_milestone_list_empty_when_no_milestones():
+    project = Project(id=1, name="P1", brand="Albelli", campaign="C", source_market="NL",
+                      priority=Priority.medium, status=ProjectStatus.brief,
+                      deadline=date(2026, 9, 18), owner_id=1, brief_raw="x")
+    phases = [_phase(1, "Work", date(2026, 9, 7), date(2026, 9, 11))]
+
+    assert milestone_list([(project, phases)]) == []
 
 
 def _seed_person(db_session):
