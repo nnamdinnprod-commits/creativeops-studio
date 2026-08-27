@@ -234,8 +234,9 @@ Alternatives considered: writing a new `SUPERVISION.md` to match the reference; 
 reference as-is with a flag to revisit before Session B.
 Why: the owner picked the option that resolves the ambiguity now rather than deferring it.
 Consequences: **A real gap surfaced while resolving this** — `check_readiness_gate` and
-`validate_transition` have no automated test today, despite `BUILD_PLAN.md` Phase 3's exit
-criteria requiring "an invalid transition is refused with a reason." `FEEDBACK_LOG.md` now
-notes this explicitly. This should get a test before or alongside Session B work that touches
-pipeline transitions — it was not in scope to add here since the ask was to resolve the two
-reference/filing issues, not to write new tests.
+`validate_transition` had no automated test, despite `BUILD_PLAN.md` Phase 3's exit criteria
+requiring "an invalid transition is refused with a reason." Closed immediately after: added
+`tests/test_pipeline_transitions.py` (6 cases — skip-forward refusal, one-stage-forward
+allowed, backward-always-allowed, low readiness blocks past Ready, readiness at threshold
+passes, no-brief-analysis is ungated). `docs/FEEDBACK_LOG.md`'s note about the gap now reads
+as historical rather than a live TODO.

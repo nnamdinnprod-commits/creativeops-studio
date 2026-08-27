@@ -132,6 +132,6 @@ When starting Session B:
 
 Every non-negotiable in `CLAUDE.md` still applies, and the readiness-gate refusal
 (`check_readiness_gate` / `validate_transition` in `app/routes/pipeline.py`) must still pass
-after these changes — `BRIEF_MODES.md` explicitly preserves it. Note: as of 2026-08-27 this
-behavior has no automated test (see `docs/DECISIONS.md` 015) — cover it before or alongside
-any change that touches pipeline transitions.
+after these changes — `BRIEF_MODES.md` explicitly preserves it, and
+`tests/test_pipeline_transitions.py` covers it (added 2026-08-27, see `docs/DECISIONS.md`
+015).
