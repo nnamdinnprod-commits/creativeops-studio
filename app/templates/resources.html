@@ -3,7 +3,7 @@
 {% block title %}Resources — CreativeOps Studio{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-semibold">Resource &amp; Capacity Planning</h1>
-<p class="text-slate-500 mt-1 text-sm">Demo data. Allocation is computed live from assignment records — nothing here is manually entered.</p>
+<p class="text-slate-500 mt-1 text-sm">Demo data. Allocation is computed live from current assignments — nothing here is manually entered.</p>
 
 {% if recommend_failed %}
 <div class="mt-3 bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700">
@@ -15,7 +15,8 @@
 </div>
 {% endif %}
 
-<table class="mt-6 w-full text-sm border-collapse bg-white shadow-sm rounded overflow-hidden">
+<div class="mt-6 overflow-x-auto">
+<table class="w-full text-sm border-collapse bg-white shadow-sm rounded overflow-hidden">
     <thead class="bg-slate-800 text-white text-left">
         <tr>
             <th class="px-3 py-2">Person</th>
@@ -64,6 +65,7 @@
         {% endfor %}
     </tbody>
 </table>
+</div>
 
 {% if engage_error %}
 <div class="mt-3 bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700">
@@ -74,7 +76,8 @@
 <h2 class="text-lg font-semibold mt-8">Talent pool</h2>
 <p class="text-slate-500 text-sm mt-1">External network — role, skills, day rate and lead time. Not on the roster above until engaged for a project.</p>
 {% if talent_pool %}
-<table class="mt-3 w-full text-sm border-collapse bg-white shadow-sm rounded overflow-hidden">
+<div class="mt-3 overflow-x-auto">
+<table class="w-full text-sm border-collapse bg-white shadow-sm rounded overflow-hidden">
     <thead class="bg-slate-800 text-white text-left">
         <tr>
             <th class="px-3 py-2">Person</th>
@@ -119,6 +122,7 @@
         {% endfor %}
     </tbody>
 </table>
+</div>
 {% else %}
 <p class="mt-3 text-sm text-slate-500">No one in the pool right now.</p>
 {% endif %}

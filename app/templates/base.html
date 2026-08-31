@@ -17,23 +17,23 @@
     </script>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
-    <nav class="bg-slate-900 text-white px-6 py-3 flex items-center gap-6">
-        <span class="font-semibold">CreativeOps Studio</span>
-        <a href="/dashboard" class="hover:text-slate-300">Dashboard</a>
-        <a href="/pipeline" class="hover:text-slate-300">Pipeline</a>
-        <a href="/resources" class="hover:text-slate-300">Resources</a>
-        <a href="/brief" class="hover:text-slate-300">Brief Assistant</a>
-        <a href="/intelligence" class="hover:text-slate-300">Creative Intelligence</a>
-        <a href="/localisation" class="hover:text-slate-300">Localisation</a>
-        <a href="/timeline" class="hover:text-slate-300">Timeline</a>
-        <a href="/assumptions" class="hover:text-slate-300">Assumptions</a>
+    <nav class="bg-slate-900 text-white px-4 sm:px-6 py-3 flex items-center gap-6 overflow-x-auto whitespace-nowrap">
+        <span class="font-semibold shrink-0">CreativeOps Studio</span>
+        <a href="/dashboard" class="hover:text-slate-300 shrink-0">Dashboard</a>
+        <a href="/pipeline" class="hover:text-slate-300 shrink-0">Pipeline</a>
+        <a href="/resources" class="hover:text-slate-300 shrink-0">Resources</a>
+        <a href="/brief" class="hover:text-slate-300 shrink-0">Brief Assistant</a>
+        <a href="/intelligence" class="hover:text-slate-300 shrink-0">Creative Intelligence</a>
+        <a href="/localisation" class="hover:text-slate-300 shrink-0">Localisation</a>
+        <a href="/timeline" class="hover:text-slate-300 shrink-0">Timeline</a>
+        <a href="/assumptions" class="hover:text-slate-300 shrink-0">Assumptions</a>
     </nav>
 
-    <main class="flex-1 px-6 py-6">
+    <main class="flex-1 px-4 sm:px-6 py-6 max-w-full overflow-x-hidden">
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="bg-slate-100 border-t border-slate-200 px-6 py-4 text-xs text-slate-500">
+    <footer class="bg-slate-100 border-t border-slate-200 px-4 sm:px-6 py-4 text-xs text-slate-500">
         <p>
             Prototype concept — fictional demonstration data, based on publicly available
             information about creative operations workflows. Not affiliated with or connected

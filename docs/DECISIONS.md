@@ -1596,3 +1596,65 @@ intended start) verified directly against the live DB with one row's status/esti
 temporarily forced and reverted — both produced a single correctly-worded flag, no
 exception. `tools/audit.py` unchanged from before this entry (same pre-existing P2/P7
 findings, nothing new).
+
+## 044 — REVIEW_02.md P7: copy sweep, `?ref=` tracking, mobile pass
+Date: 2026-08-31
+Decision: Three independent P7 items, done together since all were verified against the
+same running server session.
+**Copy** — fixed the three real database-vocabulary leaks `tools/audit.py` was flagging:
+`dashboard.html`'s "rows approved overall" → "market versions approved" (the review's own
+literal replacement text), `localisation.html`'s "No localisation rows match this filter"
+→ "No projects match this filter" (a `row` in that grid is one project, one per table row),
+`resources.html`'s "computed live from assignment records" → "computed live from current
+assignments." The fourth thing the audit flags, `timeline.html`'s `{% elif not
+timeline.rows %}`, is not visible copy — it's a Jinja attribute access the audit's naive
+HTML-text-extraction can't distinguish from rendered text; confirmed by reading the actual
+template (the displayed string next to it, "No scheduled projects match this filter," was
+already clean). Left alone rather than renaming the internal `.rows` context attribute
+purely to satisfy the linter.
+**`?ref=` tracking** — new `log_ref_hits` middleware in `app/main.py`, logging `ref=<value>
+path=<path>` at INFO level only when the query param is present. No new table, no new page:
+Render's own log viewer is the "count hits per ref" mechanism (grep the value), which is
+simpler than building persistence for a number that's already wiped every cold-start reseed
+(`DECISIONS.md` 013) — the same reasoning that made relative date-anchoring the right call
+for P1 applies here. Also the first real use of `settings.log_level`, previously read from
+`render.yaml` but never wired to anything.
+**"Never on page load" (AI calls)** — checked before touching anything, per this file's own
+established practice of verifying a diagnosis before building its fix. Every `app/services/
+ai/*` call site across all routes is either inside a POST handler (explicit user action) or,
+on `dashboard.py`/`timeline.py`'s GET routes, calls `assess_portfolio_attention`/
+`assess_schedule_feasibility` — both of which, under `AI_PROVIDER=mock` (what `render.yaml`
+sets in production), are synchronous Python with no network I/O. Timed all six main pages
+locally under that same mock setting: 8–24ms each. The review's "pages timed out on first
+request" is real, but the evidence points at Render free-tier cold start (`DECISIONS.md`
+013: the service sleeps after ~15 minutes idle, and `startCommand` runs the reseed script
+before `uvicorn` even binds the port) rather than an in-request AI call — there isn't one
+slow enough to explain a timeout at these settings. Not fixed, because the fix the review
+names (cache the narration, or move it behind a control) targets a cause that isn't present,
+and would mean gutting the dashboard's headline "Needs attention" narration — the most
+distinctive part of the P6.1 positive-loop story — for a symptom it doesn't produce.
+Flagged to the owner rather than silently built or silently dropped.
+**Mobile** — the actual blocker turned out to be upstream of anything the review's per-page
+list named: `base.html`'s nav bar (8 links in a non-wrapping flex row) forced every single
+page to 912px minimum width regardless of that page's own layout — confirmed with Playwright
+at a 375px viewport before any other change (537px of horizontal overflow, identical on
+every page, traced to the nav via `getBoundingClientRect()` on every element). No per-page
+fix holds until that's addressed, so it came first: nav now scrolls horizontally
+(`overflow-x-auto whitespace-nowrap`, each link `shrink-0`), and `<main>` gained
+`overflow-x-hidden` as a backstop against any other stray wide element pushing the page.
+Then, per the review's own per-page list: `resources.html`'s two tables and
+`project_detail.html`'s three tables wrapped in `overflow-x-auto` containers (they weren't
+before — an 8-column and a 7-column table at 375px would have forced page-level scroll on
+exactly the pages the review names as mattering most); `localisation.html` and
+`timeline.html` already had this from earlier work. Pipeline's board
+(`partials/_board.html`) took the review's explicitly-sanctioned "horizontal scroll with
+snap points" option over a stage-selector: below `md` it's `flex overflow-x-auto snap-x
+snap-mandatory` with each column `w-[85vw] shrink-0 snap-start` (one column in view, next
+one peeking); `md:` reverts to the original grid untouched.
+Verified: `pytest` (203 passed). Playwright at a 375px viewport, before and after — 537px
+overflow on every page before the nav fix, 0px after, across dashboard/pipeline/resources/
+localisation/projects/timeline/intelligence. Screenshots of all seven confirm the board's
+snap-carousel behaves as intended (one column plus a peek) and every stacked table scrolls
+inside its own container rather than the page. `tools/audit.py` P7 section down to the one
+confirmed `timeline.rows` false positive; P0/P2 findings unchanged (pre-existing, out of
+this entry's scope).

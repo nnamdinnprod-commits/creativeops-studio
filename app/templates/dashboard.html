@@ -114,7 +114,7 @@
         {% for s in market_summaries %}<span class="{% if s.at_risk %}text-red-700 font-medium{% else %}text-slate-700{% endif %}">{{ s.headline }}</span>{% if not loop.last %} · {% endif %}{% endfor %}
         {% if not market_summaries %}No localisation in flight.{% endif %}
     </div>
-    <div class="mt-1 text-xs text-slate-400">{{ loc_approved }} of {{ loc_total }} rows approved overall</div>
+    <div class="mt-1 text-xs text-slate-400">{{ loc_approved }} of {{ loc_total }} market versions approved</div>
 </a>
 
 <div class="bg-white rounded shadow-sm p-4 mt-4">

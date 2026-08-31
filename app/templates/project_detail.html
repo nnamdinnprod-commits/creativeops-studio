@@ -44,7 +44,8 @@
 <div class="mt-6">
     <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Deliverables</h2>
     {% if deliverables %}
-    <table class="mt-2 w-full text-sm bg-white border border-slate-200 rounded overflow-hidden">
+    <div class="mt-2 overflow-x-auto">
+    <table class="w-full text-sm bg-white border border-slate-200 rounded overflow-hidden">
         <thead class="bg-slate-50 text-left text-xs text-slate-500">
             <tr><th class="px-3 py-2">Type</th><th class="px-3 py-2">Market</th><th class="px-3 py-2">Format</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Deadline</th></tr>
         </thead>
@@ -60,6 +61,7 @@
         {% endfor %}
         </tbody>
     </table>
+    </div>
     {% else %}
     <p class="mt-2 text-sm text-slate-400">No deliverables scoped yet.</p>
     {% endif %}
@@ -68,7 +70,8 @@
 <div class="mt-6">
     <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Assignments</h2>
     {% if assignments %}
-    <table class="mt-2 w-full text-sm bg-white border border-slate-200 rounded overflow-hidden">
+    <div class="mt-2 overflow-x-auto">
+    <table class="w-full text-sm bg-white border border-slate-200 rounded overflow-hidden">
         <thead class="bg-slate-50 text-left text-xs text-slate-500">
             <tr><th class="px-3 py-2">Person</th><th class="px-3 py-2">Role</th><th class="px-3 py-2">Allocation</th><th class="px-3 py-2">Window</th></tr>
         </thead>
@@ -83,6 +86,7 @@
         {% endfor %}
         </tbody>
     </table>
+    </div>
     {% else %}
     <p class="mt-2 text-sm text-slate-400">No one assigned yet.</p>
     {% endif %}
@@ -130,7 +134,8 @@
 <div class="mt-6">
     <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Localisation</h2>
     {% if localisations %}
-    <table class="mt-2 w-full text-sm bg-white border border-slate-200 rounded overflow-hidden">
+    <div class="mt-2 overflow-x-auto">
+    <table class="w-full text-sm bg-white border border-slate-200 rounded overflow-hidden">
         <thead class="bg-slate-50 text-left text-xs text-slate-500">
             <tr><th class="px-3 py-2">Market</th><th class="px-3 py-2">Translator</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Review</th><th class="px-3 py-2">QA</th><th class="px-3 py-2">Due</th><th class="px-3 py-2">Actions</th></tr>
         </thead>
@@ -165,6 +170,7 @@
         {% endfor %}
         </tbody>
     </table>
+    </div>
     {% else %}
     <p class="mt-2 text-sm text-slate-400">No localisation required for this project.</p>
     {% endif %}
