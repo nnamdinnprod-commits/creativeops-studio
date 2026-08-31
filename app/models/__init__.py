@@ -26,8 +26,15 @@ class ProjectStatus(str, enum.Enum):
     assigned = "assigned"
     in_production = "in_production"
     creative_review = "creative_review"
+    # REVIEW_02.md P5.4: split out of what Creative Review used to conflate — "we
+    # are reviewing" vs "they are sitting on it" are different situations, and only
+    # one of them is a problem this studio caused.
+    waiting_on_client = "waiting_on_client"
     approved = "approved"
     delivered = "delivered"
+    on_hold = "on_hold"
+    cancelled = "cancelled"
+    archived = "archived"
 
 
 class ProductionTempo(str, enum.Enum):
@@ -157,6 +164,10 @@ class Project(TimestampMixin, Base):
     production_tempo: Mapped[ProductionTempo] = mapped_column(
         Enum(ProductionTempo), nullable=False, default=ProductionTempo.standard
     )
+    # REVIEW_02.md P5.4: "status changes to hold, cancel, or backwards capture a
+    # reason." The most recent reason given, not a full history — same single-field
+    # convention as Recommendation.outcome_note elsewhere in this app.
+    status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class Person(TimestampMixin, Base):

@@ -15,7 +15,7 @@ The central entity.
 | `campaign` | str | |
 | `source_market` | str | ISO-ish code: NL, DE, FR, UK, ES |
 | `priority` | enum | `low` / `medium` / `high` / `critical` |
-| `status` | enum | `brief` / `ready` / `assigned` / `in_production` / `creative_review` / `approved` / `delivered` |
+| `status` | enum | `brief` / `ready` / `assigned` / `in_production` / `creative_review` / `waiting_on_client` / `approved` / `delivered` / `on_hold` / `cancelled` / `archived`. `waiting_on_client` splits out of what Creative Review used to conflate — "we are reviewing" vs "they are sitting on it" (REVIEW_02.md P5.4). `on_hold`/`cancelled`/`archived` are exception states, not pipeline stages — always exempt from the readiness gate and excluded from the dashboard's active-project counts. |
 | `deadline` | date | |
 | `owner_id` | FK → Person | the producer accountable, not the person doing the work |
 | `brief_raw` | text | the original messy request |
@@ -25,6 +25,7 @@ The central entity.
 | `localisation_required` | bool | |
 | `estimated_days` | float, nullable | |
 | `production_tempo` | enum | `fast_track` / `standard` / `full_production`, default `standard`. Scopes the readiness gate (below) — pipeline stage sequence itself is unrestricted regardless of tempo. REVIEW_02.md P5.3. |
+| `status_reason` | text, nullable | the most recent reason given for a hold, cancel, or backward move — not a full history. REVIEW_02.md P5.4. |
 
 **Brand** stays a string in V1. A brands table earns its place only when a screen needs
 brand-level attributes. Note the decision in `DECISIONS.md` if that changes.

@@ -50,8 +50,17 @@ STATUS_ORDER = [
     ProjectStatus.assigned,
     ProjectStatus.in_production,
     ProjectStatus.creative_review,
+    # REVIEW_02.md P5.4: sits right after Creative Review — the split of "we are
+    # reviewing" from "they are sitting on it" this status exists to make.
+    ProjectStatus.waiting_on_client,
     ProjectStatus.approved,
     ProjectStatus.delivered,
+    # Exception states, not pipeline stages — grouped at the end of the board
+    # rather than the main flow. Always exempt from the readiness gate (see
+    # check_readiness_gate) regardless of where they sit in this list.
+    ProjectStatus.on_hold,
+    ProjectStatus.cancelled,
+    ProjectStatus.archived,
 ]
 
 STATUS_LABELS = {
@@ -60,9 +69,27 @@ STATUS_LABELS = {
     ProjectStatus.assigned: "Assigned",
     ProjectStatus.in_production: "In Production",
     ProjectStatus.creative_review: "Creative Review",
+    ProjectStatus.waiting_on_client: "Waiting on Client",
     ProjectStatus.approved: "Approved",
     ProjectStatus.delivered: "Delivered",
+    ProjectStatus.on_hold: "On Hold",
+    ProjectStatus.cancelled: "Cancelled",
+    ProjectStatus.archived: "Archived",
 }
+
+# The real pipeline sequence, for judging whether a move is "backward" — everything
+# in STATUS_ORDER except the three exception states, which were never points on a
+# sequence a project could move backward along.
+PIPELINE_SEQUENCE = [s for s in STATUS_ORDER
+                     if s not in (ProjectStatus.on_hold, ProjectStatus.cancelled, ProjectStatus.archived)]
+
+# REVIEW_02.md P5.4: "status changes to hold, cancel, or backwards capture a
+# reason." A move into either of these two, or a move to an earlier stage than the
+# project is currently at, needs a reason — enforced in change_status() below.
+_REASON_REQUIRED_TARGETS = {ProjectStatus.on_hold, ProjectStatus.cancelled}
+# Exception states are never gated by brief readiness — pausing or cancelling a
+# project must always be possible, regardless of how ready its brief was.
+_GATE_EXEMPT_TARGETS = {ProjectStatus.on_hold, ProjectStatus.cancelled, ProjectStatus.archived}
 
 
 def validate_transition(current: ProjectStatus, target: ProjectStatus) -> tuple[bool, str | None]:
@@ -85,8 +112,16 @@ def check_readiness_gate(project: Project, target: ProjectStatus, db: Session) -
     REVIEW_02.md P5.3: scoped by production_tempo — fast_track (a market re-version,
     copy swap, resize, or artwork resend) skips this entirely. standard and
     full_production both get the check below; the review only describes fast_track
-    behaving differently, so there's no invented second tier of strictness."""
+    behaving differently, so there's no invented second tier of strictness.
+
+    REVIEW_02.md P5.4: on_hold/cancelled/archived are exempt outright — pausing or
+    cancelling a project must always be possible, brief quality is irrelevant to
+    that decision. waiting_on_client is NOT exempt: getting there means real
+    production already started, the same substantive bar as any other post-Ready
+    stage."""
     if project.production_tempo == ProductionTempo.fast_track:
+        return True, None
+    if target in _GATE_EXEMPT_TARGETS:
         return True, None
     if STATUS_ORDER.index(target) <= STATUS_ORDER.index(ProjectStatus.ready):
         return True, None
@@ -160,7 +195,7 @@ def pipeline(request: Request, brand: str | None = None, market: str | None = No
 
 @router.post("/pipeline/{project_id}/status")
 def change_status(project_id: int, request: Request, status: str = Form(...),
-                  db: Session = Depends(get_db)):
+                  status_reason: str = Form(""), db: Session = Depends(get_db)):
     project = db.get(Project, project_id)
     error_message = None
     if project is None:
@@ -173,14 +208,32 @@ def change_status(project_id: int, request: Request, status: str = Form(...),
             error_message = f"'{status}' is not a valid status."
 
         if target_status is not None:
-            ok, reason = validate_transition(project.status, target_status)
+            ok, refusal_reason = validate_transition(project.status, target_status)
             if ok:
-                ok, reason = check_readiness_gate(project, target_status, db)
+                ok, refusal_reason = check_readiness_gate(project, target_status, db)
+            # REVIEW_02.md P5.4: "status changes to hold, cancel, or backwards
+            # capture a reason." A move to an earlier stage is judged against the
+            # ORIGINAL pipeline order (waiting_on_client/on_hold/cancelled/archived
+            # excluded — they're exception states, not points on that sequence).
+            if ok and not status_reason.strip():
+                is_hold_or_cancel = target_status in _REASON_REQUIRED_TARGETS
+                is_backward = (
+                    project.status in PIPELINE_SEQUENCE and target_status in PIPELINE_SEQUENCE
+                    and PIPELINE_SEQUENCE.index(target_status) < PIPELINE_SEQUENCE.index(project.status)
+                )
+                if is_hold_or_cancel or is_backward:
+                    ok = False
+                    refusal_reason = (
+                        f"Moving to {STATUS_LABELS[target_status]} needs a reason — "
+                        f"add one before saving."
+                    )
             if ok:
                 project.status = target_status
+                if status_reason.strip():
+                    project.status_reason = status_reason.strip()
                 db.commit()
             else:
-                error_message = reason
+                error_message = refusal_reason
 
     context = _board_context(db, None, None, None)
     context["error_message"] = error_message

@@ -63,7 +63,13 @@ computes which projects qualify. Never let the model invent the list.
 
 Kanban board. Columns:
 
-`Brief → Ready → Assigned → In Production → Creative Review → Approved → Delivered`
+`Brief → Ready → Assigned → In Production → Creative Review → Waiting on Client → Approved
+→ Delivered`, plus three exception-state columns at the end (`On Hold`, `Cancelled`,
+`Archived`) — not points on the sequence, always reachable regardless of readiness.
+REVIEW_02.md P5.4 split `Waiting on Client` out of what Creative Review used to conflate:
+"we are reviewing" and "they are sitting on it" are different situations, and only one of
+them is a problem this studio caused. A hold, a cancel, or a move to an earlier stage
+captures a reason, shown on the card.
 
 **Card shows:** project name, brand, market, priority, owner, deadline, risk flag,
 localisation indicator, production tempo (when fast-track).

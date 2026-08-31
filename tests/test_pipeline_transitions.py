@@ -56,14 +56,29 @@ def test_moving_forward_one_stage_is_allowed(client, db_session):
     assert project.status == ProjectStatus.ready
 
 
-def test_moving_backward_is_allowed_freely(client, db_session):
+def test_moving_backward_without_a_reason_is_refused(client, db_session):
+    """REVIEW_02.md P5.4: 'status changes to hold, cancel, or backwards capture a
+    reason.'"""
     project = _seed_project(db_session, status=ProjectStatus.in_production)
 
     resp = client.post(f"/pipeline/{project.id}/status", data={"status": ProjectStatus.brief.value})
     assert resp.status_code == 200
+    assert "needs a reason" in resp.text
+
+    db_session.refresh(project)
+    assert project.status == ProjectStatus.in_production  # unchanged
+
+
+def test_moving_backward_with_a_reason_is_allowed(client, db_session):
+    project = _seed_project(db_session, status=ProjectStatus.in_production)
+
+    resp = client.post(f"/pipeline/{project.id}/status",
+                       data={"status": ProjectStatus.brief.value, "status_reason": "Client requested a full rebrief"})
+    assert resp.status_code == 200
 
     db_session.refresh(project)
     assert project.status == ProjectStatus.brief
+    assert project.status_reason == "Client requested a full rebrief"
 
 
 def test_low_readiness_score_blocks_moving_past_ready(client, db_session):
@@ -146,6 +161,57 @@ def test_readiness_score_at_or_above_threshold_allows_the_move(client, db_sessio
 
     db_session.refresh(project)
     assert project.status == ProjectStatus.assigned
+
+
+def test_hold_without_a_reason_is_refused(client, db_session):
+    project = _seed_project(db_session, status=ProjectStatus.in_production)
+
+    resp = client.post(f"/pipeline/{project.id}/status", data={"status": ProjectStatus.on_hold.value})
+    assert resp.status_code == 200
+    assert "needs a reason" in resp.text
+
+    db_session.refresh(project)
+    assert project.status == ProjectStatus.in_production
+
+
+def test_cancel_with_a_reason_is_allowed_and_stored(client, db_session):
+    project = _seed_project(db_session, status=ProjectStatus.assigned)
+
+    resp = client.post(f"/pipeline/{project.id}/status",
+                       data={"status": ProjectStatus.cancelled.value, "status_reason": "Brand pulled the campaign"})
+    assert resp.status_code == 200
+
+    db_session.refresh(project)
+    assert project.status == ProjectStatus.cancelled
+    assert project.status_reason == "Brand pulled the campaign"
+
+
+def test_hold_cancel_and_archive_skip_the_readiness_gate_even_with_no_reason_required_by_it(client, db_session):
+    """REVIEW_02.md P5.4: pausing or cancelling a project must always be possible,
+    regardless of brief readiness -- exercised here with a low-readiness project
+    that WOULD be blocked moving to any ordinary post-Ready stage."""
+    analysis = _seed_analysis(db_session, readiness_score=settings.brief_readiness_threshold - 1)
+    project = _seed_project(db_session, status=ProjectStatus.ready, brief_analysis_id=analysis.id)
+
+    for target in (ProjectStatus.on_hold, ProjectStatus.cancelled, ProjectStatus.archived):
+        resp = client.post(f"/pipeline/{project.id}/status",
+                           data={"status": target.value, "status_reason": "test"})
+        assert resp.status_code == 200
+        db_session.refresh(project)
+        assert project.status == target, f"expected {target}, readiness gate blocked it unexpectedly"
+
+
+def test_waiting_on_client_is_still_gated_like_any_post_ready_stage(client, db_session):
+    analysis = _seed_analysis(db_session, readiness_score=settings.brief_readiness_threshold - 1,
+                              missing_fields=["format_spec"])
+    project = _seed_project(db_session, status=ProjectStatus.ready, brief_analysis_id=analysis.id)
+
+    resp = client.post(f"/pipeline/{project.id}/status", data={"status": ProjectStatus.waiting_on_client.value})
+    assert resp.status_code == 200
+    assert "format_spec" in resp.text
+
+    db_session.refresh(project)
+    assert project.status == ProjectStatus.ready  # unchanged
 
 
 def test_project_with_no_brief_analysis_is_not_gated(client, db_session):

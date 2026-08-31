@@ -43,16 +43,21 @@
                 <div class="text-xs text-slate-500 mt-2">
                     Owner: {{ people_by_id[project.owner_id].name if project.owner_id in people_by_id else '—' }}<br>
                     Deadline: {{ project.deadline.strftime('%d %b %Y') }}
+                    {% if project.status_reason and project.status.value in ('on_hold', 'cancelled') %}
+                    <br><span class="italic">{{ status_labels[project.status] }}: {{ project.status_reason }}</span>
+                    {% endif %}
                 </div>
 
                 <form hx-post="/pipeline/{{ project.id }}/status" hx-target="#board" hx-swap="outerHTML"
-                      class="mt-2 flex gap-1">
+                      class="mt-2 flex gap-1 flex-wrap">
                     <select name="status" class="border border-slate-300 rounded text-xs px-1 py-0.5 flex-1">
                         {% for s in all_statuses %}
                         <option value="{{ s.value }}" {% if s == project.status %}selected{% endif %}>{{ status_labels[s] }}</option>
                         {% endfor %}
                     </select>
                     <button type="submit" class="text-xs bg-slate-800 text-white rounded px-2 py-0.5">Move</button>
+                    <input type="text" name="status_reason" placeholder="Reason (needed for hold / cancel / backward)"
+                           class="border border-slate-300 rounded text-xs px-1 py-0.5 w-full">
                 </form>
                 <form hx-post="/pipeline/{{ project.id }}/priority" hx-target="#board" hx-swap="outerHTML"
                       class="mt-1 flex gap-1">

@@ -35,7 +35,14 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         if entry["cause"] == "brief"
     }
 
-    active_projects = [p for p in projects if p.status != ProjectStatus.delivered]
+    # REVIEW_02.md P5.4: on_hold/cancelled/archived are exception states, not work
+    # in flight — counting them as "active" would make the dashboard's on-track/at-
+    # risk/blocked split lie about how much is actually moving. waiting_on_client
+    # stays active: it's real, ongoing work, just paused externally rather than by
+    # us — the full "derive the Blocked tile from these states" wiring is P6.3.
+    _INACTIVE_STATUSES = (ProjectStatus.delivered, ProjectStatus.on_hold,
+                          ProjectStatus.cancelled, ProjectStatus.archived)
+    active_projects = [p for p in projects if p.status not in _INACTIVE_STATUSES]
     at_risk_projects = [p for p in active_projects if p.id in at_risk_ids]
     blocked_projects = [p for p in active_projects if p.id in blocked_ids]
     on_track_projects = [

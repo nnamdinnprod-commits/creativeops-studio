@@ -1276,3 +1276,52 @@ tempo route persisting and rejecting an invalid value, the missing-fields text a
 a refusal). Verified against a running server: `POST /pipeline/4/status` moved a Brief-status
 project straight to Creative Review in one call; `POST /pipeline/4/tempo` set it fast-track
 and the board rendered the badge. `tools/audit.py` clean of anything new.
+
+## 039 — REVIEW_02.md P5.4: four new lifecycle states, scoped narrowly
+Date: 2026-08-31
+Decision: Added `waiting_on_client`, `on_hold`, `cancelled`, `archived` to `ProjectStatus`,
+plus `Project.status_reason` (the most recent reason given, not a full history — same
+single-field convention as `Recommendation.outcome_note`). `waiting_on_client` sits in the
+main pipeline sequence right after Creative Review, the split the review asks for. The other
+three are exception states, appended after Delivered rather than woven into the sequence,
+and treated specially in two places:
+1. `check_readiness_gate()` exempts them outright — pausing or cancelling a project must
+   always be possible regardless of brief readiness, unlike `waiting_on_client`, which stays
+   fully gated (getting there means real production already started, the same bar as any
+   other post-Ready stage).
+2. Dashboard's `active_projects` now excludes them alongside `delivered` — a project on hold
+   or cancelled isn't work in flight, and counting it as active would misstate how much is
+   actually moving. `waiting_on_client` stays counted as active; it's real, ongoing work,
+   just externally paused rather than internally stuck.
+"Status changes to hold, cancel, or backwards capture a reason": added a `status_reason`
+form field to the same status-change form (not a separate one — a separate form invites
+submitting a reason with no status change to attach it to). Required only for a move to
+`on_hold`/`cancelled`, or a move to an earlier point in `PIPELINE_SEQUENCE` — a new list
+that's `STATUS_ORDER` minus the three exception states, since "backward" is only a
+meaningful question for points that were ever on the sequence. `validate_transition()` still
+allows the move as an ordinary free transition (per decision 038); the reason requirement is
+a second, independent check in `change_status()`, not a rule `validate_transition()` itself
+enforces.
+Deliberately not built here: the review's stated payoff ("it makes at-risk logic
+considerably smarter — work blocked on a client is not a capacity problem") and its own
+P6.3 heading ("derive the Blocked tile from these states") both point to the actual
+dashboard-tile rewiring belonging to P6.3, not here. Checked first that nothing already
+mis-triages `waiting_on_client` as capacity-driven: `attention.py`'s deadline-proximity rule
+only fires for `EARLY_STATUSES = (brief, ready, assigned)`, which `waiting_on_client` was
+never part of, and the capacity-conflict rule is driven entirely by `Assignment`/`Person`
+data, never by `Project.status` — so the new status doesn't accidentally get miscategorised
+today, it just isn't yet POSITIVELY surfaced as its own "blocked, and it's not us" signal.
+That positive surfacing is P6.3's job.
+No seeded project's status was changed to any of the four new values — DEMO_DATA.md's
+distribution and DEMO_SCRIPT.md's narrative are both built around the existing seven-stage
+spread, and none of the 12 is actually on hold, cancelled, waiting on a client, or archived
+in its brief content. The new board control (`POST /pipeline/{id}/status` with a reason)
+makes every new state demonstrable live instead.
+Verified: `pytest` (181 passed, up from 176 — 5 new/changed tests: backward move refused
+without a reason and allowed with one and stored, hold refused without a reason, cancel with
+a reason allowed and stored, all three exception states reachable from a low-readiness
+project that would otherwise be blocked, `waiting_on_client` still gated identically to any
+other post-Ready stage). Verified against a running server: all 11 columns render on
+`/pipeline`; a hold with a reason persisted and displayed on the card; `/dashboard` still
+renders with `on_hold` and `waiting_on_client` projects present. `tools/audit.py` clean of
+anything new.
