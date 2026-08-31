@@ -839,3 +839,82 @@ names — both outside the "seed data, code, templates, or documentation" scope 
 named), `pytest` (140 passed), a fresh `--reset` seed, and `tools/audit.py --url` against a
 locally running instance. Not yet re-verified against the live Render deployment or pushed —
 that's a separate, explicit step given the site is public.
+
+## 030 — REVIEW_02.md P1: two demo-schedule deadlines were the actual bug, not literal dates
+Date: 2026-08-31
+Decision: Widened `Spring Lookbook`'s seeded deadline from `TODAY+15` to `TODAY+35`, and
+`Autumn Prints FR Push`'s from `TODAY+10` to `TODAY+47` — both still fully relative offsets,
+just larger ones. Verified against `app/services/scheduling.py`'s own feasibility check
+(`build_feasibility_facts`) rather than eyeballing the dashboard: `Spring Lookbook` (Stills)
+and `Mother's Day Static Set` (Social) now come back fully feasible; `Autumn Prints FR Push`
+(Film) comes back exactly 2 working days behind — inside the review's "no more than 2" bar,
+not zeroed out.
+Alternatives considered: auditing every date in `seed.py` for hardcoding, since that's the
+literal fix `REVIEW_02.md`'s "Fix" section describes; dropping Film from the three
+demo-scheduled projects entirely, matching how Event already has no demo instance, so every
+demonstrated schedule is comfortably feasible with no exception to carve out.
+Why:
+1. **Every date in `seed.py` was already a relative offset — `tools/audit.py`'s own P1 check
+   already passed before this fix, and still does.** The "29 working days behind" symptom
+   `REVIEW_02.md` reports has nothing to do with hardcoded dates; it's decision 020's
+   deliberate choice to pair `Autumn Prints FR Push`'s short seeded deadline with the Film
+   template (needing ~35 working days ≈ 7 weeks), specifically to demonstrate the "Behind"
+   badge and feasibility panel. That pairing is badly infeasible on *every single reseed,
+   forever* — not a one-time drift, a permanent structural mismatch — which is exactly what
+   reads as broken on a public site rather than as a deliberate teaching moment. The owner's
+   direct testing has now overruled that Session B call; documenting the reversal here rather
+   than treating it as an oversight.
+2. **Kept a small, real shortfall (2 working days) instead of making everything feasible.**
+   Dropping Film from the demo set entirely would have been the simpler fix and was
+   seriously considered — but it would silently break `DEMO_SCRIPT.md` step 8, which
+   specifically narrates a Behind badge, a feasibility panel with a real shortfall, and
+   conflict-outlined phase bars. A shortfall of "2 working days" is a plausible, honest
+   thing for a real schedule to show; "29 working days" was never plausible, and the fix for
+   an implausible number is a plausible one, not zero. `DEMO_SCRIPT.md` already avoided
+   quoting exact figures for this reason (`DECISIONS.md` 028) so it stays accurate without
+   any further edit.
+3. **Both deadline changes are safe**, checked directly against the code: every `Assignment`
+   and `Localisation` row in `seed.py` uses its own independent `TODAY ± offset` expression,
+   never derived from `Project.deadline`. Neither `Spring Lookbook` nor `Autumn Prints FR
+   Push`'s deadline is load-bearing for any of `DEMO_DATA.md`'s five required conflicts —
+   confirmed by reading, not assumed: Maya's headroom (conflict 2) comes from a separately-
+   dated `Assignment` row; the FR localisation bottleneck (conflict 4) comes from a
+   separately-dated `Localisation.due_date`, explicitly commented `"the deliberate
+   bottleneck, unchanged"` in the seed code, and genuinely left unchanged here.
+Consequences: the wider spread also happens to help `REVIEW_02.md`'s general "deadlines
+spread across the coming six weeks" verify bar — the seeded deadlines previously maxed out at
+24 days out; they now reach 47. Four projects (not the stated "two or three") fall within 7
+days of today, but three of the four coincidentally land on the exact same date this seed run
+(today's "next Friday" and a hardcoded `TODAY+4` both resolve to the same day) — close enough
+in spirit to the review's target that it wasn't worth trimming further and risking the
+required-conflict framing. `Deliverable`/`Localisation` rows tied to `Spring Lookbook` and
+`Autumn Prints FR Push` still show their original literal-relative due dates (e.g.
+`TODAY+15`), now earlier than their project's new deadline — left as is; a deliverable due
+ahead of a project's overall delivery date is normal, not a bug.
+
+## 031 — REVIEW_02.md P7 copy item, done early: renamed "Mother's Day Static Set"
+Date: 2026-08-31
+Decision: Renamed the seeded project `"Mother's Day Static Set"` to `"Yearly Mother's Day
+Assets"` in `app/seed.py` (project name, the P7 localisation comment, and the
+`DEMO_SCHEDULE_PROJECTS` key/comment). The `campaign` field (`"Mothers Day"`) and the
+`brief_raw` text (which describes the brief content, not the project's own timing) are
+unchanged.
+Why: the owner asked directly — checking the live app — whether this project's schedule was
+tied to the real Mother's Day, which is exactly `REVIEW_02.md` P7's own flagged item: the
+project's deadline is `TODAY + timedelta(days=24)`, so on every reseed it lands roughly 3-4
+weeks out from whenever the seed happens to run, never actually near the real holiday (March
+in the UK, May across most of the rest of Europe). Confirmed on this run: deadline resolves
+to 2026-09-24, nowhere near either. Moving the date wouldn't fix this — no fixed offset from
+"today" reliably lands near a specific calendar holiday — so the review's other suggested
+fix, renaming, is the only one that actually holds under a stale-never demo reseed. The
+owner's own suggested name ("Yearly Mother Day assets") is used, cleaned up to match this
+project's existing naming style (title case, correct possessive) and the pattern already set
+by `"Retouch Guidelines Refresh"` — framing it as ongoing/evergreen seasonal-asset
+production rather than a project scheduled to land on the holiday itself.
+Consequences: taken out of P7 order, ahead of P2-P6, because it was a direct, specific
+question about live app behaviour rather than a request to work the review section by
+section — the rest of P7's copy items are still pending. Verified: full-repo grep (no other
+references to the old name outside this decision entry and `docs/REVIEW_02.md`, both
+historical), `pytest` (140 passed), a fresh `--reset` seed, and `build_feasibility_facts`
+re-run directly against the renamed project (still fully feasible, unaffected — the rename
+touches display text only, not scheduling math).

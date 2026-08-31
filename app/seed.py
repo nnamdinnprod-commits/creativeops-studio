@@ -76,7 +76,7 @@ def seed(session):
                  localisation_required=True, estimated_days=3.0)
     p3 = Project(name="Spring Lookbook", brand="Cassenvale", campaign="Spring 2026",
                  source_market="ES", priority=Priority.medium, status=ProjectStatus.assigned,
-                 deadline=TODAY + timedelta(days=15), owner_id=sam.id,
+                 deadline=TODAY + timedelta(days=35), owner_id=sam.id,
                  brief_raw="Spring lookbook static set for ES homepage and email, extending to DE and FR.",
                  localisation_required=True, estimated_days=5.0)
     p4 = Project(name="Loyalty App Push", brand="Cassenvale", campaign="App Growth",
@@ -90,7 +90,7 @@ def seed(session):
                  localisation_required=False, estimated_days=None)
     p5 = Project(name="Autumn Prints FR Push", brand="Halveth", campaign="Autumn Prints",
                  source_market="UK", priority=Priority.high, status=ProjectStatus.in_production,
-                 deadline=TODAY + timedelta(days=10), owner_id=sam.id,
+                 deadline=TODAY + timedelta(days=47), owner_id=sam.id,
                  brief_raw="Autumn prints campaign extending to the French market.",
                  localisation_required=True, estimated_days=4.0)
     p6 = Project(name="Retouch Guidelines Refresh", brand="Fotomera", campaign="Brand Ops",
@@ -98,7 +98,7 @@ def seed(session):
                  deadline=TODAY + timedelta(days=21), owner_id=sam.id,
                  brief_raw="Update internal retouching guidelines deck for design team onboarding.",
                  localisation_required=False, estimated_days=None)
-    p7 = Project(name="Mother's Day Static Set", brand="Halveth", campaign="Mothers Day",
+    p7 = Project(name="Yearly Mother's Day Assets", brand="Halveth", campaign="Mothers Day",
                  source_market="UK", priority=Priority.medium, status=ProjectStatus.ready,
                  deadline=TODAY + timedelta(days=24), owner_id=sam.id,
                  brief_raw="Mother's Day social static set, UK and ES, 6 variants, 1080x1080, "
@@ -275,7 +275,7 @@ def seed(session):
                     translator_id=None, status=LocalisationStatus.in_translation,
                     review_status=SubStatus.pending, qa_status=SubStatus.pending,
                     due_date=TODAY + timedelta(days=10)),
-        # P7 — Mother's Day Static Set (ready, not yet in production)
+        # P7 — Yearly Mother's Day Assets (ready, not yet in production)
         Localisation(project_id=p7.id, target_market="ES", language="es",
                     translator_id=None, status=LocalisationStatus.not_started,
                     review_status=SubStatus.pending, qa_status=SubStatus.pending,
@@ -478,12 +478,12 @@ def seed_phase_templates(session):
 # capacity-overload and reassignment conflicts DEMO_DATA.md requires (Alex's ~95% load and
 # Maya's headroom), and their deadlines are explicitly load-bearing for that story.
 #
-# The three picked land across the honest range PLANNING.md itself describes: Mother's Day
-# Static Set has enough runway for a feasible Social schedule; Spring Lookbook is mildly
-# short for Stills; Autumn Prints FR Push is well short for Film — a real demonstration of
-# "when the computed start is in the past, say so," not a contrived one.
+# The three picked land across the honest range PLANNING.md itself describes: Yearly
+# Mother's Day Assets has enough runway for a feasible Social schedule; Spring Lookbook is
+# mildly short for Stills; Autumn Prints FR Push is well short for Film — a real
+# demonstration of "when the computed start is in the past, say so," not a contrived one.
 DEMO_SCHEDULE_PROJECTS = {
-    "Mother's Day Static Set": "Social / AI-generated content",
+    "Yearly Mother's Day Assets": "Social / AI-generated content",
     "Spring Lookbook": "Stills",
     "Autumn Prints FR Push": "Film / branded content",
 }
