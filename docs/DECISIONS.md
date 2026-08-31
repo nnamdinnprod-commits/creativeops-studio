@@ -1090,3 +1090,55 @@ inspection of `get_localisation_risks`) the localisation risk flag live, and a m
 assign changing a person's `/resources` allocation figure live. `tools/audit.py --url`
 re-run clean of anything new — the remaining findings (P5.1 project links, P5.2 timeline
 coverage, P7 copy) belong to later sections.
+
+## 035 — REVIEW_02.md P4: insight lifecycle state, without a new stored status column
+Date: 2026-08-31
+Decision: Extended round 1's "one pending recommendation per conflict" rule
+(`resources.py`) to Creative Intelligence, and gave each market's lifestyle-vs-product
+insight the four-state lifecycle the review asks for (`new` / `recommendation_pending` /
+`actioned` / `dismissed`) — but stored almost none of it. Added exactly one column,
+`CreativeInsight.dismissed_reason` (nullable text). Everything else is computed at display
+time in `app/services/insight.py::compute_insight_status(db, market)`:
+`recommendation_pending` and `actioned` are derived by checking whether a pending or
+accepted `production_action` Recommendation exists whose `computed_facts_json["market"]`
+matches; only `dismissed` has no Recommendation to derive from, so it's the one thing that
+needs real storage.
+`/intelligence/recommend` now mirrors `resources.py`'s dedup exactly: build the facts,
+find an existing pending recommendation for the same market, return "nothing has changed
+since it was generated" if the facts match, replace it if they don't. Blocks outright only
+for `actioned`/`dismissed` (terminal) — a pending recommendation does *not* block a repeat
+request, matching `resources.py`'s own precedent (its "Get AI recommendation" button is
+never hidden while a conflict has a pending recommendation) and the review's literal verify
+text, which only asks for the control to disappear *after* accepting, not while pending.
+New `POST /intelligence/{market}/dismiss` (reason required, a blank one refused) sets
+`dismissed_reason` identically across every `CreativeInsight` row in that market's
+lifestyle/product_only group — dismissal is a property of the market-level opportunity, not
+of one raw performance row, so grouping rather than a per-row flag matches what the review
+actually means by "insight."
+Alternatives considered: an `InsightStatus` enum column on `CreativeInsight`, storing
+`new`/`recommendation_pending`/`actioned` explicitly. Rejected — `REVIEW_02.md` P3's own
+rule, applied one section later: "nothing derived may be stored where it can drift."
+`recommendation_pending`/`actioned` are both already fully knowable from `Recommendation`
+rows that exist for exactly this reason; storing them a second time would just be a second
+place for the two to disagree, the same class of bug P2 and P3 both just finished removing.
+A separate `Opportunity`/`InsightGroup` table was also considered, to give the market-level
+concept its own identity instead of denormalizing `dismissed_reason` across several rows —
+rejected as more schema than this demo's scale needs; `ProjectPhase.required_roles`
+(decision noted in `app/services/scheduling.py`) already sets the precedent that a small,
+deliberate denormalization is fine here when the alternative is a new table for one field.
+Consequences: rejecting a pending recommendation reverts the insight straight back to `new`
+(no separate "insight was rejected" state — the review's four states don't include one, and
+a producer can simply request again). `compute_insight_status` does one extra query per
+displayed market comparison (small, single digits in this demo's data) rather than joining
+in SQL, consistent with how every other cross-entity check in this app already works
+(`get_conflicts`, `build_attention_snapshot`) — Python filtering over a full table, not a
+query optimised for a scale this app doesn't have.
+Verified: `pytest` (166 passed, up from 156 — 10 new tests: dedup across three repeated
+requests creating one record, phase-appropriate blocking, reject reverting to new, dismiss
+requiring a non-blank reason and applying across a market's full row group, dismiss of an
+unknown market returning false rather than raising). Also verified against a real running
+server end to end: three POSTs to `/intelligence/recommend` for the same market created one
+`Recommendation`; accepting showed "Actioned" with the outcome text and a working project
+link and removed the request control; a fresh request afterward was refused with no new row
+created; dismissing a different market set its badge and blocked further requests on that
+market specifically, leaving others untouched. `tools/audit.py` clean of anything new.

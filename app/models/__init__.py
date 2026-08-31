@@ -209,6 +209,16 @@ class CreativeInsight(TimestampMixin, Base):
     period_start: Mapped[date] = mapped_column(Date, nullable=False)
     period_end: Mapped[date] = mapped_column(Date, nullable=False)
     insight_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # REVIEW_02.md P4: the only piece of an insight's lifecycle state that isn't
+    # derivable from an existing Recommendation row — "recommendation_pending" and
+    # "actioned" are computed at display time from whether a pending/accepted
+    # production_action Recommendation exists for this market (app/services/insight.py's
+    # compute_insight_status()), consistent with "nothing derived is stored where it can
+    # drift." Dismissal has no Recommendation to derive from, so it needs real storage.
+    # Set identically across every row in a market's lifestyle/product_only group —
+    # dismissal is a property of the opportunity (the market-level comparison), not of
+    # one raw performance row.
+    dismissed_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class Recommendation(TimestampMixin, Base):

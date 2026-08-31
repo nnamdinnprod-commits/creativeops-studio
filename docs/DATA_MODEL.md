@@ -100,6 +100,7 @@ Mock performance data and its derived insight. See POSITIONING.md — this is sy
 | `conversion_rate` | float | |
 | `period_start` / `period_end` | date | |
 | `insight_text` | text, nullable | AI-generated summary of a grouping |
+| `dismissed_reason` | text, nullable | set (identically across a market's lifestyle/product_only rows) when a producer decides not to act on this market's opportunity. The rest of an insight's lifecycle (`new` / `recommendation_pending` / `actioned`) is never stored — derived at display time from whether a pending or accepted `production_action` Recommendation exists for that market (`app/services/insight.py::compute_insight_status`). REVIEW_02.md P4. |
 
 ## Recommendation
 
