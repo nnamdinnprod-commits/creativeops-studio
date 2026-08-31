@@ -41,16 +41,26 @@ def _seed_conflict(db_session):
     return alex, maya, project, assignment
 
 
-def _make_recommendation(db_session, project, alex, maya, assignment_id=None,
+def _make_recommendation(db_session, project, alex, maya, assignment, option_label="A",
                          status=RecommendationStatus.pending):
+    """REVIEW_02.md P5.6: payload carries the ranked options list, matching what
+    recommend_resource() actually persists — a single "A: reassign to Maya" option
+    by default, since that's all these accept/reject tests exercise."""
     payload = {
-        "action": "reassign", "project_id": project.id,
-        "from_person_id": alex.id, "to_person_id": maya.id,
-        "rationale": "test rationale",
-        "impact": {"from_person_new_allocation": 0, "to_person_new_allocation": 55, "deadline_protected": True},
-        "confidence": "high", "caveats": [],
+        "project_id": project.id,
+        "options": [{
+            "label": "A", "kind": "reassign", "action": "Reassign to Maya",
+            "detail": "no cost, available today",
+            "to_person_id": maya.id, "new_deadline": None,
+        }],
+        "recommended_label": "A",
+        "rationale": "test rationale", "confidence": "high", "caveats": [],
     }
-    facts = {"assignment_id": assignment_id} if assignment_id is not None else {}
+    facts = {
+        "assignment_id": assignment.id,
+        "overloaded_person": {"id": alex.id, "name": alex.name, "capacity_pct": alex.capacity_pct,
+                              "allocated_pct": 95},
+    }
     rec = Recommendation(
         kind=RecommendationKind.resource_reallocation, project_id=project.id,
         payload_json=json.dumps(payload), rationale="test rationale",
@@ -63,7 +73,7 @@ def _make_recommendation(db_session, project, alex, maya, assignment_id=None,
 
 def test_reject_leaves_assignment_untouched_and_stays_in_history(client, db_session):
     alex, maya, project, assignment = _seed_conflict(db_session)
-    rec = _make_recommendation(db_session, project, alex, maya)
+    rec = _make_recommendation(db_session, project, alex, maya, assignment)
 
     resp = client.post(f"/recommendations/{rec.id}/reject")
     assert resp.status_code == 200
@@ -79,7 +89,7 @@ def test_reject_leaves_assignment_untouched_and_stays_in_history(client, db_sess
 
 def test_accept_moves_the_assignment_and_records_outcome(client, db_session):
     alex, maya, project, assignment = _seed_conflict(db_session)
-    rec = _make_recommendation(db_session, project, alex, maya)
+    rec = _make_recommendation(db_session, project, alex, maya, assignment)
 
     resp = client.post(f"/recommendations/{rec.id}/accept")
     assert resp.status_code == 200
@@ -94,7 +104,7 @@ def test_accept_moves_the_assignment_and_records_outcome(client, db_session):
 
 def test_accepting_an_already_decided_recommendation_is_a_no_op(client, db_session):
     alex, maya, project, assignment = _seed_conflict(db_session)
-    rec = _make_recommendation(db_session, project, alex, maya, status=RecommendationStatus.accepted)
+    rec = _make_recommendation(db_session, project, alex, maya, assignment, status=RecommendationStatus.accepted)
 
     resp = client.post(f"/recommendations/{rec.id}/accept")
     assert resp.status_code == 200
@@ -116,7 +126,7 @@ def test_accept_moves_exactly_the_captured_assignment_not_whichever_matches_firs
     db_session.add(other_assignment)
     db_session.commit()
 
-    rec = _make_recommendation(db_session, project, alex, maya, assignment_id=assignment.id)
+    rec = _make_recommendation(db_session, project, alex, maya, assignment)
     resp = client.post(f"/recommendations/{rec.id}/accept")
     assert resp.status_code == 200
 
@@ -143,7 +153,7 @@ def test_accept_syncs_the_phase_this_assignment_came_from(client, db_session):
     assignment.project_phase_id = phase.id
     db_session.commit()
 
-    rec = _make_recommendation(db_session, project, alex, maya, assignment_id=assignment.id)
+    rec = _make_recommendation(db_session, project, alex, maya, assignment)
     resp = client.post(f"/recommendations/{rec.id}/accept")
     assert resp.status_code == 200
 

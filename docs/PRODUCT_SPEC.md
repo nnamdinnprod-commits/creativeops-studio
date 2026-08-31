@@ -110,14 +110,19 @@ refused outright if that leaves no runway before the work is due.
 capacity, Tight above a configurable threshold (default 85%). Conflicts are listed with
 the specific projects and dates causing them.
 
-**AI recommendation** on a conflict, for example:
+**AI recommendation** on a conflict returns a ranked set of options, not one action —
+REVIEW_02.md P5.6: "a real decision has alternatives with different costs." For example:
 
-> Move Campaign X from Alex to Maya.
-> Alex drops from 95% to 80%, protecting the Friday deadline.
-> Maya has 28% available and holds the required skill (motion).
+> A · Reassign to Maya — no cost, available Thursday, has not worked this brand before
+> B · Engage Lars (external, motion) — €550/day × 6 days, 5-day lead time, available Wednesday
+> C · Move delivery to 18 Sep — no cost, no resource change, client conversation required
+>
+> Recommended: A.
 
-The recommendation is stored, shown with **Accept** and **Reject** buttons, and only
-changes assignments when accepted. Rejected recommendations stay visible in history.
+The recommendation is stored, and **each option gets its own Accept button** — the human
+may choose any of them, not only the one recommended — plus one shared **Reject**. Only
+changes assignments (or the deadline, for a move-delivery option) once a specific option is
+accepted. Rejected recommendations stay visible in history.
 
 The arithmetic in the recommendation is computed in Python and passed to the model. The
 model phrases it. It must never be the source of the numbers.

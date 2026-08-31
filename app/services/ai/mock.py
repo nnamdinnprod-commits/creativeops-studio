@@ -20,7 +20,7 @@ from app.services.ai.schemas import (
     ProductionRecommendation,
     QuickEstimate,
     QuickEstimateAssumption,
-    ResourceImpact,
+    ResourceOption,
     ResourceRecommendation,
     ScheduleAssessment,
     ScheduleOption,
@@ -133,42 +133,50 @@ def mock_analyse_brief(raw_text: str) -> BriefExtraction:
 
 
 def mock_recommend_resource(conflict_facts: dict) -> ResourceRecommendation:
+    """REVIEW_02.md P5.6: picks among Python-computed options (reassign / engage
+    external / move delivery) rather than producing the single action itself —
+    every number in the chosen option already came from conflict_facts, computed
+    before this function ever runs (resources.py's _build_conflict_facts)."""
     overloaded = conflict_facts["overloaded_person"]
-    candidates = conflict_facts["candidates"]
-    transfer_pct = conflict_facts["transfer_allocation_pct"]
+    options = [ResourceOption(**opt) for opt in conflict_facts["options"]]
 
-    skill_matches = [c for c in candidates if c["matches_skill"]]
-    pool = skill_matches or candidates
-    chosen = max(pool, key=lambda c: c["available_pct"])
+    # Cheapest, fastest first: an internal reassignment costs nothing and needs no
+    # notice, so it's preferred whenever one exists; external engagement is the
+    # next-best real alternative; moving delivery is the last resort — it doesn't
+    # resolve the conflict itself, it needs a client conversation first.
+    _KIND_PRIORITY = {"reassign": 0, "engage_external": 1, "move_delivery": 2}
+    recommended = min(options, key=lambda o: _KIND_PRIORITY[o.kind])
 
-    from_new = overloaded["allocated_pct"] - transfer_pct
-    to_new = chosen["allocated_pct"] + transfer_pct
-
+    # Built from recommended.action/detail directly rather than parsed out of
+    # them — both are already complete, Python-computed clauses (e.g. "Reassign
+    # to Maya"), so quoting them whole avoids any string-splitting assumption
+    # about their exact wording.
     caveats = []
-    if not chosen["matches_skill"]:
-        caveats.append(f"{chosen['name']} does not have an exact skill match on record — verify fit before accepting.")
-    if chosen.get("is_external"):
-        caveats.append(f"{chosen['name']} is an external partner, not an internal team member.")
-
-    confidence = "high" if chosen["matches_skill"] and to_new <= 100 else "medium"
+    if recommended.kind == "move_delivery":
+        rationale = (
+            "No internal or external candidate can take this on in time — the deadline "
+            "itself is the only lever left, and that needs a client conversation, not a "
+            "Python decision."
+        )
+        caveats.append("Confirm the new date with the client before treating this as resolved.")
+    elif recommended.kind == "engage_external":
+        rationale = (
+            f"No one on the Team has spare capacity for this. {recommended.action} from "
+            f"the talent pool covers it at a real but bounded cost."
+        )
+        caveats.append("This candidate is an external partner, not an internal team member.")
+    else:
+        rationale = (
+            f"{recommended.action} — spare capacity, no lead time needed, the fastest "
+            f"no-cost way to bring {overloaded['name']} back under {overloaded['capacity_pct']}%."
+        )
 
     return ResourceRecommendation(
-        action="reassign",
         project_id=conflict_facts["project_id"],
-        from_person_id=overloaded["id"],
-        to_person_id=chosen["id"],
-        rationale=(
-            f"{chosen['name']} holds a matching skill and has {chosen['available_pct']}% available. "
-            f"Moving {conflict_facts['project_name']} from {overloaded['name']} to {chosen['name']} "
-            f"drops {overloaded['name']} from {overloaded['allocated_pct']}% to {from_new}%, "
-            f"protecting the {conflict_facts['deadline']} deadline."
-        ),
-        impact=ResourceImpact(
-            from_person_new_allocation=from_new,
-            to_person_new_allocation=to_new,
-            deadline_protected=True,
-        ),
-        confidence=confidence,
+        options=options,
+        recommended_label=recommended.label,
+        rationale=rationale,
+        confidence="high" if recommended.kind == "reassign" else "medium",
         caveats=caveats,
     )
 

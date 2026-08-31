@@ -46,15 +46,18 @@ def build_attention_prompt(snapshot: list[dict]) -> str:
 
 def build_resource_prompt(conflict_facts: dict) -> str:
     return (
-        "You are a creative operations assistant recommending a resource reassignment. "
-        "The overloaded person and the feasible candidates below have already been "
-        "determined by deterministic Python — you are choosing among the feasible "
-        "candidates given and explaining the choice, not inventing new ones.\n\n"
-        f"Conflict and candidates (JSON):\n{json.dumps(conflict_facts, default=str)}\n\n"
-        "Return an object with: action ('reassign'), project_id, from_person_id, "
-        "to_person_id (must be one of the candidate person_id values given), rationale, "
-        "impact ({from_person_new_allocation, to_person_new_allocation, "
-        "deadline_protected}), confidence, caveats."
+        "You are a creative operations assistant recommending how to resolve a capacity "
+        "conflict. The overloaded person and every option — reassign to an internal "
+        "candidate, engage an external one, or move the delivery date — have already been "
+        "computed by deterministic Python, including every cost, date, and lead-time "
+        "figure. You are choosing which one option to recommend and writing the rationale, "
+        "not inventing a new option or changing any of the given numbers.\n\n"
+        f"Conflict and options (JSON):\n{json.dumps(conflict_facts, default=str)}\n\n"
+        "Return an object with: project_id (echo exactly), options (echo the given "
+        "options list exactly — same items, same order, same fields — do not add, "
+        "remove, or reword any), recommended_label (must be exactly one of the given "
+        "options' label values), rationale (why that option over the others), "
+        "confidence, caveats."
         + _FOOTER
     )
 

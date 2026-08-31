@@ -177,18 +177,36 @@
             {% for c in payload.caveats %}<li>{{ c }}</li>{% endfor %}
         </ul>
         {% endif %}
-        <div class="mt-2 text-xs text-slate-500">
-            At time of recommendation —
-            {{ people_by_id[payload.from_person_id].name }}: {{ payload.impact.from_person_new_allocation }}% (after accept) ·
-            {{ people_by_id[payload.to_person_id].name }}: {{ payload.impact.to_person_new_allocation }}% (after accept)
-        </div>
+
+        <!-- REVIEW_02.md P5.6: a ranked set of options, not a single action —
+             every option's cost/date/lead-time line is Python-computed
+             (resources.py's _build_conflict_facts), the AI only picked which one
+             to recommend. Each gets its own Accept; choosing between them is the
+             judgement this screen exists to support. -->
+        <ul class="mt-3 space-y-1.5">
+            {% for opt in payload.options %}
+            <li class="border rounded px-3 py-2 {% if opt.label == payload.recommended_label %}border-green-300 bg-green-50{% else %}border-slate-200{% endif %}">
+                <div class="flex items-center justify-between gap-2">
+                    <span>
+                        <span class="font-medium">{{ opt.label }} · {{ opt.action }}</span>
+                        {% if opt.label == payload.recommended_label %}<span class="ml-1 inline-block px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700">Recommended</span>{% endif %}
+                    </span>
+                    {% if rec.status.value == 'pending' %}
+                    <form method="post" action="/recommendations/{{ rec.id }}/accept">
+                        <input type="hidden" name="option_label" value="{{ opt.label }}">
+                        <button type="submit" class="text-xs bg-green-700 text-white rounded px-3 py-1 whitespace-nowrap">Accept {{ opt.label }}</button>
+                    </form>
+                    {% endif %}
+                </div>
+                <div class="text-xs text-slate-500 mt-0.5">{{ opt.detail }}</div>
+            </li>
+            {% endfor %}
+        </ul>
+
         {% if rec.status.value == 'pending' %}
-        <div class="mt-3 flex gap-2">
-            <form method="post" action="/recommendations/{{ rec.id }}/accept">
-                <button type="submit" class="text-xs bg-green-700 text-white rounded px-3 py-1">Accept</button>
-            </form>
+        <div class="mt-3">
             <form method="post" action="/recommendations/{{ rec.id }}/reject">
-                <button type="submit" class="text-xs bg-slate-200 rounded px-3 py-1">Reject</button>
+                <button type="submit" class="text-xs bg-slate-200 rounded px-3 py-1">Reject all</button>
             </form>
         </div>
         {% elif rec.outcome_note %}

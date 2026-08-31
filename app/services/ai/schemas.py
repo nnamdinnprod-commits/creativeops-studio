@@ -54,20 +54,34 @@ class AttentionBrief(BaseModel):
 
 
 # --- 3. recommend_resource ---------------------------------------------------
+# REVIEW_02.md P5.6: "a real decision has alternatives with different costs" — a
+# ranked set of options, not a single take-it-or-leave-it action. Every option's
+# kind, action, detail line, and actionable fields (who/what changes) are computed
+# by deterministic Python (resources.py's _build_conflict_facts) and echoed here
+# unchanged, the same discipline build_feasibility_facts()'s options already use —
+# the model picks which option to recommend and writes the rationale, never the
+# numbers.
 
-class ResourceImpact(BaseModel):
-    from_person_new_allocation: int
-    to_person_new_allocation: int
-    deadline_protected: bool
+class ResourceOption(BaseModel):
+    label: str  # "A" / "B" / "C"
+    kind: Literal["reassign", "engage_external", "move_delivery"]
+    action: str  # one-line action, e.g. "Reassign to Maya"
+    detail: str  # the cost/availability/lead-time line
+    to_person_id: int | None = None  # reassign / engage_external
+    # reassign / engage_external: the exact window to engage_person() with — for
+    # engage_external this is already lead-time-adjusted (may differ from the
+    # original assignment's own start), so accepting this option later applies
+    # exactly the window it was recommended with, not a re-derived guess.
+    start_date: str | None = None
+    end_date: str | None = None
+    new_deadline: str | None = None  # move_delivery only, ISO date
 
 
 class ResourceRecommendation(BaseModel):
-    action: str
     project_id: int
-    from_person_id: int
-    to_person_id: int
+    options: list[ResourceOption] = []
+    recommended_label: str
     rationale: str
-    impact: ResourceImpact
     confidence: Literal["low", "medium", "high"]
     caveats: list[str] = []
 

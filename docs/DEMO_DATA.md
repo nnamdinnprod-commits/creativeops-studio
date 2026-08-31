@@ -8,7 +8,9 @@ to set anything up. Every conflict below exists because a specific screen needs 
 ## Scale
 
 Small enough to read on one screen, large enough to be believable: **3 brands, 5 markets,
-8 people, 12 projects, ~30 deliverables, ~20 localisation rows, ~24 creative insight rows.**
+9 people, 12 projects, ~30 deliverables, ~20 localisation rows, ~24 creative insight rows.**
+(9, not 8 — REVIEW_02.md P5.6 added an external motion designer so its own example
+recommendation option, "Engage Lars," is reachable in the live demo, not just described.)
 
 ## Brands and markets
 
@@ -41,6 +43,7 @@ Invented first names only. Mix of internal and external, with capacity that is n
 | Priya | Designer | 100 | mid-loaded |
 | Jonas | Translator (DE) | external | Talent Pool — not on the capacity roster until engaged (REVIEW_02.md P5.5) |
 | Camille | Translator (FR) | external | Talent Pool; deliberately *not* engaged for one FR project |
+| Lars | Motion Designer | external | Talent Pool — REVIEW_02.md P5.6's own "Engage Lars" resource-option example, made reachable |
 
 Skills should be specific enough that the resource recommendation has something real to
 reason about: `motion`, `retouching`, `layout`, `copy_de`, `copy_fr`, `paid_formats`.

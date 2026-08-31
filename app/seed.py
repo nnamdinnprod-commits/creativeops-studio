@@ -57,7 +57,14 @@ def seed(session):
                    skills="copy_de", is_external=True)
     camille = Person(name="Camille", role=PersonRole.translator, capacity_pct=100,
                      skills="copy_fr", is_external=True)
-    people = [alex, maya, sam, elena, tomas, priya, jonas, camille]
+    # REVIEW_02.md P5.6's own example option is "Engage Lars (external, motion)" —
+    # added so that option is actually reachable in the demo, not just described.
+    # Motion is deliberately the scarce skill (matches Elena, the one internal
+    # motion designer) — the realistic case where the Talent Pool's "on demand,
+    # when internal capacity runs out" actually matters.
+    lars = Person(name="Lars", role=PersonRole.motion_designer, capacity_pct=100,
+                 skills="motion", is_external=True)
+    people = [alex, maya, sam, elena, tomas, priya, jonas, camille, lars]
     session.add_all(people)
     session.flush()  # assign ids
 
@@ -615,7 +622,7 @@ def main():
             print("Seed data already present — skipping (use --reset to start clean).")
         else:
             seed(session)
-            print("Seed data created: 8 people, 12 projects, 10 assignments, "
+            print("Seed data created: 9 people, 12 projects, 10 assignments, "
                   "18 deliverables, 20 localisation rows, 24 creative insights.")
 
         if session.query(ProjectType).count() > 0:

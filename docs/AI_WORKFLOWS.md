@@ -127,29 +127,44 @@ invention.
 
 ### 3. `recommend_resource(conflict_facts) -> ResourceRecommendation`
 
-Input: the conflict, the overloaded person's assignments, and candidate people with their
-computed availability and skills. Python has already determined that candidates are
-feasible; the model chooses among feasible options and explains.
+REVIEW_02.md P5.6: "a real decision has alternatives with different costs" — a ranked set
+of options, not a single take-it-or-leave-it action. Input: the conflict and every option
+Python already knows how to build — reassign to a Team member, engage an external Talent
+Pool member (REVIEW_02.md P5.5, with real cost/lead-time figures from `RateBand`), or move
+the delivery date (the days needed to clear the actual overlap, always computable). The
+model picks which one to recommend and writes the rationale; every option's numbers are
+computed before the call and overwritten from those facts after parsing (same discipline as
+`assess_schedule_feasibility`'s `options` field) — never trusted from the response.
 
 ```json
 {
-  "action": "reassign",
   "project_id": 12,
-  "from_person_id": 3,
-  "to_person_id": 5,
-  "rationale": "Maya holds the motion skill and has 28% available Thursday–Friday.",
-  "impact": {
-    "from_person_new_allocation": 80,
-    "to_person_new_allocation": 100,
-    "deadline_protected": true
-  },
+  "options": [
+    {"label": "A", "kind": "reassign", "action": "Reassign to Maya",
+     "detail": "no cost, available 2026-09-03, has worked this brand before",
+     "to_person_id": 5, "start_date": "2026-09-03", "end_date": "2026-09-10"},
+    {"label": "B", "kind": "engage_external", "action": "Engage Lars (external, motion designer)",
+     "detail": "€550/day × 6 days, 5-day lead time, available 2026-09-05",
+     "to_person_id": 9, "start_date": "2026-09-05", "end_date": "2026-09-10"},
+    {"label": "C", "kind": "move_delivery", "action": "Move delivery to 18 Sep",
+     "detail": "no cost, no resource change, client conversation required",
+     "new_deadline": "2026-09-18"}
+  ],
+  "recommended_label": "A",
+  "rationale": "Maya has spare capacity and needs no lead time — the fastest, no-cost way to bring Alex back under 80%.",
   "confidence": "high",
-  "caveats": ["Maya has not worked on this brand before"]
+  "caveats": []
 }
 ```
 
-Persist as a `Recommendation` with `kind=resource_reallocation` before display. The
-`impact` figures are recomputed in Python on accept — never trusted from the payload.
+Persist as a `Recommendation` with `kind=resource_reallocation` before display; each option
+gets its own Accept control (`app/routes/recommendations.py`'s `accept()` takes
+`option_label`, defaulting to `recommended_label` if none is posted) — the human may accept
+any option, not only the recommended one. `engage_external`'s effect routes through
+`app/services/assignment.py::engage_person()` (REVIEW_02.md P5.5's "one mechanism, three
+screens"), re-checking capacity and lead time at accept time. `move_delivery`'s effect
+shifts both `Project.deadline` and the overloaded person's assignment by the same number of
+days — the actual mechanism that resolves the conflict, not just a date-field update.
 
 ### 4. `insight_to_action(insight_facts, capacity_snapshot) -> ProductionRecommendation`
 

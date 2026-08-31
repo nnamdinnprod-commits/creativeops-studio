@@ -1,7 +1,7 @@
 import json
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Form
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -24,6 +24,7 @@ from app.models import (
     RecommendationStatus,
     SubStatus,
 )
+from app.services.assignment import engage_person
 
 router = APIRouter()
 
@@ -37,29 +38,71 @@ _SCREEN_BY_KIND = {
 }
 
 
-def _apply_resource_reallocation(db: Session, rec: Recommendation, payload: dict) -> str:
+def _apply_resource_reallocation(db: Session, rec: Recommendation, payload: dict,
+                                 option_label: str) -> str:
+    """REVIEW_02.md P5.6: payload['options'] is the ranked set — resources.py's
+    recommend_resource() overwrites it with resources.py's own computed options
+    before it's ever persisted, so every field here (kind, to_person_id,
+    new_deadline) is a Python fact, not something the model chose. This function's
+    only job is to apply whichever option the human actually picked, which may or
+    may not be the one recommended."""
+    options = {opt["label"]: opt for opt in payload.get("options", [])}
+    chosen = options.get(option_label)
+    if chosen is None:
+        return f"'{option_label}' is not one of this recommendation's options — no change applied."
+
     # REVIEW_02.md P3: computed_facts_json carries the exact assignment_id captured
     # when the recommendation was generated (resources.py's _build_conflict_facts) —
     # the one Python already knew about, not a guess re-derived from (project_id,
     # person_id), which is ambiguous once a person can hold more than one
-    # assignment on the same project. Falls back to the old lookup only for a
-    # recommendation persisted before this field existed.
+    # assignment on the same project.
     facts = json.loads(rec.computed_facts_json)
-    assignment_id = facts.get("assignment_id")
-    if assignment_id is not None:
-        assignment = db.get(Assignment, assignment_id)
-    else:
-        assignment = (
-            db.query(Assignment)
-            .filter_by(project_id=payload["project_id"], person_id=payload["from_person_id"])
-            .first()
-        )
+    assignment = db.get(Assignment, facts.get("assignment_id"))
     if assignment is None:
         return "Could not find the original assignment — no change applied."
 
-    from_person = db.get(Person, payload["from_person_id"])
-    to_person = db.get(Person, payload["to_person_id"])
-    assignment.person_id = payload["to_person_id"]
+    from_person = db.get(Person, facts["overloaded_person"]["id"])
+
+    if chosen["kind"] == "move_delivery":
+        project = db.get(Project, assignment.project_id)
+        new_deadline = date.fromisoformat(chosen["new_deadline"])
+        shift = (new_deadline - project.deadline).days
+        project.deadline = new_deadline
+        assignment.start_date += timedelta(days=shift)
+        assignment.end_date += timedelta(days=shift)
+        db.flush()
+        return (
+            f"Moved '{project.name}' delivery to {new_deadline.strftime('%d %b')}, "
+            f"shifting {from_person.name}'s assignment to match — a client conversation "
+            f"about the new date is still needed."
+        )
+
+    # reassign (internal) and engage_external both move the same assignment to a
+    # new person — engage_external routes it through engage_person() so an
+    # external candidate is re-checked for capacity and lead time at accept time,
+    # not just when the recommendation was first generated.
+    to_person = db.get(Person, chosen["to_person_id"])
+    if to_person is None:
+        return "The chosen person is no longer on record — no change applied."
+
+    if chosen["kind"] == "engage_external":
+        # REVIEW_02.md P5.6: the option's own start_date/end_date, already
+        # lead-time-adjusted when this option was computed (resources.py's
+        # _build_conflict_facts) — not the original assignment's dates, which may
+        # start before this candidate could actually begin.
+        new_assignment, refusal = engage_person(
+            db, to_person, project_id=assignment.project_id,
+            start_date=date.fromisoformat(chosen["start_date"]),
+            end_date=date.fromisoformat(chosen["end_date"]),
+            allocation_pct=assignment.allocation_pct,
+            role_on_project=to_person.role.value, project_phase_id=assignment.project_phase_id,
+            existing_id=assignment.id,
+        )
+        if new_assignment is None:
+            return f"Could not engage {to_person.name}: {refusal}"
+        assignment = new_assignment
+    else:
+        assignment.person_id = to_person.id
 
     # The Assignment row is the source of truth for capacity, but a phase-derived
     # one also has a denormalized ProjectPhase.assigned_person_id (set by
@@ -69,11 +112,10 @@ def _apply_resource_reallocation(db: Session, rec: Recommendation, payload: dict
     if assignment.project_phase_id is not None:
         phase = db.get(ProjectPhase, assignment.project_phase_id)
         if phase is not None:
-            phase.assigned_person_id = payload["to_person_id"]
+            phase.assigned_person_id = to_person.id
 
     db.flush()
-
-    return f"Reassigned from {from_person.name} to {to_person.name}."
+    return f"{chosen['action']} — reassigned from {from_person.name} to {to_person.name}."
 
 
 def _apply_production_action(db: Session, rec: Recommendation, payload: dict) -> str:
@@ -146,7 +188,7 @@ def _apply_production_action(db: Session, rec: Recommendation, payload: dict) ->
 
 
 @router.post("/recommendations/{rec_id}/accept")
-def accept(rec_id: int, db: Session = Depends(get_db)):
+def accept(rec_id: int, option_label: str = Form(""), db: Session = Depends(get_db)):
     rec = db.get(Recommendation, rec_id)
     if rec is None or rec.status != RecommendationStatus.pending:
         return RedirectResponse(url="/resources", status_code=303)
@@ -154,7 +196,11 @@ def accept(rec_id: int, db: Session = Depends(get_db)):
     payload = json.loads(rec.payload_json)
 
     if rec.kind == RecommendationKind.resource_reallocation:
-        outcome = _apply_resource_reallocation(db, rec, payload)
+        # REVIEW_02.md P5.6: a ranked set of options, not a single action — accept
+        # needs to know which one was chosen. Falls back to the recommended option
+        # if the form somehow didn't send one, rather than refusing outright.
+        chosen_label = option_label or payload.get("recommended_label", "")
+        outcome = _apply_resource_reallocation(db, rec, payload, chosen_label)
     elif rec.kind == RecommendationKind.production_action:
         outcome = _apply_production_action(db, rec, payload)
     else:

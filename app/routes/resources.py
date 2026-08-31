@@ -159,6 +159,24 @@ def engage(person_id: int = Form(...), project_id: int = Form(...),
     return RedirectResponse(url="/resources", status_code=303)
 
 
+# A producer coordinates rather than produces, and a translator does language
+# work — neither is a plausible substitute for reassigned creative production
+# work, regardless of spare capacity or an incidental skill-tag overlap.
+_INELIGIBLE_CANDIDATE_ROLES = {PersonRole.producer, PersonRole.translator}
+
+
+def _candidate_available_from(db: Session, person: Person, window_start: date, today: date) -> date:
+    """REVIEW_02.md P5.6: the date this candidate is actually free from, for the
+    "available <date>" line. The candidate has already passed the spare-capacity
+    check for the *entire* transfer window (peak_allocation_pct, below) before this
+    is ever called — a partially-loaded person with enough headroom the whole time
+    (e.g. someone at 45% with the 55% this transfer needs) is available now, not
+    "once their other assignment ends"; that other assignment was never in the way.
+    earliest_feasible_start() is the one thing that actually gates a start date:
+    today for internal people, lead-time-adjusted for external."""
+    return max(earliest_feasible_start(db, person, today), window_start)
+
+
 def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict | None:
     today = date.today()
     overloaded = db.get(Person, person_id)
@@ -172,39 +190,110 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
     if transfer_assignment is None:
         return None
     transfer_pct = transfer_assignment.allocation_pct
+    window_start = transfer_assignment.start_date
+    window_end = transfer_assignment.end_date
+    window_days = (window_end - window_start).days + 1
 
     overloaded_assignments = db.query(Assignment).filter_by(person_id=person_id).all()
     overloaded_allocated = peak_allocation_pct(overloaded_assignments, today)
     overloaded_skills = set(s.strip() for s in overloaded.skills.split(",") if s.strip())
 
-    # A producer coordinates rather than produces, and a translator does language
-    # work — neither is a plausible substitute for reassigned creative production
-    # work, regardless of spare capacity or an incidental skill-tag overlap.
-    _INELIGIBLE_ROLES = {PersonRole.producer, PersonRole.translator}
+    rate_bands_by_role = {rb.role: rb for rb in db.query(RateBand).all()}
 
-    candidates = []
+    # REVIEW_02.md P5.6: "a real decision has alternatives with different costs."
+    # Every candidate this app already knows how to evaluate — Team (reassign) and
+    # Talent Pool (engage externally, REVIEW_02.md P5.5) — considered on the same
+    # terms: enough spare capacity across the transfer window, ineligible roles
+    # (producer, translator) excluded either way.
+    internal_candidates, external_candidates = [], []
     for person in db.query(Person).all():
-        if person.id == person_id or person.role in _INELIGIBLE_ROLES:
+        if person.id == person_id or person.role in _INELIGIBLE_CANDIDATE_ROLES:
             continue
         person_assignments = db.query(Assignment).filter_by(person_id=person.id).all()
         allocated = peak_allocation_pct(person_assignments, today)
         available = available_pct(person.capacity_pct, allocated)
         if available < transfer_pct:
             continue  # not feasible — Python filters before the model ever sees it
+        available_from = _candidate_available_from(db, person, window_start, today)
+        if available_from > window_end:
+            continue  # can't start in time to do any of this work
         person_skills = set(s.strip() for s in person.skills.split(",") if s.strip())
-        candidates.append({
+        entry = {
             "id": person.id,
             "name": person.name,
             "role": person.role.value,
             "allocated_pct": allocated,
             "available_pct": available,
+            "available_from": available_from.isoformat(),
             "skills": sorted(person_skills),
             "matches_skill": bool(overloaded_skills & person_skills),
             "is_external": person.is_external,
+        }
+        (external_candidates if person.is_external else internal_candidates).append(entry)
+
+    def _best(pool: list[dict]) -> dict | None:
+        skill_matches = [c for c in pool if c["matches_skill"]]
+        chosen_pool = skill_matches or pool
+        return min(chosen_pool, key=lambda c: (c["available_from"], -c["available_pct"])) if chosen_pool else None
+
+    options = []
+    best_internal = _best(internal_candidates)
+    if best_internal is not None:
+        options.append({
+            "label": "", "kind": "reassign",
+            "action": f"Reassign to {best_internal['name']}",
+            "detail": (
+                f"no cost, available {best_internal['available_from']}"
+                f"{', has worked this brand before' if best_internal['matches_skill'] else ', has not worked this brand before'}"
+            ),
+            "to_person_id": best_internal["id"],
+            "start_date": best_internal["available_from"], "end_date": window_end.isoformat(),
+            "new_deadline": None,
         })
 
-    if not candidates:
+    best_external = _best(external_candidates)
+    if best_external is not None:
+        # Lead time can eat into the window — the engageable stretch is from
+        # whenever they can actually start through the same window end, not the
+        # full original duration, and cost must be priced on the days they'd
+        # actually be engaged for, not the days the overloaded person was.
+        engaged_start = date.fromisoformat(best_external["available_from"])
+        engaged_days = (window_end - engaged_start).days + 1
+        rate_band = rate_bands_by_role.get(PersonRole(best_external["role"]))
+        day_rate = round((rate_band.low + rate_band.high) / 2) if rate_band else None
+        lead_time = rate_band.lead_time_days if rate_band else 0
+        cost_note = f"€{day_rate}/day × {engaged_days} day{'s' if engaged_days != 1 else ''}" if day_rate else "rate not set"
+        options.append({
+            "label": "", "kind": "engage_external",
+            "action": f"Engage {best_external['name']} (external, {best_external['role'].replace('_', ' ')})",
+            "detail": f"{cost_note}, {lead_time}-day lead time, available {best_external['available_from']}",
+            "to_person_id": best_external["id"],
+            "start_date": best_external["available_from"], "end_date": window_end.isoformat(),
+            "new_deadline": None,
+        })
+
+    # Always computable, unlike the two above: how many days the transfer
+    # assignment's own start would need to move to clear whichever of the
+    # overloaded person's OTHER assignments it currently overlaps — the real
+    # cause of the conflict. Assumes the deadline (and this assignment) shift
+    # together by that many days; accepting this option moves both.
+    overlapping_others = [
+        a for a in overloaded_assignments
+        if a.id != transfer_assignment.id and a.start_date <= window_end and a.end_date >= window_start
+    ]
+    if overlapping_others:
+        shift_days = max((a.end_date - window_start).days + 1 for a in overlapping_others)
+        options.append({
+            "label": "", "kind": "move_delivery",
+            "action": f"Move delivery to {(project.deadline + timedelta(days=shift_days)).strftime('%d %b')}",
+            "detail": "no cost, no resource change, client conversation required",
+            "to_person_id": None, "new_deadline": (project.deadline + timedelta(days=shift_days)).isoformat(),
+        })
+
+    if not options:
         return None
+    for label, opt in zip("ABC", options):
+        opt["label"] = label
 
     return {
         "project_id": project.id,
@@ -223,7 +312,7 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
             "allocated_pct": overloaded_allocated,
         },
         "transfer_allocation_pct": transfer_pct,
-        "candidates": candidates,
+        "options": options,
     }
 
 

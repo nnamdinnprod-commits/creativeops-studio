@@ -1396,3 +1396,76 @@ rate and lead time; engaging Jonas for a real project made him appear on the ros
 during that window and disappear outside it. `tools/audit.py --url` clean of anything new;
 the over-capacity count dropped from "1 of 8" to "1 of 6," the expected consequence of the
 roster fix, not a regression.
+
+## 041 — REVIEW_02.md P5.6: resource recommendations return ranked options
+Date: 2026-08-31
+Decision: `recommend_resource` now returns `ResourceOption[]` (reassign / engage_external /
+move_delivery, each with its own action/detail line, cost, and dates) plus a
+`recommended_label`, replacing the old single `action`/`from_person_id`/`to_person_id`/
+`impact` shape. Followed `assess_schedule_feasibility`'s already-established pattern
+exactly: every option is computed by Python (`resources.py::_build_conflict_facts`) before
+the AI call, and `app/services/ai/resource.py` overwrites `result.options` from those facts
+after parsing (and validates `recommended_label` against real labels) — the model's only
+real inputs are which option to recommend and the rationale prose, never a number. This also
+closes a real, pre-existing gap: unlike `assess_schedule_feasibility`, the old
+`recommend_resource` never re-derived its `impact` figures from facts after the call —
+`docs/AI_WORKFLOWS.md` already described that discipline as the rule ("recomputed in Python
+on accept — never trusted from the payload"), the code just didn't do it. It does now.
+`move_delivery`'s "days needed" is computed directly and honestly: how many days the
+transfer assignment's own start would need to move to clear whichever of the overloaded
+person's other assignments it overlaps — the actual, computable cause of the conflict — not
+a schedule simulation this app has no model for. Accepting it shifts both `Project.deadline`
+and the assignment by that many days, the real mechanism that resolves the conflict, not
+just a date-field update.
+Added Lars (external, motion designer) to the seed roster — REVIEW_02.md P5.6's own
+illustrative example is "Engage Lars (external, motion)"; without a matching external
+person, that option could never actually appear (Jonas/Camille are both translators,
+excluded from candidacy the same as an internal producer/translator would be). Scale note in
+`DEMO_DATA.md` updated from 8 to 9 people accordingly.
+**Two real bugs found only by testing this live, not by unit tests, and worth recording
+precisely because nothing in the existing suite would have caught either:**
+1. `mock_recommend_resource`'s rationale text was built from a `dict` literal with three
+   f-string values — Python evaluates all three eagerly when the dict is constructed, so a
+   reassign-only recommendation crashed trying to string-parse `"Engage "` out of an action
+   string that was never an engage action. Rewritten as an if/elif chain that only ever
+   builds the one rationale actually needed, and the string-parsing itself removed in favour
+   of quoting `recommended.action`/`.detail` whole — both are already complete, Python-built
+   clauses, so there's nothing to extract from them.
+2. A candidate's "available from" date was computed as "the day after whichever of their
+   existing assignments overlaps the transfer window ends" — wrong. A person already at 45%
+   with the 55% headroom this transfer needs is available *now*, for the *entire* window;
+   the unrelated 45% commitment was never in the way; `available_pct` (peak, over the whole
+   window) already establishes that correctly. Simplified to `max(earliest_feasible_start,
+   window_start)` — the only thing that actually gates a start date is lead time (external)
+   or the window itself (internal), not the mere existence of some other, survivable
+   commitment. The wrong version silently excluded Maya — DEMO_DATA.md's own built-in
+   reassignment candidate — from her own conflict's options.
+   A related instance of the same root cause: the `engage_external` option's cost was
+   originally priced on the full original transfer-window length, not the (possibly
+   shorter) stretch actually engageable after lead time — found by reading the live number
+   ("€550/day × 14 days" for a candidate who could only start 6 of those days in). Both
+   fixed together by having every option carry its own explicit `start_date`/`end_date`
+   (added to `ResourceOption`), computed once and used identically for the displayed detail
+   line, the cost math, and — the second live-caught bug below — what actually gets applied
+   on accept.
+3. Accepting `engage_external` originally applied the *original* assignment's dates to the
+   new engagement, not the lead-time-adjusted window the recommendation itself had just
+   computed — so accepting Option B could refuse an engagement the recommendation had, one
+   click earlier, said was feasible. Fixed by the same `start_date`/`end_date` fields:
+   `_apply_resource_reallocation` now applies exactly the window the option was computed
+   and shown with, not a re-derived guess.
+None of the hand-built-payload tests in `test_recommendation_accept_reject.py` (predating
+this decision) could have caught any of the three — they construct `payload_json` directly,
+bypassing `_build_conflict_facts`/`recommend_resource` entirely. New `tests/
+test_resource_options.py` exercises the real pipeline end to end specifically because of
+this — every one of the three bugs above has a named regression test.
+Consequences: `test_recommendation_accept_reject.py`'s `_make_recommendation()` helper
+rewritten to build the new options-based payload shape (and now requires an `assignment`
+argument — `assignment_id` is no longer optional; every real recommendation has one, and a
+test fixture pretending otherwise wasn't testing anything true to how this app behaves).
+Verified: `pytest` (203 passed, up from 194 — 9 new tests covering option computation, the
+partial-headroom regression, the lead-time-exclusion boundary, and all three accept paths
+end to end). Verified against a running server for every option kind: reassigning to Maya,
+engaging Lars with his lead-time-adjusted window (confirmed on the roster only during it),
+and moving delivery (confirmed the shift resolves the conflict, not just relabels it).
+`tools/audit.py` clean of anything new.
