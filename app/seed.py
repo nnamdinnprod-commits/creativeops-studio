@@ -117,7 +117,7 @@ def seed(session):
                  localisation_required=True, estimated_days=4.0)
     p10 = Project(name="Gift Card Email Series", brand="Halveth", campaign="Gift Cards",
                   source_market="UK", priority=Priority.medium, status=ProjectStatus.creative_review,
-                  deadline=TODAY + timedelta(days=6), owner_id=sam.id,
+                  deadline=TODAY + timedelta(days=13), owner_id=sam.id,
                   brief_raw="3-part gift card email series, UK, NL and DE, in creative review.",
                   localisation_required=True, estimated_days=2.5)
     p11 = Project(name="Canvas Prints Paid Display", brand="Fotomera", campaign="Canvas Push",
@@ -468,24 +468,46 @@ def seed_phase_templates(session):
     session.commit()
 
 
-# Session B step 4 needs at least a few generated schedules for the Timeline screen to show
-# anything. Rather than invent new demo projects (DEMO_DATA.md's "Scale" section fixes the
-# set at 12), three of the existing twelve are given a project type here — their deadlines
-# are left exactly as DEMO_DATA.md set them, never edited for this. No seeded project
-# describes a physical event, so the Event template has no demo instance.
+# REVIEW_02.md P5.2: Timeline showed only 3 of the 12 seeded projects because only these
+# three had ever been given a project_type_id — everything else was invisible not because
+# of a display bug, but because nothing could be generated for it. Extended from 3 to every
+# seeded project whose status is Ready through Creative Review (the "still being actively
+# planned" range) — Approved and Delivered are deliberately excluded, see below.
 #
-# Deliberately NOT Winter Campaign Refresh / Loyalty Relaunch Teaser — those two carry the
-# capacity-overload and reassignment conflicts DEMO_DATA.md requires (Alex's ~95% load and
-# Maya's headroom), and their deadlines are explicitly load-bearing for that story.
+# No seeded project describes a physical event, so the Event template has no demo instance.
 #
-# The three picked land across the honest range PLANNING.md itself describes: Yearly
-# Mother's Day Assets has enough runway for a feasible Social schedule; Spring Lookbook is
-# mildly short for Stills; Autumn Prints FR Push is well short for Film — a real
-# demonstration of "when the computed start is in the past, say so," not a contrived one.
+# Originally (Session B) Winter Campaign Refresh and Loyalty Relaunch Teaser were left out
+# on the theory that giving them a schedule risked disturbing the capacity-overload/
+# reassignment conflicts DEMO_DATA.md requires. Re-checked: a schedule (ProjectPhase rows)
+# and an Assignment row are fully independent — generate_schedule() never creates, deletes,
+# or reads an Assignment, confirmed by reading the function, not assumed — so that specific
+# worry doesn't hold. Both stay excluded anyway, for a different, real reason: DEMO_SCRIPT.md
+# names both by their tight deadlines — Winter Campaign Refresh's Friday-this-week date
+# (DEMO_DATA.md conflict 1) and Loyalty Relaunch Teaser's within-7-working-days one
+# (attention.py's deadline-proximity rule, narrated explicitly in DEMO_SCRIPT.md step 1).
+# Scheduling either against the Social template (~11 working days) computes a real,
+# double-digit shortfall; widening either deadline to make that plausible would push it past
+# the window each narrative depends on. Same call as Autumn Prints FR Push in decision 030:
+# a deadline this tight and this load-bearing doesn't get to also be schedule-feasible.
+#
+# Deliberately NOT Loyalty App Push / Retouch Guidelines Refresh — both still at status
+# Brief, and "Ready onwards" is the review's own stated floor: a brief that hasn't cleared
+# the readiness gate yet has nothing concrete enough to schedule against.
+#
+# Deliberately NOT Canvas Prints Paid Display (Approved) or New Year Cards Social Set
+# (Delivered, deadline already in the past). Both are functionally finished — generating a
+# fresh backward schedule from today for already-completed work doesn't compute a useful
+# plan, it computes a large, meaningless "behind schedule" shortfall for a project nobody is
+# still staffing. That's the same class of misleading number decision 030 (P1) and decision
+# 032 (P2) both removed elsewhere; showing one here to satisfy a literal "every project"
+# reading would be adding the bug back with different wallpaper.
 DEMO_SCHEDULE_PROJECTS = {
     "Yearly Mother's Day Assets": "Social / AI-generated content",
     "Spring Lookbook": "Stills",
     "Autumn Prints FR Push": "Film / branded content",
+    "Photobook Bundle Homepage Banner": "Stills",
+    "Calendar Season Kickoff": "Social / AI-generated content",
+    "Gift Card Email Series": "Social / AI-generated content",
 }
 
 
@@ -607,7 +629,7 @@ def main():
             print("Demo schedules already present — skipping.")
         else:
             seed_demo_schedules(session)
-            print("Demo schedules generated for 3 projects (Social, Stills, Film).")
+            print(f"Demo schedules generated for {len(DEMO_SCHEDULE_PROJECTS)} projects.")
     finally:
         session.close()
 

@@ -171,6 +171,34 @@ def test_route_renders_a_generated_schedule(client, db_session):
     assert "Brief &amp; scoping" in resp.text or "Brief & scoping" in resp.text
 
 
+def test_route_marks_a_ready_project_as_planned_not_committed(client, db_session):
+    """REVIEW_02.md P5.2: 'Ready projects render lighter or outlined to distinguish
+    planned from committed work.'"""
+    seed_phase_templates(db_session)
+    seed_assumptions(db_session)
+    owner = _seed_person(db_session)
+    stills = db_session.query(ProjectType).filter_by(name="Stills").one()
+    ready_project = Project(name="Ready Project", brand="Cassenvale", campaign="C", source_market="ES",
+                            priority=Priority.medium, status=ProjectStatus.ready,
+                            deadline=date(2026, 12, 1), owner_id=owner.id, brief_raw="x",
+                            project_type_id=stills.id)
+    committed_project = Project(name="Committed Project", brand="Cassenvale", campaign="C", source_market="ES",
+                                priority=Priority.medium, status=ProjectStatus.in_production,
+                                deadline=date(2026, 12, 1), owner_id=owner.id, brief_raw="x",
+                                project_type_id=stills.id)
+    db_session.add_all([ready_project, committed_project])
+    db_session.commit()
+    generate_schedule(db_session, ready_project)
+    generate_schedule(db_session, committed_project)
+
+    resp = client.get("/timeline")
+    assert resp.status_code == 200
+    assert "Ready Project" in resp.text
+    assert "Committed Project" in resp.text
+    assert "Planned" in resp.text
+    assert resp.text.count("Planned") == 1  # only the Ready-status row gets the badge
+
+
 def test_route_brand_filter_excludes_non_matching_projects(client, db_session):
     seed_phase_templates(db_session)
     seed_assumptions(db_session)

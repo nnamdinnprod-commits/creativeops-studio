@@ -1195,3 +1195,49 @@ Verified: `pytest` (170 passed, up from 166 — 4 new tests covering the three r
 behaviour changes above, since the other 11 sites were template-only swaps with no new
 logic to test). Every rendered page (`dashboard`, `resources`, `timeline`, `localisation`,
 `intelligence`, `pipeline`) checked directly against a running server.
+
+## 037 — REVIEW_02.md P5.2: Timeline shows every project it safely can
+Date: 2026-08-31
+Decision: `/timeline`'s route already showed every project with a generated schedule — the
+"3 of 16" gap was entirely that only 3 of the 12 seeded projects had ever been given a
+`project_type_id` at all, decision 021's own scope limit for Session B. Extended
+`DEMO_SCHEDULE_PROJECTS` in `app/seed.py` from 3 to 6: added Photobook Bundle Homepage
+Banner (Stills), Calendar Season Kickoff (Social), and Gift Card Email Series (Social),
+covering every seeded project at status Ready through Creative Review. Also added `Planned`
+styling to `/timeline`'s rows and bars (lighter, outlined) for Ready-status projects, per
+the review's explicit ask to distinguish planned from committed work.
+Considered and rejected extending to all 10 non-Brief projects (literal "every project from
+Ready onwards"):
+1. **Winter Campaign Refresh and Loyalty Relaunch Teaser stay excluded.** Both have
+   deliberately tight deadlines that `DEMO_SCRIPT.md` narrates by name — Winter Campaign
+   Refresh's Friday-this-week date drives `DEMO_DATA.md`'s capacity-overload conflict;
+   Loyalty Relaunch Teaser sits inside `attention.py`'s 7-working-day deadline-proximity
+   window, narrated in `DEMO_SCRIPT.md` step 1. Tried widening Loyalty Relaunch Teaser's
+   deadline first (to bring its schedule shortfall under `tools/audit.py`'s own 5-day
+   plausibility bar) — it worked for feasibility but pushed the deadline past that 7-working-
+   day cutoff, silently deleting it from the dashboard's "needs attention" narrative. Reverted
+   rather than trade one review requirement for another. Scheduling either against the Social
+   template computes a genuine double-digit-day shortfall; that's an honest consequence of a
+   deadline this tight, not a bug to hide, but showing it would reproduce the exact
+   implausible-number pattern decisions 030 and 032 already removed elsewhere in this app.
+2. **Canvas Prints Paid Display (Approved) and New Year Cards Social Set (Delivered) stay
+   excluded.** Both are functionally finished. A backward schedule computed from today
+   against a deadline already in the past, or a few days out, for work that's already
+   done, doesn't produce a plan anyone needs — it produces a large, meaningless "behind
+   schedule" number for a project nobody is still staffing. Same reasoning as item 1.
+3. **Loyalty App Push and Retouch Guidelines Refresh stay excluded** — both still at status
+   Brief, and the review's own instruction is "from Ready onwards."
+For the three added, widened two deadlines slightly (Photobook Bundle Homepage Banner and
+Calendar Season Kickoff needed no change; Gift Card Email Series moved from `TODAY+6` to
+`TODAY+13`) to bring their shortfalls to exactly `tools/audit.py`'s 5-working-day ceiling —
+checked each against `DEMO_SCRIPT.md` and `DEMO_DATA.md` by name first, confirmed none of
+the three is narratively load-bearing the way the two excluded ones are.
+Consequences: `seed_demo_schedules()`'s console output now reports the actual count
+(`len(DEMO_SCHEDULE_PROJECTS)`) instead of a hardcoded "3 projects" string, so this doesn't
+drift out of sync again the next time the set changes.
+Verified: `pytest` (171 passed, up from 170 — one new test asserting a Ready-status project
+renders exactly one "Planned" badge and a committed one renders none). Every added project's
+`build_feasibility_facts()` shortfall re-checked directly (all ≤5 working days, two fully
+feasible). `tools/audit.py --url` P5.2 check now passes ("Timeline shows 6 projects against
+12 on the pipeline"); P1's "no project more than 5 working days behind" check still passes
+too, confirming the widened deadlines didn't reintroduce that class of problem.
