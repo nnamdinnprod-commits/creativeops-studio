@@ -338,7 +338,7 @@ def seed(session):
         insights.append(CreativeInsight(
             brand=["Fotomera", "Halveth", "Cassenvale"][i % 3], market="DE", format="social_static",
             variant_theme=VariantTheme.lifestyle, impressions=40000 + i * 3500, ctr=ctr,
-            engagement_rate=4.5 + i * 0.2, conversion_rate=1.4 + i * 0.05,
+            engagement_rate=round(4.5 + i * 0.2, 2), conversion_rate=round(1.4 + i * 0.05, 2),
             period_start=de_period_start, period_end=de_period_end,
             insight_text=None,
         ))
@@ -346,7 +346,7 @@ def seed(session):
         insights.append(CreativeInsight(
             brand=["Fotomera", "Halveth", "Cassenvale"][i % 3], market="DE", format="social_static",
             variant_theme=VariantTheme.product_only, impressions=38000 + i * 3000, ctr=ctr,
-            engagement_rate=1.8 + i * 0.15, conversion_rate=0.7 + i * 0.05,
+            engagement_rate=round(1.8 + i * 0.15, 2), conversion_rate=round(0.7 + i * 0.05, 2),
             period_start=de_period_start, period_end=de_period_end,
             insight_text=None,
         ))

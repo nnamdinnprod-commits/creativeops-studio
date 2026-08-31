@@ -984,3 +984,22 @@ separate float-formatting issue, not a capacity bug, left for a P7 copy pass). `
 (no `--url`) still flags one inline `aggregate_utilisation_pct(capacities)` call as "arithmetic
 outside capacity.py" — a false positive from the same coarse regex matching `utilisation\s*=`
 against the call site, not a computation.
+
+## 033 — Rounded float-arithmetic seed values on Creative Intelligence
+Date: 2026-08-31
+Decision: `app/seed.py`'s DE lifestyle/product-only `CreativeInsight` rows computed
+`engagement_rate` and `conversion_rate` as `4.5 + i * 0.2`-style float arithmetic with no
+rounding, which occasionally lands on values like `1.5499999999999998` due to ordinary binary
+float imprecision — stored as-is, then rendered raw in `/intelligence`'s per-row table
+(`{{ i.engagement_rate }}%`, no template-side rounding). Wrapped both in `round(x, 2)` at the
+point of computation. Noticed as a side effect of `tools/audit.py --url`'s P2 pass flagging
+"9999%" on `/intelligence` — a false positive for the capacity check (it was matching the tail
+of the long decimal, not an actual percentage), but a real, separate display bug once traced.
+Why fixed at the source (seed.py) rather than in the template: `app/services/insight.py`'s
+`compute_market_comparisons()` already rounds its own aggregates correctly — only the seed
+data feeding the raw table was unrounded, and nothing else in the app writes a
+`CreativeInsight` row (seed-only in V1 scope), so there's no other path that could reintroduce
+this.
+Consequences: none beyond cleaner numbers — no test asserted the old unrounded values.
+Verified: `pytest` (142 passed), a fresh `--reset` seed with all 24 rows checked directly
+(`round(...)` output confirmed short, e.g. `1.55` not `1.5499999999999998`).
