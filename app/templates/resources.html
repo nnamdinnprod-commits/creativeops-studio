@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/_project_ref.html" import project_ref %}
 {% block title %}Resources — CreativeOps Studio{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-semibold">Resource &amp; Capacity Planning</h1>
@@ -45,7 +46,10 @@
                 {% endif %}
             </td>
             <td class="px-3 py-2 text-slate-600">
-                {{ current_assignments.get(pc.person.id, [])|join(', ') if current_assignments.get(pc.person.id) else '—' }}
+                {% set assigned_ids = current_assignments.get(pc.person.id, []) %}
+                {% if assigned_ids %}
+                    {% for aid in assigned_ids %}{{ project_ref(aid, projects_by_id[aid].name) }}{% if not loop.last %}, {% endif %}{% endfor %}
+                {% else %}—{% endif %}
             </td>
             <td class="px-3 py-2 text-slate-600">{{ pc.next_deadline.strftime('%d %b') if pc.next_deadline else '—' }}</td>
         </tr>
@@ -64,7 +68,7 @@
             <span class="font-medium">{{ c.person.name }}</span> is at {{ c.allocated_pct }}% against
             {{ c.capacity_pct }}% contracted capacity, {{ c.start.strftime('%d %b') }}–{{ c.end.strftime('%d %b') }},
             across
-            <span class="font-medium">{{ c.projects|map(attribute='name')|join(', ') }}</span>.
+            {% for p in c.projects %}{{ project_ref(p.id, p.name, "font-medium hover:underline") }}{% if not loop.last %}, {% endif %}{% endfor %}.
         </div>
         {% if c.person.id in conflict_targets %}
         <form method="post" action="/resources/recommend" class="mt-2" onsubmit="showLoading(this, 'Thinking…')">
@@ -91,7 +95,7 @@
     <li class="bg-white border border-slate-200 rounded p-4 text-sm">
         <div class="flex items-center gap-2">
             <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-700">AI</span>
-            <span class="font-medium">{{ projects_by_id[rec.project_id].name if rec.project_id in projects_by_id else 'Project #' ~ rec.project_id }}</span>
+            {% if rec.project_id in projects_by_id %}{{ project_ref(rec.project_id, projects_by_id[rec.project_id].name, "font-medium hover:underline") }}{% else %}<span class="font-medium">Project #{{ rec.project_id }}</span>{% endif %}
             <span class="text-xs text-slate-400">— {{ payload.confidence|title }} confidence</span>
             {% if rec.status.value == 'pending' %}
             <span class="ml-auto inline-block px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-700">Pending</span>

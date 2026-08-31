@@ -87,6 +87,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         schedule_alerts.sort(key=lambda a: a["project"].deadline)
 
     return templates.TemplateResponse(request, "dashboard.html", {
+        "projects_by_id": {p.id: p for p in projects},
         "active_count": len(active_projects),
         "on_track_count": len(on_track_projects),
         "at_risk_count": len(at_risk_projects),

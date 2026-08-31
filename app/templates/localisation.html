@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/_project_ref.html" import project_ref %}
 {% block title %}Localisation — CreativeOps Studio{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-semibold">Localisation</h1>
@@ -20,7 +21,8 @@
                     {% endif %}
                 </div>
                 {% if s.oldest_item %}
-                <div>Oldest in queue: {{ projects_by_id[s.oldest_item.project_id].name if s.oldest_item.project_id in projects_by_id else '—' }}
+                <div>Oldest in queue:
+                    {% if s.oldest_item.project_id in projects_by_id %}{{ project_ref(s.oldest_item.project_id, projects_by_id[s.oldest_item.project_id].name) }}{% else %}—{% endif %}
                     ({{ s.oldest_item.status.value.replace('_', ' ')|title }})</div>
                 {% endif %}
             </div>
@@ -65,7 +67,7 @@
     {% for pid in project_ids %}
         <tr class="border-t border-slate-100">
             <td class="px-3 py-2 font-medium">
-                <a href="/projects/{{ pid }}" class="hover:underline">{{ projects_by_id[pid].name }}</a>
+                {{ project_ref(pid, projects_by_id[pid].name) }}
             </td>
             {% for m in all_markets %}
             <td class="px-3 py-2">

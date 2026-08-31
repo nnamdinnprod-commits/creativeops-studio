@@ -30,14 +30,17 @@ def _screen_context(db: Session):
     projects_by_id = {p.id: p for p in db.query(Project).all()}
     all_assignments = db.query(Assignment).all()
 
-    current_assignments: dict[int, list[str]] = {}
+    # REVIEW_02.md P5.1: project ids, not pre-joined name strings — the template
+    # needs the id to link each one, which a flattened "name, name, name" string
+    # discards before it ever reaches Jinja.
+    current_assignments: dict[int, list[int]] = {}
     for pc in capacities:
         person_assignments = [
             a for a in all_assignments
             if a.person_id == pc.person.id and a.start_date <= today <= a.end_date
         ]
         current_assignments[pc.person.id] = [
-            projects_by_id[a.project_id].name for a in person_assignments if a.project_id in projects_by_id
+            a.project_id for a in person_assignments if a.project_id in projects_by_id
         ]
 
     # For each conflict, the project with the soonest deadline is the one worth

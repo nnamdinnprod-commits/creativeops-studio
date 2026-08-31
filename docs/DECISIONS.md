@@ -1142,3 +1142,56 @@ server end to end: three POSTs to `/intelligence/recommend` for the same market 
 link and removed the request control; a fresh request afterward was refused with no new row
 created; dismissing a different market set its badge and blocked further requests on that
 market specifically, leaving others untouched. `tools/audit.py` clean of anything new.
+
+## 036 — REVIEW_02.md P5.1: one shared project-reference partial
+Date: 2026-08-31
+Decision: Added `app/templates/partials/_project_ref.html` — a single Jinja macro,
+`project_ref(project_id, project_name, css_class="hover:underline")`, rendering the one
+`<a href="/projects/{id}">{name}</a>` pattern every other project link in the app already
+used ad hoc. Imported it in every template that names a project — `_board.html`,
+`dashboard.html`, `timeline.html`, `localisation.html`, `resources.html`,
+`intelligence.html`, `brief.html` — and used it at all 14 occurrences the survey found,
+including the 6 already correctly wrapped in a hand-written `<a>` (converted for
+consistency, not because they were broken) and the 8 that weren't linked at all.
+Three of the 8 needed more than swapping in the macro:
+1. **Dashboard's Schedule card** (`alert.project.name`) sat inside the card's own outer
+   `<a href="/timeline">` — nesting a second anchor inside it is invalid HTML and
+   unpredictable in browsers. Restructured: the card is a `<div>` now, each alert gets its
+   own `project_ref` link, and a `View timeline →` link at the bottom matches the pattern
+   the other two dashboard cards (Team capacity, Localisation) already use.
+2. **Timeline's row header** (`row.project.name`) was the *text inside* the accordion
+   toggle `<button>` — same nested-interactive-element problem, `<a>` inside `<button>` is
+   invalid. Split the disclosure arrow (now its own small unlabelled button) from the
+   project name (now a real link) — this was arguably a UX bug on its own: clicking the
+   name previously only toggled the row, it never went anywhere.
+3. **Resources' "Current assignments" column** had no id in scope *at all* — the route
+   (`app/routes/resources.py`) pre-flattened each person's assignments into a joined string
+   of names before the template ever saw them. Changed `current_assignments` from
+   `dict[int, list[str]]` to `dict[int, list[int]]` (project ids), letting the template look
+   names back up via the `projects_by_id` already in context.
+Also added a project link to Dashboard's "Needs attention" list, which named a project only
+inside AI-generated prose (`item.statement`) with `item.project_id` sitting unused in the
+`AttentionItem` schema — added `projects_by_id` to the dashboard route's context and a
+`project_ref` link ahead of the existing "→ Resources/Timeline/…" screen link, so the
+specific project is reachable, not just the screen that explains it.
+Alternatives considered: a Jinja custom filter or a Python helper function registered as a
+Jinja global, instead of a macro file. A macro needing an explicit `{% from %} import` at
+the top of every template was slightly more typing than a global, but keeps every
+template's dependencies visible in its own first two lines rather than implicit — matches
+how this app already prefers explicit imports over ambient globals everywhere else in the
+Python code.
+Consequences: `resources.html`'s recommendation-outcome note (`rec.outcome_note` for an
+accepted resource reallocation) was deliberately left without its own link — that
+recommendation's card header, immediately above it, already links the same project; a
+second identical link right below would be noise, not a missing reference.
+`tools/audit.py --url`'s P5.1 check still flags `/brief` and `/intelligence` on a
+fresh reseed — verified by hand this is a crawl-state artifact, not a real gap: `/brief`
+only shows a created-project link *after* a real create-project POST (nothing to link on
+the bare form), and `/intelligence` only shows a project link once a `production_action`
+recommendation has actually been accepted into a project (nothing exists yet on an unused
+instance). Manually drove both flows against a running server and confirmed the link
+appears exactly when there's something to link to.
+Verified: `pytest` (170 passed, up from 166 — 4 new tests covering the three route-level
+behaviour changes above, since the other 11 sites were template-only swaps with no new
+logic to test). Every rendered page (`dashboard`, `resources`, `timeline`, `localisation`,
+`intelligence`, `pipeline`) checked directly against a running server.
