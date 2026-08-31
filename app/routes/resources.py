@@ -127,6 +127,12 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
 
     return {
         "project_id": project.id,
+        # REVIEW_02.md P3: accepting the recommendation must move exactly this
+        # Assignment row, not "whichever one matches (project_id, person_id) first"
+        # — a person can hold more than one assignment on the same project (a
+        # whole-project one plus one or more phase-derived ones), and only this ID
+        # disambiguates which is being reassigned.
+        "assignment_id": transfer_assignment.id,
         "project_name": project.name,
         "deadline": project.deadline.isoformat(),
         "overloaded_person": {

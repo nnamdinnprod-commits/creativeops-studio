@@ -17,6 +17,7 @@ from app.models import (
     PersonRole,
     Priority,
     Project,
+    ProjectPhase,
     ProjectStatus,
     Recommendation,
     RecommendationKind,
@@ -36,18 +37,40 @@ _SCREEN_BY_KIND = {
 }
 
 
-def _apply_resource_reallocation(db: Session, payload: dict) -> str:
-    assignment = (
-        db.query(Assignment)
-        .filter_by(project_id=payload["project_id"], person_id=payload["from_person_id"])
-        .first()
-    )
+def _apply_resource_reallocation(db: Session, rec: Recommendation, payload: dict) -> str:
+    # REVIEW_02.md P3: computed_facts_json carries the exact assignment_id captured
+    # when the recommendation was generated (resources.py's _build_conflict_facts) —
+    # the one Python already knew about, not a guess re-derived from (project_id,
+    # person_id), which is ambiguous once a person can hold more than one
+    # assignment on the same project. Falls back to the old lookup only for a
+    # recommendation persisted before this field existed.
+    facts = json.loads(rec.computed_facts_json)
+    assignment_id = facts.get("assignment_id")
+    if assignment_id is not None:
+        assignment = db.get(Assignment, assignment_id)
+    else:
+        assignment = (
+            db.query(Assignment)
+            .filter_by(project_id=payload["project_id"], person_id=payload["from_person_id"])
+            .first()
+        )
     if assignment is None:
         return "Could not find the original assignment — no change applied."
 
     from_person = db.get(Person, payload["from_person_id"])
     to_person = db.get(Person, payload["to_person_id"])
     assignment.person_id = payload["to_person_id"]
+
+    # The Assignment row is the source of truth for capacity, but a phase-derived
+    # one also has a denormalized ProjectPhase.assigned_person_id (set by
+    # assign_phase() for /timeline's own display) that this same move must keep in
+    # sync — otherwise Timeline keeps showing the person this recommendation just
+    # moved the work away from.
+    if assignment.project_phase_id is not None:
+        phase = db.get(ProjectPhase, assignment.project_phase_id)
+        if phase is not None:
+            phase.assigned_person_id = payload["to_person_id"]
+
     db.flush()
 
     return f"Reassigned from {from_person.name} to {to_person.name}."
@@ -131,7 +154,7 @@ def accept(rec_id: int, db: Session = Depends(get_db)):
     payload = json.loads(rec.payload_json)
 
     if rec.kind == RecommendationKind.resource_reallocation:
-        outcome = _apply_resource_reallocation(db, payload)
+        outcome = _apply_resource_reallocation(db, rec, payload)
     elif rec.kind == RecommendationKind.production_action:
         outcome = _apply_production_action(db, rec, payload)
     else:

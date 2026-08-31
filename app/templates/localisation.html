@@ -79,7 +79,19 @@
                     {% else %}bg-slate-100 text-slate-600{% endif %}">
                     {{ stage_labels[row.status] }}
                 </span>
-                {% if not row.translator_id %}<span class="text-red-500 text-xs ml-1" title="No translator assigned">&#9888;</span>{% endif %}
+                {% if row.translator_id in people_by_id %}
+                <div class="text-xs text-slate-500 mt-1">{{ people_by_id[row.translator_id].name }}</div>
+                {% elif translators %}
+                <form method="post" action="/localisation/{{ row.id }}/assign" class="mt-1 flex gap-1">
+                    <input type="hidden" name="return_to" value="{{ return_to }}">
+                    <select name="translator_id" class="border border-slate-300 rounded text-xs px-1 py-0.5">
+                        {% for t in translators %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+                    </select>
+                    <button type="submit" class="text-xs bg-slate-800 text-white rounded px-2 py-0.5">Assign</button>
+                </form>
+                {% else %}
+                <span class="text-red-500 text-xs ml-1" title="No translator assigned">&#9888;</span>
+                {% endif %}
                 {% else %}
                 <span class="text-slate-300">—</span>
                 {% endif %}

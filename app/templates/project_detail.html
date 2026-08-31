@@ -86,6 +86,37 @@
     {% else %}
     <p class="mt-2 text-sm text-slate-400">No one assigned yet.</p>
     {% endif %}
+
+    {% if assign_resource_failed %}
+    <div class="mt-2 bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700">
+        Could not assign — check the person has enough spare capacity in that window, and that the end date isn't before the start date.
+    </div>
+    {% endif %}
+
+    {% if assignable_people %}
+    <form method="post" action="/projects/{{ project.id }}/assign" class="mt-3 flex flex-wrap gap-2 items-end text-sm">
+        <div>
+            <label class="block text-xs text-slate-500 mb-1">Person</label>
+            <select name="person_id" class="border border-slate-300 rounded px-2 py-1">
+                {% for p in assignable_people %}<option value="{{ p.id }}">{{ p.name }} ({{ p.role.value.replace('_', ' ')|title }})</option>{% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs text-slate-500 mb-1">Allocation %</label>
+            <input type="number" name="allocation_pct" min="1" max="100" value="{{ default_assignment_allocation_pct }}"
+                   class="border border-slate-300 rounded px-2 py-1 w-20">
+        </div>
+        <div>
+            <label class="block text-xs text-slate-500 mb-1">Start</label>
+            <input type="date" name="start_date" value="{{ now.isoformat() }}" class="border border-slate-300 rounded px-2 py-1">
+        </div>
+        <div>
+            <label class="block text-xs text-slate-500 mb-1">End</label>
+            <input type="date" name="end_date" value="{{ project.deadline.isoformat() }}" class="border border-slate-300 rounded px-2 py-1">
+        </div>
+        <button type="submit" class="text-xs bg-slate-800 text-white rounded px-3 py-1.5">Assign</button>
+    </form>
+    {% endif %}
 </div>
 
 <div class="mt-6">

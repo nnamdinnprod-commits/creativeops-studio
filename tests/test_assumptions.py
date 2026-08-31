@@ -109,6 +109,48 @@ def test_route_reset_restores_defaults(client, db_session):
     assert assumption.value_numeric == 3
 
 
+def test_route_update_client_review_days_reschedules_every_scheduled_project(client, db_session):
+    """REVIEW_02.md P3: 'Change an assumption -> reschedule every affected project.'
+    client_review_days is the one Assumption generate_schedule() reads once and
+    persists as ProjectPhase rows — everything else here (volume scaling, lead
+    times, confidence bands, client_review_minimum_days) is already read live at
+    display time, so there's nothing stored for those to leave stale."""
+    from datetime import date
+    from app.models import Priority, Project, ProjectPhase, ProjectStatus, ProjectType, Person, PersonRole
+    from app.seed import seed_phase_templates
+    from app.services.scheduling import generate_schedule
+
+    seed_assumptions(db_session)
+    seed_phase_templates(db_session)
+    stills = db_session.query(ProjectType).filter_by(name="Stills").one()
+    owner = Person(name="Owner", role=PersonRole.producer, capacity_pct=100, skills="", is_external=False)
+    db_session.add(owner)
+    db_session.flush()
+    project = Project(name="P1", brand="Fotomera", campaign="C", source_market="NL",
+                      priority=Priority.medium, status=ProjectStatus.ready,
+                      deadline=date(2026, 10, 30), owner_id=owner.id, brief_raw="x",
+                      project_type_id=stills.id)
+    db_session.add(project)
+    db_session.commit()
+
+    generate_schedule(db_session, project)
+    before = db_session.query(ProjectPhase).filter_by(project_id=project.id).all()
+    before_review = next(p for p in before if p.name == "Client review")
+    before_days = (before_review.end_date - before_review.start_date).days + 1
+
+    assumption = db_session.query(Assumption).filter_by(key="client_review_days").one()
+    resp = client.post(f"/assumptions/{assumption.id}/update",
+                       data={"value_numeric": "10"}, follow_redirects=False)
+    assert resp.status_code == 303
+
+    db_session.expire_all()
+    after = db_session.query(ProjectPhase).filter_by(project_id=project.id).all()
+    after_review = next(p for p in after if p.name == "Client review")
+    after_days = (after_review.end_date - after_review.start_date).days + 1
+
+    assert after_days > before_days  # the stored phase actually changed, no manual regenerate call
+
+
 def test_route_update_rate_band_persists(client, db_session):
     seed_assumptions(db_session)
     band = db_session.query(RateBand).filter_by(role=PersonRole.designer).one()

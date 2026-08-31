@@ -23,7 +23,14 @@ from app.models import (
 from app.services.ai.localisation import check_localisation_risk
 from app.services.ai.schemas import BriefExtraction
 from app.services.attention import build_attention_snapshot
+from app.services.capacity import available_pct, max_allocation_pct
 from app.services.localisation_risk import get_localisation_risks
+
+# A producer coordinates rather than produces, and a translator does language work via
+# the Localisation flow — neither is a plausible manual assignment to project production
+# work. Same rule resources.py's reassignment candidate list already applies.
+_INELIGIBLE_ASSIGNMENT_ROLES = {PersonRole.producer, PersonRole.translator}
+DEFAULT_MANUAL_ASSIGNMENT_ALLOCATION_PCT = 50
 
 LOC_STATUS_ORDER = [
     LocalisationStatus.not_started,
@@ -209,6 +216,9 @@ def project_detail(project_id: int, request: Request, db: Session = Depends(get_
     )
 
     people_by_id = {p.id: p for p in db.query(Person).all()}
+    assignable_people = [
+        p for p in people_by_id.values() if p.role not in _INELIGIBLE_ASSIGNMENT_ROLES
+    ]
 
     risk_assessment = None
     if localisations:
@@ -230,22 +240,83 @@ def project_detail(project_id: int, request: Request, db: Session = Depends(get_
         "localisations": localisations,
         "people_by_id": people_by_id,
         "translators": translators,
+        "assignable_people": assignable_people,
+        "default_assignment_allocation_pct": DEFAULT_MANUAL_ASSIGNMENT_ALLOCATION_PCT,
         "loc_status_order": LOC_STATUS_ORDER,
         "risk_assessment": risk_assessment,
         "brief_analysis": brief_analysis,
         "brief_extraction": brief_extraction,
         "recommendations": recommendations,
         "now": date.today(),
+        "assign_resource_failed": request.query_params.get("error") == "assign_resource_failed",
     })
 
 
+@router.post("/projects/{project_id}/assign")
+def assign_resource(project_id: int, person_id: int = Form(...),
+                    allocation_pct: int = Form(DEFAULT_MANUAL_ASSIGNMENT_ALLOCATION_PCT),
+                    start_date: date = Form(...), end_date: date = Form(...),
+                    db: Session = Depends(get_db)):
+    """Manual whole-project assignment (project_phase_id stays None — this isn't
+    derived from a schedule phase). REVIEW_02.md P3: 'Assigning a resource on the
+    project page does nothing' — there was no write path here at all, only a
+    read-only Assignments table. Enforces the same spare-capacity rule
+    assign_phase() enforces (REVIEW_02.md P2), so a manual assign can't stack a
+    person past a plausible ceiling any more than a phase assign can."""
+    project = db.get(Project, project_id)
+    person = db.get(Person, person_id)
+    if project is None or person is None or person.role in _INELIGIBLE_ASSIGNMENT_ROLES:
+        return RedirectResponse(url=f"/projects/{project_id}?error=assign_resource_failed", status_code=303)
+    if end_date < start_date:
+        return RedirectResponse(url=f"/projects/{project_id}?error=assign_resource_failed", status_code=303)
+
+    # Replace this person's existing whole-project assignment on this project, the
+    # same convention assign_phase() uses for a phase — never stack a second row for
+    # the same (person, project) pair. Phase-derived assignments (project_phase_id
+    # set) are a different thing and untouched by this action.
+    existing = (
+        db.query(Assignment)
+        .filter_by(project_id=project_id, person_id=person_id, project_phase_id=None)
+        .first()
+    )
+    other_assignments = [
+        a for a in db.query(Assignment).filter_by(person_id=person_id).all()
+        if existing is None or a.id != existing.id
+    ]
+    allocated = max_allocation_pct(other_assignments, start_date, end_date)
+    if available_pct(person.capacity_pct, allocated) < allocation_pct:
+        return RedirectResponse(url=f"/projects/{project_id}?error=assign_resource_failed", status_code=303)
+
+    if existing is not None:
+        db.delete(existing)
+        db.flush()
+
+    db.add(Assignment(
+        project_id=project_id, person_id=person_id, allocation_pct=allocation_pct,
+        start_date=start_date, end_date=end_date, role_on_project=person.role.value,
+    ))
+    db.commit()
+    return RedirectResponse(url=f"/projects/{project_id}", status_code=303)
+
+
+def _safe_return_to(return_to: str | None, default: str) -> str:
+    # Only ever redirect back to a page this app itself served the form from —
+    # never follow an arbitrary posted URL.
+    if return_to and (return_to == "/localisation" or return_to.startswith("/localisation?")
+                      or return_to.startswith("/projects/")):
+        return return_to
+    return default
+
+
 @router.post("/localisation/{loc_id}/assign")
-def assign_translator(loc_id: int, translator_id: int = Form(...), db: Session = Depends(get_db)):
+def assign_translator(loc_id: int, translator_id: int = Form(...),
+                      return_to: str | None = Form(None), db: Session = Depends(get_db)):
     loc = db.get(Localisation, loc_id)
     if loc is not None:
         loc.translator_id = translator_id
         db.commit()
-        return RedirectResponse(url=f"/projects/{loc.project_id}", status_code=303)
+        return RedirectResponse(
+            url=_safe_return_to(return_to, f"/projects/{loc.project_id}"), status_code=303)
     return RedirectResponse(url="/pipeline", status_code=303)
 
 

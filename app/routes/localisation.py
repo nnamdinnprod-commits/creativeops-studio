@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.templates_env import templates
-from app.models import Localisation, LocalisationStatus, Person, Project
+from app.models import Localisation, LocalisationStatus, Person, PersonRole, Project
 from app.services.localisation_risk import summarize_by_market
 
 router = APIRouter()
@@ -49,6 +49,7 @@ def localisation_screen(request: Request, market: str | None = None, stage: str 
 
     market_summaries = summarize_by_market(db)
     people_by_id = {p.id: p for p in db.query(Person).all()}
+    translators = db.query(Person).filter_by(role=PersonRole.translator).all()
 
     return templates.TemplateResponse(request, "localisation.html", {
         "grid": grid,
@@ -57,8 +58,10 @@ def localisation_screen(request: Request, market: str | None = None, stage: str 
         "all_markets": all_markets,
         "market_summaries": market_summaries,
         "people_by_id": people_by_id,
+        "translators": translators,
         "stage_order": STAGE_ORDER,
         "stage_labels": STAGE_LABELS,
         "selected_market": market,
         "selected_stage": stage,
+        "return_to": str(request.url.path) + (f"?{request.url.query}" if request.url.query else ""),
     })

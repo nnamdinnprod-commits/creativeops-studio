@@ -8,7 +8,7 @@ from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.models import PhaseKind, PhaseTemplate, Project, ProjectPhase, ProjectPhaseStatus
+from app.models import Assignment, PhaseKind, PhaseTemplate, Project, ProjectPhase, ProjectPhaseStatus
 from app.services.assumptions import get_value
 
 # docs/ASSUMPTIONS.md "Review and approval cycles". Fallback defaults for callers with no
@@ -194,7 +194,18 @@ def generate_schedule(db: Session, project: Project) -> list[ProjectPhase]:
     # a bulk delete leaves the old Python objects mapped to their primary keys, and SQLite's
     # rowid reuse means the new rows can be assigned those same keys, which then raises an
     # identity-map warning when they're flushed.
-    for existing in db.query(ProjectPhase).filter_by(project_id=project.id).all():
+    #
+    # REVIEW_02.md P3: no relationship/cascade is declared anywhere in app/models — deleting
+    # a ProjectPhase here does NOT delete the Assignment row assign_phase() created against
+    # it. Left alone, that row survives with a valid person_id/dates and keeps counting
+    # toward that person's capacity forever, against a phase that no longer exists. Delete
+    # both in the same transaction so a regenerated schedule can't orphan an assignment.
+    old_phases = db.query(ProjectPhase).filter_by(project_id=project.id).all()
+    old_phase_ids = [p.id for p in old_phases]
+    if old_phase_ids:
+        for orphaned in db.query(Assignment).filter(Assignment.project_phase_id.in_(old_phase_ids)).all():
+            db.delete(orphaned)
+    for existing in old_phases:
         db.delete(existing)
 
     # templates and result.phases are index-aligned: back_schedule() sorts by sequence

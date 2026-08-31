@@ -286,6 +286,43 @@ def test_generate_schedule_reads_client_review_days_live(db_session):
     assert updated_days > baseline_days
 
 
+def test_regenerating_a_schedule_deletes_assignments_made_against_the_old_phases(db_session):
+    """REVIEW_02.md P3: no relationship/cascade exists between ProjectPhase and
+    Assignment anywhere in app/models — deleting a phase during regeneration must
+    also delete the Assignment row assign_phase() made against it, or that row
+    survives with a valid person_id/dates and keeps counting toward that person's
+    capacity forever, against a phase that no longer exists on any schedule."""
+    from app.models import Assignment, PersonRole
+    from app.services.assignment import assign_phase
+
+    seed_phase_templates(db_session)
+    seed_assumptions(db_session)
+    stills = db_session.query(ProjectType).filter_by(name="Stills").one()
+    project = _seed_project(db_session, project_type_id=stills.id, deadline=date(2026, 10, 30))
+
+    phases = generate_schedule(db_session, project)
+    production_phase = next(p for p in phases if p.kind == PhaseKind.production)
+
+    required = {r.strip() for r in production_phase.required_roles.split(",") if r.strip()}
+    designer = Person(name="Designer", role=PersonRole(next(iter(required))), capacity_pct=100,
+                      skills="", is_external=False)
+    db_session.add(designer)
+    db_session.commit()
+    ok, reason = assign_phase(db_session, production_phase, designer)
+    assert ok, reason
+    assert db_session.query(Assignment).filter_by(person_id=designer.id).count() == 1
+
+    project.deadline = date(2026, 11, 13)
+    db_session.commit()
+    generate_schedule(db_session, project)
+
+    assert db_session.query(Assignment).filter_by(person_id=designer.id).count() == 0
+    # The new phases exist and are unassigned, not silently missing.
+    new_phases = db_session.query(ProjectPhase).filter_by(project_id=project.id).all()
+    assert len(new_phases) == len(phases)
+    assert all(p.assigned_person_id is None for p in new_phases)
+
+
 def test_generate_schedule_without_assumptions_seeded_raises(db_session):
     """Documents the hard dependency this introduces — see the ordering fix in
     app/seed.py's main() (Assumptions must seed before demo schedules)."""

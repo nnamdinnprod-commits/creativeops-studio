@@ -1003,3 +1003,90 @@ this.
 Consequences: none beyond cleaner numbers — no test asserted the old unrounded values.
 Verified: `pytest` (142 passed), a fresh `--reset` seed with all 24 rows checked directly
 (`round(...)` output confirmed short, e.g. `1.55` not `1.5499999999999998`).
+
+## 034 — REVIEW_02.md P3: write-through and recompute
+Date: 2026-08-31
+Decision: Investigated each of the five reported symptoms directly (a repro script per
+symptom, run against the actual routes via `TestClient`, not just reasoning about the code)
+before changing anything — most of this codebase already computes everything at display
+time from live queries (no cache, no stored-and-synced figure anywhere), so the fix was
+narrower than "add a write-through layer": four real, specific gaps, plus one symptom that
+didn't reproduce at all.
+1. **"Accepting a resource recommendation does not update capacity figures elsewhere"** —
+   the Assignment row moves correctly and capacity recomputes correctly (proved directly:
+   reassigning Alex's project to Maya via `/recommendations/{id}/accept` updated both
+   people's allocation on the next query, no caching involved). The actual bug is
+   `ProjectPhase.assigned_person_id` — a denormalized field `assign_phase()` sets for
+   Timeline's own display, alongside the Assignment row. `_apply_resource_reallocation`
+   only touched the Assignment row, so a recommendation that reassigns a *phase-derived*
+   assignment leaves Timeline showing the person the work was just moved away from,
+   forever. Fixed in `app/routes/recommendations.py`: `computed_facts_json` now carries the
+   exact `assignment_id` captured when `_build_conflict_facts()` (resources.py) built the
+   recommendation, used as the primary lookup instead of an ambiguous `(project_id,
+   person_id)` scan — a person can hold more than one Assignment on the same project (a
+   whole-project one plus a phase-derived one; more so now that change 5 below adds a second
+   way to create one), and only the ID disambiguates which is being moved. When the moved
+   row has a `project_phase_id`, the matching `ProjectPhase.assigned_person_id` is now
+   updated in the same transaction.
+2. **"Changing a value in the Assumptions library does not reschedule affected projects"**
+   — real. Checked every `Assumption` key against every place that reads it
+   (`grep -rn "get_value(db"`): `client_review_days` is the *only* one `generate_schedule()`
+   consumes and persists as `ProjectPhase` rows — every other scheduling-tagged assumption
+   (`client_review_minimum_days`, lead times, volume scaling, confidence bands) is already
+   read live at display time by `build_feasibility_facts()`/`compute_estimate()`, so there
+   was nothing stale for those. Fixed by having `/assumptions/{id}/update` and
+   `/assumptions/reset` call `generate_schedule()` again for every project that currently
+   has a schedule, but only when the changed key is `client_review_days` — regenerating for
+   an assumption that can't change the dates would just destroy a producer's manual phase
+   assignments for no reason. This made a second, previously latent bug reachable: nothing
+   in `app/models` declares a relationship or cascade between `ProjectPhase` and
+   `Assignment`, so `generate_schedule()` deleting the old phases orphaned any Assignment row
+   `assign_phase()` had created against them — a dangling row with a real person, real dates,
+   still counting toward that person's capacity forever, against a phase that no longer
+   exists on any schedule. Fixed in the same function: delete those Assignment rows in the
+   same transaction as the phases they belonged to.
+3. **"Assigning a translator on the localisation page does nothing"** — literally true:
+   `/localisation` had no assign control at all, only a read-only grid (the working
+   `/localisation/{id}/assign` route existed, but only `/projects/{id}`'s page had a form
+   that posted to it). Added the same inline assign form to each grid cell. Since this page
+   is the one place in the app a producer would filter by market/stage first, redirecting
+   away to a project page after every assign would undo that filtering — added an optional
+   `return_to` field (validated against a `/localisation` or `/projects/` prefix, never an
+   arbitrary posted URL) so the action redirects back to wherever it was submitted from;
+   `/projects/{id}`'s existing form posts no such field and keeps its original behaviour.
+4. **"Assigning a resource on the project page does nothing"** — also literally true: the
+   Assignments section on `/projects/{id}` was a read-only table with no write path
+   whatsoever. Added `POST /projects/{project_id}/assign` — a manual whole-project
+   assignment (`project_phase_id` stays `None`, distinct from a phase-derived one), with the
+   same eligibility rule (`resources.py`'s producer/translator exclusion) and the same
+   spare-capacity enforcement decision 032 added to `assign_phase()` — a manual assign can't
+   stack a person past a plausible ceiling any more than a phase assign can. Replaces rather
+   than stacks a second row for the same (person, project) pair, matching `assign_phase()`'s
+   own convention.
+5. **"Pipeline status changes do not update the dashboard"** — did not reproduce. Traced
+   directly: `change_status()` commits `project.status` and every dashboard figure is
+   recomputed from a fresh query on the next page load, proved with a repro script that
+   changed status via the actual route and re-fetched `/dashboard` immediately after. No fix
+   applied — noted here so a future session doesn't re-investigate the same claim from
+   scratch.
+6. **"Everything appears unassigned after actions that should have assigned it"** — not
+   chased as a separate bug; change 1's `ProjectPhase.assigned_person_id` staleness is a
+   direct match (Timeline reads exactly that field to render "who's assigned") and is now
+   fixed by the same change.
+Deliberately not fixed here: the fix table's "assign translator -> ... the translator's
+allocation" — this data model has no Assignment row for a translator at all (Localisation's
+`translator_id` is a separate FK), so there is no "allocation" figure to update, only one to
+build. `REVIEW_02.md` P5.5 explicitly scopes "external talent pool with lead time/cost" as
+its own item — building a partial version of that here to satisfy one fix-table cell would
+mean redoing it properly in P5.5 anyway.
+Verified: `pytest` (156 passed, up from 144 — 12 new tests, one per fixed gap plus edge
+cases: disambiguated reassignment, phase sync, orphan cleanup on regenerate, live reschedule
+via the actual route, localisation-page assign with `return_to` handling including an unsafe-
+URL guard, manual project assign including the capacity guard and replace-not-stack). Every
+fix also verified against a real running server, not just unit tests: reassignment moving an
+Assignment and syncing its phase, an assumption edit changing a stored phase's duration
+through the actual route, a translator assign updating both the per-market summary and (by
+inspection of `get_localisation_risks`) the localisation risk flag live, and a manual project
+assign changing a person's `/resources` allocation figure live. `tools/audit.py --url`
+re-run clean of anything new — the remaining findings (P5.1 project links, P5.2 timeline
+coverage, P7 copy) belong to later sections.
