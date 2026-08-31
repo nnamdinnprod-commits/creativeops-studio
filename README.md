@@ -98,11 +98,12 @@ All in `.env.example` — copy it to `.env` and adjust if needed:
 python -m app.seed
 ```
 
-Creates the SQLite database and seeds it with fictional demo data: 8 people, 12 projects,
-assignments, deliverables, localisation rows and creative-performance rows — including five
-specific, verifiable situations the demo relies on (see `docs/DEMO_DATA.md`): an overloaded
-designer, a viable reassignment target, a genuinely vague brief, a French localisation gap,
-and a German creative-performance pattern worth acting on.
+Creates the SQLite database and seeds it with fictional demo data: 9 people (plus an
+external talent pool), 12 projects, assignments, deliverables, localisation, phase templates
+and creative insights — including five specific, verifiable situations the demo relies on
+(see `docs/DEMO_DATA.md`): an overloaded designer, a viable reassignment target, a genuinely
+vague brief, a French localisation gap, and a German creative-performance pattern worth
+acting on.
 
 Idempotent — running it again does nothing if data already exists. To start over from a
 clean state:
@@ -117,8 +118,9 @@ python -m app.seed --reset
 uvicorn app.main:app --reload
 ```
 
-Then open **http://localhost:8000** — it redirects to the Dashboard. Five screens: Dashboard,
-Pipeline, Resources, Brief Assistant, Creative Intelligence.
+Then open **http://localhost:8000** — it redirects to the Dashboard. Eight screens: Dashboard,
+Pipeline, Resources, Brief Assistant, Creative Intelligence, Localisation, Timeline,
+Assumptions.
 
 ## AI configuration
 
@@ -141,11 +143,12 @@ retry control — never a traceback, never raw model output.
 pytest
 ```
 
-33 tests covering: capacity math (allocation, overlap detection, conflict thresholds), the
+203 tests covering: capacity math (allocation, overlap detection, conflict thresholds), the
 brief readiness rubric, AI schema validation including the "invention guard" (an AI response
 referencing a project not in its input is dropped, not rendered), the localisation risk rule,
-project creation from a brief end-to-end, and the recommendation accept/reject cycle
-(accepting actually changes state; rejecting doesn't, and stays in history).
+project creation from a brief end-to-end, back-scheduling and feasibility, the resource and
+translator engagement flows, and the recommendation accept/reject cycle (accepting actually
+changes state; rejecting doesn't, and stays in history).
 
 No test makes a live API call — everything runs against the mock layer or fixture responses.
 
@@ -170,7 +173,10 @@ This is a one-day V1 build. Deliberately out of scope, per `docs/BUILD_PLAN.md` 
 - `Project.risk_level` / `risk_reason` columns exist in the schema but are always their
   default — risk badges are computed live from current data instead of a stored, synced
   value (see decision 012 in `docs/DECISIONS.md`)
-- Mobile is not a target — built and tested at laptop width
+- Mobile gets a "does not embarrass you" pass, not full optimisation — the main screens
+  stack cleanly and the Pipeline board and tables scroll instead of breaking layout at
+  narrow widths, but touch targets, gestures and true small-screen ergonomics were never
+  the target (see decision 044 in `docs/DECISIONS.md`)
 
 ## What's next, if this continues
 

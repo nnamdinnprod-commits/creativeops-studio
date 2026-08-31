@@ -58,8 +58,8 @@ review that revoked it, and `docs/DEMO_DATA.md` for the current tenant names.
 
 ## Mock integration rules
 
-- Any module simulating an external service is named `mock_*` and lives in
-  `app/services/mock/`.
+- Every function simulating an external service is named `mock_*` and lives in
+  `app/services/ai/mock.py`, the one module every AI-calling route imports it from.
 - Its docstring states in the first line that it returns synthetic data.
 - The UI labels every surface fed by it.
 - No HTTP request is ever made to a third party's real endpoints.
