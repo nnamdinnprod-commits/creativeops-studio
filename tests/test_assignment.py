@@ -15,7 +15,7 @@ from app.services.capacity import all_person_capacities, get_conflicts
 
 
 def _project(db_session, owner):
-    project = Project(name="P1", brand="Albelli", campaign="C", source_market="NL",
+    project = Project(name="P1", brand="Fotomera", campaign="C", source_market="NL",
                       priority=Priority.medium, status=ProjectStatus.brief,
                       deadline=date(2026, 10, 1), owner_id=owner.id, brief_raw="x")
     db_session.add(project)

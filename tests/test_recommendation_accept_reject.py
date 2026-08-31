@@ -24,7 +24,7 @@ def _seed_conflict(db_session):
     db_session.add_all([alex, maya])
     db_session.flush()
 
-    project = Project(name="P1", brand="Albelli", campaign="C", source_market="NL",
+    project = Project(name="P1", brand="Fotomera", campaign="C", source_market="NL",
                       priority=Priority.high, status=ProjectStatus.in_production,
                       deadline=TODAY + timedelta(days=5), owner_id=alex.id, brief_raw="x")
     db_session.add(project)

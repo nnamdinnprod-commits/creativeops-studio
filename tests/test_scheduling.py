@@ -136,7 +136,7 @@ def _seed_project(db_session, project_type_id=None, deadline=date(2026, 12, 4), 
     db_session.add(owner)
     db_session.flush()
 
-    project = Project(name="P1", brand="Albelli", campaign="C", source_market="NL",
+    project = Project(name="P1", brand="Fotomera", campaign="C", source_market="NL",
                       priority=Priority.medium, status=ProjectStatus.brief, deadline=deadline,
                       owner_id=owner.id, brief_raw="x", project_type_id=project_type_id,
                       volume_factor=volume_factor)

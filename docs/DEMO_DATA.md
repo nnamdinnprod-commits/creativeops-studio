@@ -12,7 +12,18 @@ Small enough to read on one screen, large enough to be believable: **3 brands, 5
 
 ## Brands and markets
 
-Fictional tenants: Albelli, Photobox, Hofmann.
+**Invented brand names only — no real company names anywhere in seed data, code, templates,
+or documentation.** See `docs/POSITIONING.md` "Demo data rules" for the full rule; this
+reverses what the original version of this document said. A parent group, Nordelva Group,
+with three brands, each checked against a search for real-company collisions before use
+(`docs/DECISIONS.md` round-2 review):
+
+| Brand | Category | Lead market |
+|---|---|---|
+| Fotomera | photo books and prints | NL |
+| Halveth | wall art and décor | DE |
+| Cassenvale | personalised gifts | FR / ES |
+
 Markets: NL, DE, FR, UK, ES. Source market is usually NL or UK.
 
 ## People

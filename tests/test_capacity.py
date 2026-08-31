@@ -78,7 +78,7 @@ def test_capacity_status(allocated, capacity, expected):
 def test_person_capacity_computes_available_and_next_deadline():
     person = Person(id=1, name="Alex", role=PersonRole.senior_designer, capacity_pct=100,
                     skills="layout", is_external=False)
-    project = Project(id=1, name="P1", brand="Albelli", campaign="C", source_market="NL",
+    project = Project(id=1, name="P1", brand="Fotomera", campaign="C", source_market="NL",
                       priority=Priority.high, status=ProjectStatus.in_production,
                       deadline=TODAY + timedelta(days=5), owner_id=1, brief_raw="x")
     a1 = make_assignment(1, 1, 88, -2, 5)
@@ -107,10 +107,10 @@ def test_get_conflicts_finds_overloaded_person(db_session):
     db_session.add_all([alex, maya])
     db_session.flush()
 
-    p1 = Project(name="P1", brand="Albelli", campaign="C", source_market="NL",
+    p1 = Project(name="P1", brand="Fotomera", campaign="C", source_market="NL",
                 priority=Priority.high, status=ProjectStatus.in_production,
                 deadline=TODAY + timedelta(days=5), owner_id=alex.id, brief_raw="x")
-    p2 = Project(name="P2", brand="Albelli", campaign="C", source_market="NL",
+    p2 = Project(name="P2", brand="Fotomera", campaign="C", source_market="NL",
                 priority=Priority.medium, status=ProjectStatus.assigned,
                 deadline=TODAY + timedelta(days=10), owner_id=alex.id, brief_raw="x")
     db_session.add_all([p1, p2])

@@ -57,7 +57,7 @@ def _apply_production_action(db: Session, rec: Recommendation, payload: dict) ->
     """DATA_MODEL.md: accepting creates a Project at status ready, its
     Deliverables, the Assignment, and the Localisation row, in one transaction."""
     facts = json.loads(rec.computed_facts_json)
-    brand = facts.get("brand", "Albelli")
+    brand = facts.get("brand", "Fotomera")
     market = payload["deliverables"][0]["market"] if payload["deliverables"] else facts.get("market", "NL")
 
     person = db.get(Person, payload["suggested_person_id"])

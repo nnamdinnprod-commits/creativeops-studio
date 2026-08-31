@@ -64,22 +64,22 @@ def seed(session):
     friday = this_or_next_friday(TODAY)
 
     # --- Projects ---
-    p1 = Project(name="Winter Campaign Refresh", brand="Albelli", campaign="Winter 2026",
+    p1 = Project(name="Winter Campaign Refresh", brand="Fotomera", campaign="Winter 2026",
                  source_market="NL", priority=Priority.high, status=ProjectStatus.in_production,
                  deadline=friday, owner_id=sam.id,
                  brief_raw="Refresh winter hero creative across NL, DE, FR and ES paid social and homepage.",
                  localisation_required=True, estimated_days=4.0)
-    p2 = Project(name="Loyalty Relaunch Teaser", brand="Photobox", campaign="Loyalty Relaunch",
+    p2 = Project(name="Loyalty Relaunch Teaser", brand="Halveth", campaign="Loyalty Relaunch",
                  source_market="UK", priority=Priority.medium, status=ProjectStatus.assigned,
                  deadline=TODAY + timedelta(days=10), owner_id=sam.id,
                  brief_raw="Teaser assets for loyalty programme relaunch, UK, ES and DE paid social.",
                  localisation_required=True, estimated_days=3.0)
-    p3 = Project(name="Spring Lookbook", brand="Hofmann", campaign="Spring 2026",
+    p3 = Project(name="Spring Lookbook", brand="Cassenvale", campaign="Spring 2026",
                  source_market="ES", priority=Priority.medium, status=ProjectStatus.assigned,
                  deadline=TODAY + timedelta(days=15), owner_id=sam.id,
                  brief_raw="Spring lookbook static set for ES homepage and email, extending to DE and FR.",
                  localisation_required=True, estimated_days=5.0)
-    p4 = Project(name="Loyalty App Push", brand="Hofmann", campaign="App Growth",
+    p4 = Project(name="Loyalty App Push", brand="Cassenvale", campaign="App Growth",
                  source_market="DE", priority=Priority.medium, status=ProjectStatus.brief,
                  deadline=friday, owner_id=sam.id,
                  brief_raw=(
@@ -88,44 +88,44 @@ def seed(session):
                      "existing customers I think. Who signs off on this one is TBC."
                  ),
                  localisation_required=False, estimated_days=None)
-    p5 = Project(name="Autumn Prints FR Push", brand="Photobox", campaign="Autumn Prints",
+    p5 = Project(name="Autumn Prints FR Push", brand="Halveth", campaign="Autumn Prints",
                  source_market="UK", priority=Priority.high, status=ProjectStatus.in_production,
                  deadline=TODAY + timedelta(days=10), owner_id=sam.id,
                  brief_raw="Autumn prints campaign extending to the French market.",
                  localisation_required=True, estimated_days=4.0)
-    p6 = Project(name="Retouch Guidelines Refresh", brand="Albelli", campaign="Brand Ops",
+    p6 = Project(name="Retouch Guidelines Refresh", brand="Fotomera", campaign="Brand Ops",
                  source_market="NL", priority=Priority.low, status=ProjectStatus.brief,
                  deadline=TODAY + timedelta(days=21), owner_id=sam.id,
                  brief_raw="Update internal retouching guidelines deck for design team onboarding.",
                  localisation_required=False, estimated_days=None)
-    p7 = Project(name="Mother's Day Static Set", brand="Photobox", campaign="Mothers Day",
+    p7 = Project(name="Mother's Day Static Set", brand="Halveth", campaign="Mothers Day",
                  source_market="UK", priority=Priority.medium, status=ProjectStatus.ready,
                  deadline=TODAY + timedelta(days=24), owner_id=sam.id,
                  brief_raw="Mother's Day social static set, UK and ES, 6 variants, 1080x1080, "
                            "approved by Sam, audience existing + prospecting customers.",
                  localisation_required=True, estimated_days=3.0)
-    p8 = Project(name="Photobook Bundle Homepage Banner", brand="Albelli", campaign="Bundle Promo",
+    p8 = Project(name="Photobook Bundle Homepage Banner", brand="Fotomera", campaign="Bundle Promo",
                  source_market="NL", priority=Priority.medium, status=ProjectStatus.ready,
                  deadline=TODAY + timedelta(days=18), owner_id=sam.id,
                  brief_raw="Homepage banner for photobook bundle promo, NL and DE, approved "
                            "by Sam, 1600x400 spec confirmed.",
                  localisation_required=True, estimated_days=2.0)
-    p9 = Project(name="Calendar Season Kickoff", brand="Hofmann", campaign="Calendar 2027",
+    p9 = Project(name="Calendar Season Kickoff", brand="Cassenvale", campaign="Calendar 2027",
                  source_market="ES", priority=Priority.high, status=ProjectStatus.assigned,
                  deadline=TODAY + timedelta(days=12), owner_id=sam.id,
                  brief_raw="Calendar season kickoff creative, ES and FR paid social.",
                  localisation_required=True, estimated_days=4.0)
-    p10 = Project(name="Gift Card Email Series", brand="Photobox", campaign="Gift Cards",
+    p10 = Project(name="Gift Card Email Series", brand="Halveth", campaign="Gift Cards",
                   source_market="UK", priority=Priority.medium, status=ProjectStatus.creative_review,
                   deadline=TODAY + timedelta(days=6), owner_id=sam.id,
                   brief_raw="3-part gift card email series, UK, NL and DE, in creative review.",
                   localisation_required=True, estimated_days=2.5)
-    p11 = Project(name="Canvas Prints Paid Display", brand="Albelli", campaign="Canvas Push",
+    p11 = Project(name="Canvas Prints Paid Display", brand="Fotomera", campaign="Canvas Push",
                   source_market="NL", priority=Priority.medium, status=ProjectStatus.approved,
                   deadline=TODAY + timedelta(days=4), owner_id=sam.id,
                   brief_raw="Paid display set for canvas prints, NL and DE and FR, approved and awaiting delivery.",
                   localisation_required=True, estimated_days=3.0)
-    p12 = Project(name="New Year Cards Social Set", brand="Hofmann", campaign="New Year",
+    p12 = Project(name="New Year Cards Social Set", brand="Cassenvale", campaign="New Year",
                   source_market="DE", priority=Priority.low, status=ProjectStatus.delivered,
                   deadline=TODAY - timedelta(days=10), owner_id=sam.id,
                   brief_raw="New Year cards social set, DE with FR extension, delivered on schedule.",
@@ -336,7 +336,7 @@ def seed(session):
     de_product_ctrs = [1.0, 1.2, 1.1, 0.9, 1.3, 1.1]
     for i, ctr in enumerate(de_lifestyle_ctrs):
         insights.append(CreativeInsight(
-            brand=["Albelli", "Photobox", "Hofmann"][i % 3], market="DE", format="social_static",
+            brand=["Fotomera", "Halveth", "Cassenvale"][i % 3], market="DE", format="social_static",
             variant_theme=VariantTheme.lifestyle, impressions=40000 + i * 3500, ctr=ctr,
             engagement_rate=4.5 + i * 0.2, conversion_rate=1.4 + i * 0.05,
             period_start=de_period_start, period_end=de_period_end,
@@ -344,7 +344,7 @@ def seed(session):
         ))
     for i, ctr in enumerate(de_product_ctrs):
         insights.append(CreativeInsight(
-            brand=["Albelli", "Photobox", "Hofmann"][i % 3], market="DE", format="social_static",
+            brand=["Fotomera", "Halveth", "Cassenvale"][i % 3], market="DE", format="social_static",
             variant_theme=VariantTheme.product_only, impressions=38000 + i * 3000, ctr=ctr,
             engagement_rate=1.8 + i * 0.15, conversion_rate=0.7 + i * 0.05,
             period_start=de_period_start, period_end=de_period_end,
@@ -367,7 +367,7 @@ def seed(session):
     ]
     for i, (market, fmt, theme, ctr, eng, conv) in enumerate(other_rows):
         insights.append(CreativeInsight(
-            brand=["Albelli", "Photobox", "Hofmann"][i % 3], market=market, format=fmt,
+            brand=["Fotomera", "Halveth", "Cassenvale"][i % 3], market=market, format=fmt,
             variant_theme=theme, impressions=25000 + i * 2000, ctr=ctr,
             engagement_rate=eng, conversion_rate=conv,
             period_start=de_period_start, period_end=de_period_end,

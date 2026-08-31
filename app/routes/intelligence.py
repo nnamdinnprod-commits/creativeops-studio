@@ -14,7 +14,7 @@ from app.services.insight import compute_market_comparisons
 
 router = APIRouter()
 
-BRANDS = ["Albelli", "Photobox", "Hofmann"]
+BRANDS = ["Fotomera", "Halveth", "Cassenvale"]
 
 
 def _screen_context(db: Session):

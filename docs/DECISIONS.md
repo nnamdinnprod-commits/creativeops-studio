@@ -785,3 +785,57 @@ time grew from ~6.2 minutes (the original steps already summed past the "5 Minut
 title claimed) to ~7.3 minutes with step 8 included — retitled honestly, and step 8 marked as
 the first thing to cut if time is short, since steps 1–7 are unchanged in substance and still
 carry the whole argument on their own.
+
+## 029 — REVIEW_02.md P0: revoke real brand names, replace with checked-clean invented ones
+Date: 2026-08-31
+Decision: Reversed `POSITIONING.md`'s "Demo data rules" clause that had explicitly permitted
+"publicly known consumer brand names as fictional tenants" — the clause the real brand names
+traced back to. Replaced Albelli/Photobox/Hofmann everywhere in the product surface (seed
+data, routes, templates, tests) with invented names, each checked against a web search for
+real-company collisions before use, per the review's own instruction. Used `tools/audit.py`
+(new, untracked file already present in the repo when this review landed — a read-only
+checker matching `REVIEW_02.md`'s sections almost 1:1) to baseline before, verify after, and
+confirm the fix against a locally running instance, not just a repo grep.
+Alternatives considered: using the review's own suggested replacement set
+(Fotomera/Printhuis/Kadora, parent "Halden Group") and its five listed alternates
+(Lumera/Bindwell/Papeterie/Momentbox/Foldhaus) as given; rewriting git history to remove the
+421 historical blobs the audit tool found still containing the old names.
+Why, two real findings that changed the plan:
+1. **Every single name the review proposed collided with a real, active company** —
+   `Printhuis` is an actual wall-art/poster shop (`printhuis.com`), the *exact* category the
+   review assigned it to; `Kadora` is a real Belgian gifts company; `Halden Group` is a real
+   Virginia ERP consultancy; and all five listed alternates also came back with real hits on
+   a plain search (`Lumera` — a 563-employee Swedish insurtech; `Bindwell` — a funded YC
+   biotech; `Momentbox` — multiple companies, one in the *exact* photo/event-services space;
+   `Foldhaus` — a named Burning Man art collective; `Papeterie` — several small stationery
+   shops trading under that literal name). Only `Fotomera`, the review's one suggestion for
+   the NL brand, came back clean. Searched further and found four names with no meaningful
+   collision — `Fotomera` (kept), `Halveth`, `Cassenvale`, and `Nordelva` (for the parent
+   group) — after several more candidates (`Verlio`, `Mureno`, `Donaro`, `Ostrand`,
+   `Velmara`, `Kelvara`, `Thornvale`, `Wenlow`) also came back with real hits. **A short
+   invented-sounding word very often already belongs to some small, obscure, real business
+   somewhere** — likely because corporate registries (UK Companies House among them) hold
+   near-exhaustive dormant-name inventories. Perfect zero-hit assurance isn't achievable by
+   search for a word this short; the standard actually applied was no same-or-adjacent-
+   industry collision and no substantial exact-name company, which is what the review's own
+   stated concern (a reviewer *recognising* the name) requires, not a literal zero anywhere.
+   Final mapping: **Nordelva Group** (parent) → **Fotomera** (photo books and prints, NL),
+   **Halveth** (wall art and décor, DE), **Cassenvale** (personalised gifts, FR/ES).
+2. **Git history was left alone, deliberately, not overlooked.** `tools/audit.py --deep`
+   found 421 historical blobs still containing the old names. Rewriting pushed history
+   (`git filter-repo`/BFG, then a forced push) is exactly the kind of hard-to-reverse,
+   shared-state action this project's own operating rules require checking with the owner
+   before attempting — and the audit tool's own comment agrees: "History is only a problem
+   if you publish the repository. If you do, consider starting a fresh repo rather than
+   rewriting history." This repo is already published and deployed, so the question is real,
+   not hypothetical — surfaced to the owner as a separate decision rather than acted on
+   unilaterally within this fix.
+Consequences: `tools/audit.py`'s `EXPECTED_BRANDS` constant updated to match the actual final
+names (it still shipped with the review's original, now-abandoned suggestions) and its
+comment records why they changed, so a future run of the tool checks against what's actually
+true. Verified clean: full-repo grep (only `docs/REVIEW_02.md`, a historical record of the
+rename, and `.claude/settings.local.json`, a local permission cache, still contain the old
+names — both outside the "seed data, code, templates, or documentation" scope the review
+named), `pytest` (140 passed), a fresh `--reset` seed, and `tools/audit.py --url` against a
+locally running instance. Not yet re-verified against the live Render deployment or pushed —
+that's a separate, explicit step given the site is public.

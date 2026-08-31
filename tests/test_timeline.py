@@ -52,7 +52,7 @@ def test_build_timeline_empty_when_no_phases():
 
 
 def test_build_timeline_positions_bars_and_today_line():
-    project = Project(id=1, name="P1", brand="Albelli", campaign="C", source_market="NL",
+    project = Project(id=1, name="P1", brand="Fotomera", campaign="C", source_market="NL",
                       priority=Priority.medium, status=ProjectStatus.brief,
                       deadline=date(2026, 9, 18), owner_id=1, brief_raw="x")
     phases = [
@@ -78,7 +78,7 @@ def test_build_timeline_positions_bars_and_today_line():
 
 
 def test_build_timeline_today_outside_range_is_none():
-    project = Project(id=1, name="P1", brand="Albelli", campaign="C", source_market="NL",
+    project = Project(id=1, name="P1", brand="Fotomera", campaign="C", source_market="NL",
                       priority=Priority.medium, status=ProjectStatus.brief,
                       deadline=date(2026, 9, 18), owner_id=1, brief_raw="x")
     phases = [_phase(1, "Work", date(2026, 9, 7), date(2026, 9, 11))]
@@ -88,10 +88,10 @@ def test_build_timeline_today_outside_range_is_none():
 
 
 def test_milestone_list_includes_only_milestones_sorted_chronologically():
-    p1 = Project(id=1, name="P1", brand="Albelli", campaign="C", source_market="NL",
+    p1 = Project(id=1, name="P1", brand="Fotomera", campaign="C", source_market="NL",
                 priority=Priority.medium, status=ProjectStatus.brief,
                 deadline=date(2026, 9, 18), owner_id=1, brief_raw="x")
-    p2 = Project(id=2, name="P2", brand="Photobox", campaign="C", source_market="UK",
+    p2 = Project(id=2, name="P2", brand="Halveth", campaign="C", source_market="UK",
                 priority=Priority.medium, status=ProjectStatus.brief,
                 deadline=date(2026, 9, 20), owner_id=1, brief_raw="x")
     phases_p1 = [
@@ -113,7 +113,7 @@ def test_milestone_list_includes_only_milestones_sorted_chronologically():
 
 
 def test_milestone_list_empty_when_no_milestones():
-    project = Project(id=1, name="P1", brand="Albelli", campaign="C", source_market="NL",
+    project = Project(id=1, name="P1", brand="Fotomera", campaign="C", source_market="NL",
                       priority=Priority.medium, status=ProjectStatus.brief,
                       deadline=date(2026, 9, 18), owner_id=1, brief_raw="x")
     phases = [_phase(1, "Work", date(2026, 9, 7), date(2026, 9, 11))]
@@ -157,7 +157,7 @@ def test_route_renders_a_generated_schedule(client, db_session):
     seed_assumptions(db_session)
     owner = _seed_person(db_session)
     stills = db_session.query(ProjectType).filter_by(name="Stills").one()
-    project = Project(name="Shoot Project", brand="Hofmann", campaign="C", source_market="ES",
+    project = Project(name="Shoot Project", brand="Cassenvale", campaign="C", source_market="ES",
                       priority=Priority.medium, status=ProjectStatus.brief,
                       deadline=date(2026, 12, 1), owner_id=owner.id, brief_raw="x",
                       project_type_id=stills.id)
@@ -176,7 +176,7 @@ def test_route_brand_filter_excludes_non_matching_projects(client, db_session):
     seed_assumptions(db_session)
     owner = _seed_person(db_session)
     stills = db_session.query(ProjectType).filter_by(name="Stills").one()
-    project = Project(name="Shoot Project", brand="Hofmann", campaign="C", source_market="ES",
+    project = Project(name="Shoot Project", brand="Cassenvale", campaign="C", source_market="ES",
                       priority=Priority.medium, status=ProjectStatus.brief,
                       deadline=date(2026, 12, 1), owner_id=owner.id, brief_raw="x",
                       project_type_id=stills.id)
@@ -184,8 +184,8 @@ def test_route_brand_filter_excludes_non_matching_projects(client, db_session):
     db_session.commit()
     generate_schedule(db_session, project)
 
-    matching = client.get("/timeline", params={"brand": "Hofmann"})
-    non_matching = client.get("/timeline", params={"brand": "Albelli"})
+    matching = client.get("/timeline", params={"brand": "Cassenvale"})
+    non_matching = client.get("/timeline", params={"brand": "Fotomera"})
 
     assert "Shoot Project" in matching.text
     assert "Shoot Project" not in non_matching.text
@@ -197,7 +197,7 @@ def _seed_project_with_schedule(db_session):
     seed_assumptions(db_session)
     owner = _seed_person(db_session)
     stills = db_session.query(ProjectType).filter_by(name="Stills").one()
-    project = Project(name="Shoot Project", brand="Hofmann", campaign="C", source_market="ES",
+    project = Project(name="Shoot Project", brand="Cassenvale", campaign="C", source_market="ES",
                       priority=Priority.medium, status=ProjectStatus.brief,
                       deadline=date(2026, 12, 1), owner_id=owner.id, brief_raw="x",
                       project_type_id=stills.id)
@@ -269,7 +269,7 @@ def test_timeline_shows_a_behind_badge_and_ai_panel_for_an_infeasible_schedule(c
     film = db_session.query(ProjectType).filter_by(name="Film / branded content").one()
     # Film needs ~35 working days; 3 calendar days out is nowhere close, regardless of
     # what "today" actually is when this test runs.
-    project = Project(name="Tight Turnaround", brand="Hofmann", campaign="C", source_market="ES",
+    project = Project(name="Tight Turnaround", brand="Cassenvale", campaign="C", source_market="ES",
                       priority=Priority.high, status=ProjectStatus.brief,
                       deadline=date.today() + timedelta(days=3), owner_id=owner.id, brief_raw="x",
                       project_type_id=film.id)
@@ -289,7 +289,7 @@ def test_timeline_does_not_show_behind_badge_for_a_feasible_schedule(client, db_
     seed_assumptions(db_session)
     owner = _seed_person(db_session)
     social = db_session.query(ProjectType).filter_by(name="Social / AI-generated content").one()
-    project = Project(name="Plenty of Runway", brand="Hofmann", campaign="C", source_market="ES",
+    project = Project(name="Plenty of Runway", brand="Cassenvale", campaign="C", source_market="ES",
                       priority=Priority.medium, status=ProjectStatus.brief,
                       deadline=date.today() + timedelta(days=90), owner_id=owner.id, brief_raw="x",
                       project_type_id=social.id)
@@ -352,7 +352,7 @@ def test_timeline_feasibility_panel_reflects_a_live_edited_assumption(client, db
     seed_assumptions(db_session)
     owner = _seed_person(db_session)
     film = db_session.query(ProjectType).filter_by(name="Film / branded content").one()
-    project = Project(name="Tight Turnaround", brand="Hofmann", campaign="C", source_market="ES",
+    project = Project(name="Tight Turnaround", brand="Cassenvale", campaign="C", source_market="ES",
                       priority=Priority.high, status=ProjectStatus.brief,
                       deadline=date.today() + timedelta(days=3), owner_id=owner.id, brief_raw="x",
                       project_type_id=film.id)

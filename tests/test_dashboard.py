@@ -19,7 +19,7 @@ def test_dashboard_schedule_tile_flags_an_infeasible_project(client, db_session)
     db_session.add(owner)
     db_session.commit()
     film = db_session.query(ProjectType).filter_by(name="Film / branded content").one()
-    project = Project(name="Tight Turnaround", brand="Hofmann", campaign="C", source_market="ES",
+    project = Project(name="Tight Turnaround", brand="Cassenvale", campaign="C", source_market="ES",
                       priority=Priority.high, status=ProjectStatus.brief,
                       deadline=date.today() + timedelta(days=3), owner_id=owner.id, brief_raw="x",
                       project_type_id=film.id)

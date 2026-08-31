@@ -29,7 +29,7 @@ from app.services.estimate import compute_estimate
 
 router = APIRouter()
 
-BRANDS = ["Albelli", "Photobox", "Hofmann"]
+BRANDS = ["Fotomera", "Halveth", "Cassenvale"]
 CONFIDENCE_BANDS = ["high", "medium", "low_medium", "low"]
 _WEEKDAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 

@@ -22,7 +22,7 @@ def test_analyse_then_create_project_persists_everything(client, db_session):
     create_resp = client.post("/brief/create-project", data={
         "analysis_id": analysis.id,
         "project_name": "Mothers Day Test",
-        "brand": "Photobox",
+        "brand": "Halveth",
     })
     assert create_resp.status_code == 200
 
@@ -47,7 +47,7 @@ def test_create_project_with_unknown_analysis_id_shows_fallback_not_a_traceback(
     resp = client.post("/brief/create-project", data={
         "analysis_id": 999999,
         "project_name": "Should Not Exist",
-        "brand": "Photobox",
+        "brand": "Halveth",
     })
     assert resp.status_code == 200
     assert db_session.query(Project).filter_by(name="Should Not Exist").first() is None

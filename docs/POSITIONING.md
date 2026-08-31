@@ -39,9 +39,17 @@ Where third-party analytics concepts are referenced, add:
 
 ## Demo data rules
 
-Demo brands may use publicly known consumer brand names as fictional tenants — this is
-what makes the demo legible to a reviewer in the sector. But:
+**Invented brand names only. No real company names anywhere in seed data, code, templates,
+or documentation.** This reverses the original rule, which permitted publicly known consumer
+brand names as fictional tenants on the theory that it made the demo more legible to a
+reviewer in the sector. That reasoning did not hold up once the prototype was a public URL
+sent to prospective employers: real brand names attached to invented performance metrics is
+a trademark and reputation risk, not a styling choice, and the risk does not go away because
+the audience is expected to be sympathetic. See `docs/DECISIONS.md` for the round-2 owner
+review that revoked it, and `docs/DEMO_DATA.md` for the current tenant names.
 
+- Brand names must be invented, and checked against a search before use — landing on a real
+  (even small, even obscure) company by coincidence recreates the same problem.
 - All projects, people, deadlines, budgets, performance metrics and insights are invented.
 - No real employee names. Invented first names only, no surnames that map to real people.
 - Performance figures must be plausible but clearly synthetic. Never present a number that
