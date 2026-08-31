@@ -54,7 +54,8 @@
             <tr>
                 <th class="py-1 pr-3">Role</th>
                 <th class="py-1 pr-3">Rate range (per day)</th>
-                <th class="py-1">Currency</th>
+                <th class="py-1 pr-3">Currency</th>
+                <th class="py-1">External lead time</th>
             </tr>
         </thead>
         <tbody>
@@ -68,10 +69,15 @@
                     <span class="text-slate-400">–</span>
                     <input type="number" step="any" name="high" value="{{ '%g' % rb.high }}"
                            class="border border-slate-300 rounded px-2 py-0.5 w-20 text-sm">
+                    <input type="number" step="1" min="0" name="lead_time_days" value="{{ rb.lead_time_days }}"
+                           title="Days notice before an external engagement of this role can start"
+                           class="border border-slate-300 rounded px-2 py-0.5 w-16 text-sm">
+                    <span class="text-xs text-slate-400">days</span>
                     <button type="submit" class="text-xs text-blue-600 underline">Save</button>
                 </form>
             </td>
             <td class="py-2 text-xs text-slate-400">{{ rb.currency }}</td>
+            <td class="py-2 text-xs text-slate-400">{{ rb.lead_time_days }} day{{ 's' if rb.lead_time_days != 1 else '' }}</td>
         </tr>
         {% endfor %}
         </tbody>

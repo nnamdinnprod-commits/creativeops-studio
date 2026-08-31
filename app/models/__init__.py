@@ -356,3 +356,8 @@ class RateBand(TimestampMixin, Base):
     low: Mapped[float] = mapped_column(Float, nullable=False)
     high: Mapped[float] = mapped_column(Float, nullable=False)
     currency: Mapped[str] = mapped_column(String, nullable=False, default="EUR")
+    # REVIEW_02.md P5.5: "day rates and lead times live in the Assumptions library."
+    # Per-role, like the rate itself — the realistic minimum notice before an
+    # external engagement of this role can start (app/services/assignment.py's
+    # engage_person()). Internal Person rows never read this.
+    lead_time_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

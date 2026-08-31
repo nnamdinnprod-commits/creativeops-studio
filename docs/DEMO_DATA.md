@@ -39,8 +39,8 @@ Invented first names only. Mix of internal and external, with capacity that is n
 | Elena | Motion Designer | 80 | available, holds the scarce motion skill |
 | Tomas | Copywriter | 60 | part-time |
 | Priya | Designer | 100 | mid-loaded |
-| Jonas | Translator (DE) | external | vendor |
-| Camille | Translator (FR) | external | deliberately *not* assigned to one FR project |
+| Jonas | Translator (DE) | external | Talent Pool — not on the capacity roster until engaged (REVIEW_02.md P5.5) |
+| Camille | Translator (FR) | external | Talent Pool; deliberately *not* engaged for one FR project |
 
 Skills should be specific enough that the resource recommendation has something real to
 reason about: `motion`, `retouching`, `layout`, `copy_de`, `copy_fr`, `paid_formats`.

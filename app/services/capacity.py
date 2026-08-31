@@ -150,6 +150,17 @@ class Conflict:
     projects: list[Project]
 
 
+def is_actively_engaged(person: Person, person_assignments: list[Assignment], on_date: date) -> bool:
+    """REVIEW_02.md P5.5: 'Team — always on the roster, always counted. Talent pool
+    — not on the capacity roster until engaged.' Internal people are always on the
+    roster; an external person only counts while one of their Assignment rows
+    actually covers `on_date` — the duration of an active engagement, not before
+    or after it."""
+    if not person.is_external:
+        return True
+    return any(a.start_date <= on_date <= a.end_date for a in person_assignments)
+
+
 def get_conflicts(db: Session, on_date: date | None = None) -> list[Conflict]:
     """Find every person whose overlapping assignments push them over their
     contracted capacity, with the specific window and projects responsible."""
@@ -161,6 +172,8 @@ def get_conflicts(db: Session, on_date: date | None = None) -> list[Conflict]:
     conflicts: list[Conflict] = []
     for person in people:
         person_assignments = [a for a in all_assignments if a.person_id == person.id]
+        if not is_actively_engaged(person, person_assignments, on_date):
+            continue
         for segment in allocation_timeline(person_assignments):
             if segment.end < on_date:
                 continue  # conflict window already passed
@@ -183,8 +196,19 @@ def get_conflicts(db: Session, on_date: date | None = None) -> list[Conflict]:
 
 
 def all_person_capacities(db: Session, on_date: date | None = None) -> list[PersonCapacity]:
+    """REVIEW_02.md P5.5: excludes an external person unless they're actively
+    engaged on `on_date` — 'two external translators sit permanently on the
+    capacity roster at 0%' was the literal problem this fixes. Callers that need
+    the full Team + Talent Pool picture regardless of engagement (e.g. the
+    Resources screen's separate pool listing) query Person directly instead."""
     on_date = on_date or date.today()
     people = db.query(Person).all()
     all_assignments = db.query(Assignment).all()
     projects_by_id = {p.id: p for p in db.query(Project).all()}
-    return [person_capacity(p, all_assignments, projects_by_id, on_date) for p in people]
+    result = []
+    for p in people:
+        person_assignments = [a for a in all_assignments if a.person_id == p.id]
+        if not is_actively_engaged(p, person_assignments, on_date):
+            continue
+        result.append(person_capacity(p, all_assignments, projects_by_id, on_date))
+    return result

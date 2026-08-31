@@ -69,10 +69,11 @@ def reset_assumptions(db: Session = Depends(get_db)):
 
 @router.post("/assumptions/rate-bands/{rate_band_id}/update")
 def update_rate_band(rate_band_id: int, low: float = Form(...), high: float = Form(...),
-                     db: Session = Depends(get_db)):
+                     lead_time_days: int = Form(...), db: Session = Depends(get_db)):
     rate_band = db.get(RateBand, rate_band_id)
     if rate_band is not None:
         rate_band.low = low
         rate_band.high = high
+        rate_band.lead_time_days = lead_time_days
         db.commit()
     return RedirectResponse(url="/assumptions", status_code=303)

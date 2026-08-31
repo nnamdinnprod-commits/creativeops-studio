@@ -1,5 +1,6 @@
 import json
-from datetime import date
+from datetime import date, timedelta
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -24,8 +25,9 @@ from app.models import (
 )
 from app.services.ai.localisation import check_localisation_risk
 from app.services.ai.schemas import BriefExtraction
+from app.services.assignment import earliest_feasible_start, engage_person
+from app.services.assumptions import get_value
 from app.services.attention import build_attention_snapshot
-from app.services.capacity import available_pct, max_allocation_pct
 from app.services.localisation_risk import get_localisation_risks
 
 # A producer coordinates rather than produces, and a translator does language work via
@@ -33,6 +35,9 @@ from app.services.localisation_risk import get_localisation_risks
 # work. Same rule resources.py's reassignment candidate list already applies.
 _INELIGIBLE_ASSIGNMENT_ROLES = {PersonRole.producer, PersonRole.translator}
 DEFAULT_MANUAL_ASSIGNMENT_ALLOCATION_PCT = 50
+# REVIEW_02.md P5.5: a translator's engagement isn't full-time against one project —
+# matches the fractional allocations DEMO_DATA.md already uses throughout.
+TRANSLATION_ENGAGEMENT_ALLOCATION_PCT = 40
 
 LOC_STATUS_ORDER = [
     LocalisationStatus.not_started,
@@ -305,6 +310,7 @@ def project_detail(project_id: int, request: Request, db: Session = Depends(get_
         "recommendations": recommendations,
         "now": date.today(),
         "assign_resource_failed": request.query_params.get("error") == "assign_resource_failed",
+        "assign_error": request.query_params.get("assign_error"),
     })
 
 
@@ -335,22 +341,16 @@ def assign_resource(project_id: int, person_id: int = Form(...),
         .filter_by(project_id=project_id, person_id=person_id, project_phase_id=None)
         .first()
     )
-    other_assignments = [
-        a for a in db.query(Assignment).filter_by(person_id=person_id).all()
-        if existing is None or a.id != existing.id
-    ]
-    allocated = max_allocation_pct(other_assignments, start_date, end_date)
-    if available_pct(person.capacity_pct, allocated) < allocation_pct:
-        return RedirectResponse(url=f"/projects/{project_id}?error=assign_resource_failed", status_code=303)
-
-    if existing is not None:
-        db.delete(existing)
-        db.flush()
-
-    db.add(Assignment(
-        project_id=project_id, person_id=person_id, allocation_pct=allocation_pct,
-        start_date=start_date, end_date=end_date, role_on_project=person.role.value,
-    ))
+    # REVIEW_02.md P5.5: "one mechanism, three screens" — engage_person() enforces
+    # spare capacity and, for an external person, the lead-time floor, the same as
+    # Timeline's assign_phase() and Localisation's translator assign.
+    assignment, refusal = engage_person(
+        db, person, project_id=project_id, start_date=start_date, end_date=end_date,
+        allocation_pct=allocation_pct, existing_id=existing.id if existing is not None else None,
+    )
+    if assignment is None:
+        return RedirectResponse(
+            url=f"/projects/{project_id}?assign_error={quote(refusal)}", status_code=303)
     db.commit()
     return RedirectResponse(url=f"/projects/{project_id}", status_code=303)
 
@@ -367,13 +367,57 @@ def _safe_return_to(return_to: str | None, default: str) -> str:
 @router.post("/localisation/{loc_id}/assign")
 def assign_translator(loc_id: int, translator_id: int = Form(...),
                       return_to: str | None = Form(None), db: Session = Depends(get_db)):
+    """REVIEW_02.md P5.5: 'Localisation translator assignment routes through this
+    same engagement flow — one mechanism, three screens.' Assigning a translator
+    now also creates the Assignment row engage_person() everywhere else creates,
+    so an external translator shows up in resource planning for the engagement's
+    duration (and is subject to the same capacity and lead-time checks Timeline's
+    assign_phase() and the project page's manual assign already enforce)."""
     loc = db.get(Localisation, loc_id)
-    if loc is not None:
-        loc.translator_id = translator_id
-        db.commit()
+    translator = db.get(Person, translator_id)
+    if loc is None or translator is None or translator.role != PersonRole.translator:
+        return RedirectResponse(url="/pipeline", status_code=303)
+
+    today = date.today()
+    turnaround_days = int(get_value(db, "translation_turnaround_days"))
+    default_end = today + timedelta(days=turnaround_days)
+    end_date = loc.due_date if loc.due_date and loc.due_date > today else default_end
+
+    # REVIEW_02.md P5.5: an external translator's engagement starts at the earliest
+    # date their lead time actually allows, not always "today" — a due date close
+    # enough to make that impossible is a real refusal (there's no time left), not
+    # a reason to pretend the engagement started before it realistically could.
+    start_date = earliest_feasible_start(db, translator, today)
+    if start_date > end_date:
+        base = _safe_return_to(return_to, f"/projects/{loc.project_id}")
+        separator = "&" if "?" in base else "?"
+        reason = (
+            f"{translator.name} needs notice and can't start until "
+            f"{start_date.strftime('%d %b')}, after this task's {end_date.strftime('%d %b')} due date."
+        )
+        return RedirectResponse(url=f"{base}{separator}assign_error={quote(reason)}", status_code=303)
+
+    existing = (
+        db.query(Assignment)
+        .filter_by(project_id=loc.project_id, person_id=translator.id, project_phase_id=None)
+        .first()
+    )
+    assignment, refusal = engage_person(
+        db, translator, project_id=loc.project_id, start_date=start_date, end_date=end_date,
+        allocation_pct=TRANSLATION_ENGAGEMENT_ALLOCATION_PCT,
+        existing_id=existing.id if existing is not None else None,
+        today=today,
+    )
+    if assignment is None:
+        base = _safe_return_to(return_to, f"/projects/{loc.project_id}")
+        separator = "&" if "?" in base else "?"
         return RedirectResponse(
-            url=_safe_return_to(return_to, f"/projects/{loc.project_id}"), status_code=303)
-    return RedirectResponse(url="/pipeline", status_code=303)
+            url=f"{base}{separator}assign_error={quote(refusal)}", status_code=303)
+
+    loc.translator_id = translator_id
+    db.commit()
+    return RedirectResponse(
+        url=_safe_return_to(return_to, f"/projects/{loc.project_id}"), status_code=303)
 
 
 @router.post("/localisation/{loc_id}/advance")

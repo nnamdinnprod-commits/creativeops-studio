@@ -95,7 +95,16 @@ project.
 The screen that proves operational credibility. Give it the most care.
 
 **Table:** person, role, contracted capacity %, allocated %, available %, status
-(Available / Tight / Overloaded), current assignments, next deadline.
+(Available / Tight / Overloaded), current assignments, next deadline. Only Team (internal)
+and currently-engaged Talent Pool members appear here — REVIEW_02.md P5.5: "Team — always
+on the roster, always counted. Talent pool — not on the capacity roster until engaged." An
+engaged pool member shows an External badge and their engagement's end date.
+
+**Talent pool** — every external person not currently engaged, with role, skills, day rate
+range and lead time (`docs/ASSUMPTIONS.md`'s `RateBand`), and an Engage action (project,
+dates, allocation) that routes through the same mechanism Timeline and Localisation use.
+The lead time is enforced, not just displayed: an engagement can't start before it, and is
+refused outright if that leaves no runway before the work is due.
 
 **Conflict detection** is deterministic: a person is Overloaded when allocated exceeds
 capacity, Tight above a configurable threshold (default 85%). Conflicts are listed with

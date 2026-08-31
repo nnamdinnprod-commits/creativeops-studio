@@ -1325,3 +1325,74 @@ other post-Ready stage). Verified against a running server: all 11 columns rende
 `/pipeline`; a hold with a reason persisted and displayed on the card; `/dashboard` still
 renders with `on_hold` and `waiting_on_client` projects present. `tools/audit.py` clean of
 anything new.
+
+## 040 — REVIEW_02.md P5.5: external resource is a Talent Pool, not a permanent roster row
+Date: 2026-08-31
+Decision: Reused `Person.is_external` (already existed) rather than inventing a new
+`TalentPoolMember` entity — Team and Talent Pool were never going to be different tables,
+just different *queries* over the same one, so a second table would have been a second
+source of truth for "who is this person" with no offsetting benefit. Three changes make the
+distinction real:
+1. **`capacity.py`'s roster functions now exclude an unengaged external person.**
+   `is_actively_engaged(person, assignments, on_date)` — internal people always pass; an
+   external person passes only if one of their `Assignment` rows actually covers `on_date`.
+   `all_person_capacities()` and `get_conflicts()` both filter on it. This is the literal
+   fix for the review's stated problem: Jonas and Camille no longer sit on `/resources` at a
+   permanent, meaningless 0%. Verified live: the dashboard's over-capacity line reads "1 of
+   6" now, not "1 of 8" — two fewer people on the roster, matching two fewer externals.
+2. **`RateBand` gained `lead_time_days`** (per role, editable on `/assumptions` alongside the
+   existing rate range) — "day rates and lead times live in the Assumptions library" is
+   literal in the review; `RateBand` already *was* that library's day-rate mechanism, so
+   lead time joined it there rather than living somewhere new. Seed values: 2–5 days by
+   role, translator matching the existing `translation_turnaround_days` assumption (3) for
+   consistency between two related-but-distinct numbers.
+3. **One engagement mechanism, three screens, per the review's literal instruction.**
+   New `app/services/assignment.py::engage_person()` creates or replaces the `Assignment`
+   row for any engagement — internal or external — enforcing the existing spare-capacity
+   rule (decision 032) and, for an external person, a lead-time floor via a new
+   `earliest_feasible_start()` helper. `assign_phase()` (Timeline), the project page's
+   manual assign (decision 034), and a new `assign_translator()` rewrite (Localisation) all
+   route through it now, replacing three separately-duplicated capacity checks with one.
+   `phase_candidates()` also now offers external candidates (previously implicitly excluded
+   — no phase template requires the translator role, so this was never exercised, but
+   nothing should have silently assumed "candidate" meant "internal").
+Considered and rejected: refusing an engagement outright whenever the requested start date
+is earlier than the lead time allows. Tried first, and it would have made Localisation's
+translator-assign nearly unusable for near-term due dates — DEMO_DATA.md's own bottleneck
+row has a translator engagement due in 3 days, exactly a translator's seeded lead time.
+Redesigned so the engagement's start date auto-adjusts to the earliest genuinely feasible
+date, and *that* is what gets checked against the work's own deadline — refusing only when
+there's truly no runway left (`earliest_start > end_date`), which is the actually meaningful
+signal ("this can't be done in time"), not "you asked for the wrong start date." Re-checked
+the deliberate FR bottleneck row against this design directly: Camille's earliest feasible
+start lands exactly on that row's due date — technically engageable, same-day start and end,
+which is an honest "this is only just barely possible" result, not a false refusal and not a
+free pass either.
+Also considered and rejected: extending `_build_conflict_facts()`'s AI-recommendation
+candidate list (`resources.py`) to include external pool members now. That's what P5.6
+("Resource recommendations return options... B · Engage Lars") is explicitly for — the
+mechanism this decision builds is what P5.6 needs to exist first, not a reason to pre-empt
+its own scope.
+New: a "Talent pool" section on `/resources` — every external person not currently engaged,
+with role, skills, day rate range, and earliest feasible start, and an Engage action (pick a
+project, dates, allocation) that calls the same `engage_person()`. The main capacity table
+now marks an engaged external person "External" with their current engagement's end date,
+per the review's "visibly marked as external with an end date, then returns to the pool."
+Jonas and Camille are untouched as `Person` rows — not deleted, per the review's explicit
+instruction — only how they're queried and displayed changed.
+Consequences: `assign_translator()` now hard-depends on the Assumption table being seeded
+(needs `translation_turnaround_days` for its default engagement window when a localisation
+row has no due date), the same dependency `generate_schedule()` already established
+(decision 027) — test fixtures that create a `Localisation` row and call this route now
+need `seed_assumptions()` first, same as schedule-related tests already did.
+Verified: `pytest` (194 passed, up from 181 — 13 new tests: roster exclusion and re-
+inclusion across an engagement's window, `get_conflicts` ignoring a not-yet-started
+engagement, `engage_person()`'s capacity/lead-time refusals and replace-not-stack behaviour,
+`assign_translator()`'s auto-adjusted start date and its "no runway left" refusal, an
+internal translator starting immediately with no lead time, a non-translator being rejected
+by the assign route). Verified against a running server end to end: Jonas/Camille absent
+from `/resources`' main table on a fresh seed; the Talent Pool section listing both with
+rate and lead time; engaging Jonas for a real project made him appear on the roster exactly
+during that window and disappear outside it. `tools/audit.py --url` clean of anything new;
+the over-capacity count dropped from "1 of 8" to "1 of 6," the expected consequence of the
+roster fix, not a regression.

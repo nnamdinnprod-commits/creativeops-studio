@@ -1,5 +1,6 @@
 import json
-from datetime import date
+from datetime import date, timedelta
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
@@ -12,14 +13,26 @@ from app.models import (
     Person,
     PersonRole,
     Project,
+    RateBand,
     Recommendation,
     RecommendationKind,
     RecommendationStatus,
 )
 from app.services.ai.resource import recommend_resource
-from app.services.capacity import all_person_capacities, available_pct, get_conflicts, peak_allocation_pct
+from app.services.assignment import earliest_feasible_start, engage_person
+from app.services.capacity import (
+    all_person_capacities,
+    available_pct,
+    get_conflicts,
+    is_actively_engaged,
+    peak_allocation_pct,
+)
 
 router = APIRouter()
+
+# REVIEW_02.md P5.5: default engagement length offered on the Talent Pool form —
+# a starting point a producer adjusts, not a constraint engage_person() enforces.
+DEFAULT_ENGAGEMENT_DAYS = 5
 
 
 def _screen_context(db: Session):
@@ -50,6 +63,36 @@ def _screen_context(db: Session):
         soonest = min(c.projects, key=lambda p: p.deadline)
         conflict_targets[c.person.id] = soonest
 
+    # REVIEW_02.md P5.5: an engaged pool member's current engagement end date, so
+    # the table can show it "visibly marked as external with an end date" rather
+    # than reading like a permanent Team row.
+    engagement_end_by_person_id: dict[int, date] = {}
+    for pc in capacities:
+        if not pc.person.is_external:
+            continue
+        current = [a for a in all_assignments
+                  if a.person_id == pc.person.id and a.start_date <= today <= a.end_date]
+        if current:
+            engagement_end_by_person_id[pc.person.id] = max(a.end_date for a in current)
+
+    # REVIEW_02.md P5.5: "the ability to bring in external resource of any role, on
+    # demand" — every external person NOT currently engaged, with the rate and lead
+    # time their role carries in the Assumptions library (RateBand). Not shown on
+    # the main table above (all_person_capacities already excludes them for exactly
+    # this reason — "not on the capacity roster until engaged").
+    rate_bands_by_role = {rb.role: rb for rb in db.query(RateBand).all()}
+    talent_pool = []
+    for person in db.query(Person).filter_by(is_external=True).all():
+        person_assignments = [a for a in all_assignments if a.person_id == person.id]
+        if is_actively_engaged(person, person_assignments, today):
+            continue
+        rate_band = rate_bands_by_role.get(person.role)
+        talent_pool.append({
+            "person": person,
+            "rate_band": rate_band,
+            "earliest_start": earliest_feasible_start(db, person, today),
+        })
+
     recommendations = (
         db.query(Recommendation)
         .filter_by(kind=RecommendationKind.resource_reallocation)
@@ -65,20 +108,55 @@ def _screen_context(db: Session):
         "capacities": capacities,
         "conflicts": conflicts,
         "current_assignments": current_assignments,
+        "engagement_end_by_person_id": engagement_end_by_person_id,
         "conflict_targets": conflict_targets,
         "recommendations": recommendations_view,
         "people_by_id": people_by_id,
         "projects_by_id": projects_by_id,
+        "talent_pool": talent_pool,
+        "active_projects": [p for p in projects_by_id.values() if p.status.value not in
+                            ("delivered", "on_hold", "cancelled", "archived")],
+        "default_engagement_end": today + timedelta(days=DEFAULT_ENGAGEMENT_DAYS),
     }
 
 
 @router.get("/resources")
 def resources(request: Request, error: str | None = None, info: str | None = None,
-             db: Session = Depends(get_db)):
+             engage_error: str | None = None, db: Session = Depends(get_db)):
     context = _screen_context(db)
     context["recommend_failed"] = error == "recommend_failed"
     context["recommendation_unchanged"] = info == "recommendation_unchanged"
+    context["engage_error"] = engage_error
     return templates.TemplateResponse(request, "resources.html", context)
+
+
+@router.post("/resources/engage")
+def engage(person_id: int = Form(...), project_id: int = Form(...),
+          start_date: date = Form(...), end_date: date = Form(...),
+          allocation_pct: int = Form(...), db: Session = Depends(get_db)):
+    """REVIEW_02.md P5.5: the Talent Pool's own engage action — 'the ability to
+    bring in external resource of any role, on demand.' Routes through the same
+    engage_person() Timeline and Localisation use (P5.5's 'one mechanism, three
+    screens'), so the same capacity and lead-time rules apply here too."""
+    person = db.get(Person, person_id)
+    project = db.get(Project, project_id)
+    if person is None or project is None or end_date < start_date:
+        return RedirectResponse(url="/resources?engage_error=Invalid+engagement", status_code=303)
+
+    existing = (
+        db.query(Assignment)
+        .filter_by(project_id=project_id, person_id=person_id, project_phase_id=None)
+        .first()
+    )
+    assignment, refusal = engage_person(
+        db, person, project_id=project_id, start_date=start_date, end_date=end_date,
+        allocation_pct=allocation_pct, existing_id=existing.id if existing is not None else None,
+    )
+    if assignment is None:
+        return RedirectResponse(url=f"/resources?engage_error={quote(refusal)}", status_code=303)
+
+    db.commit()
+    return RedirectResponse(url="/resources", status_code=303)
 
 
 def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict | None:

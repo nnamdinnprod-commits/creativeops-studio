@@ -31,7 +31,15 @@
     <tbody>
         {% for pc in capacities %}
         <tr class="border-b border-slate-100">
-            <td class="px-3 py-2 font-medium">{{ pc.person.name }}{% if pc.person.is_external %} <span class="text-xs text-slate-400">(external)</span>{% endif %}</td>
+            <td class="px-3 py-2 font-medium">
+                {{ pc.person.name }}
+                {% if pc.person.is_external %}
+                <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-teal-100 text-teal-700 ml-1">External</span>
+                {% if pc.person.id in engagement_end_by_person_id %}
+                <span class="text-xs text-slate-400">until {{ engagement_end_by_person_id[pc.person.id].strftime('%d %b') }}</span>
+                {% endif %}
+                {% endif %}
+            </td>
             <td class="px-3 py-2 text-slate-600">{{ pc.person.role.value.replace('_', ' ')|title }}</td>
             <td class="px-3 py-2">{{ pc.person.capacity_pct }}%</td>
             <td class="px-3 py-2">{{ pc.allocated_pct }}%</td>
@@ -56,6 +64,64 @@
         {% endfor %}
     </tbody>
 </table>
+
+{% if engage_error %}
+<div class="mt-3 bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700">
+    Could not engage: {{ engage_error }}
+</div>
+{% endif %}
+
+<h2 class="text-lg font-semibold mt-8">Talent pool</h2>
+<p class="text-slate-500 text-sm mt-1">External network — role, skills, day rate and lead time. Not on the roster above until engaged for a project.</p>
+{% if talent_pool %}
+<table class="mt-3 w-full text-sm border-collapse bg-white shadow-sm rounded overflow-hidden">
+    <thead class="bg-slate-800 text-white text-left">
+        <tr>
+            <th class="px-3 py-2">Person</th>
+            <th class="px-3 py-2">Role</th>
+            <th class="px-3 py-2">Skills</th>
+            <th class="px-3 py-2">Day rate</th>
+            <th class="px-3 py-2">Earliest start</th>
+            <th class="px-3 py-2">Engage</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in talent_pool %}
+        <tr class="border-b border-slate-100">
+            <td class="px-3 py-2 font-medium">{{ entry.person.name }}</td>
+            <td class="px-3 py-2 text-slate-600">{{ entry.person.role.value.replace('_', ' ')|title }}</td>
+            <td class="px-3 py-2 text-slate-600">{{ entry.person.skills or '—' }}</td>
+            <td class="px-3 py-2 text-slate-600">
+                {% if entry.rate_band %}{{ entry.rate_band.low|int }}–{{ entry.rate_band.high|int }} {{ entry.rate_band.currency }}{% else %}—{% endif %}
+            </td>
+            <td class="px-3 py-2 text-slate-600">{{ entry.earliest_start.strftime('%d %b') }}</td>
+            <td class="px-3 py-2">
+                {% if active_projects %}
+                <form method="post" action="/resources/engage" class="flex flex-wrap items-center gap-1">
+                    <input type="hidden" name="person_id" value="{{ entry.person.id }}">
+                    <select name="project_id" class="border border-slate-300 rounded text-xs px-1 py-0.5">
+                        {% for p in active_projects %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+                    </select>
+                    <input type="date" name="start_date" value="{{ entry.earliest_start.isoformat() }}"
+                           min="{{ entry.earliest_start.isoformat() }}"
+                           class="border border-slate-300 rounded text-xs px-1 py-0.5 w-32">
+                    <input type="date" name="end_date" value="{{ default_engagement_end.isoformat() }}"
+                           class="border border-slate-300 rounded text-xs px-1 py-0.5 w-32">
+                    <input type="number" name="allocation_pct" value="100" min="1" max="100"
+                           class="border border-slate-300 rounded text-xs px-1 py-0.5 w-14">
+                    <button type="submit" class="text-xs bg-slate-800 text-white rounded px-2 py-0.5">Engage</button>
+                </form>
+                {% else %}
+                <span class="text-xs text-slate-400">No active project to engage against</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="mt-3 text-sm text-slate-500">No one in the pool right now.</p>
+{% endif %}
 
 <h2 class="text-lg font-semibold mt-8">Conflicts</h2>
 <p class="text-slate-500 text-sm mt-1">Where overlapping assignments push someone over their contracted capacity.</p>

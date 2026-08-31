@@ -156,8 +156,8 @@ def test_route_update_rate_band_persists(client, db_session):
     band = db_session.query(RateBand).filter_by(role=PersonRole.designer).one()
 
     resp = client.post(f"/assumptions/rate-bands/{band.id}/update",
-                       data={"low": "400", "high": "600"}, follow_redirects=False)
+                       data={"low": "400", "high": "600", "lead_time_days": "7"}, follow_redirects=False)
     assert resp.status_code == 303
 
     db_session.refresh(band)
-    assert band.low == 400 and band.high == 600
+    assert band.low == 400 and band.high == 600 and band.lead_time_days == 7

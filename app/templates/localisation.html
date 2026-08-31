@@ -5,6 +5,12 @@
 <h1 class="text-2xl font-semibold">Localisation</h1>
 <p class="text-slate-500 mt-1 text-sm">Demo data. Which languages, which projects, and where the queue is stuck.</p>
 
+{% if assign_error %}
+<div class="mt-3 bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700">
+    Could not assign: {{ assign_error }}
+</div>
+{% endif %}
+
 <div class="mt-4">
     <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-2">By market</h2>
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

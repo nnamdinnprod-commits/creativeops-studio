@@ -69,16 +69,20 @@ audience it reads as the opposite immediately.
 
 ### Day rate bands
 
-Stated as ranges, in euros, as planning figures.
+Stated as ranges, in euros, as planning figures. Each role also carries a lead time —
+REVIEW_02.md P5.5: the realistic minimum notice before an *external* engagement of that
+role can start (`app/services/assignment.py`'s `earliest_feasible_start()`). Internal Team
+members never read it; Talent Pool engagements (`/resources`' Talent pool section,
+Localisation's translator assign, Timeline's phase assign) all do.
 
-| Role | Low | High |
-|---|---|---|
-| Producer | 450 | 650 |
-| Senior Designer | 500 | 700 |
-| Designer | 350 | 500 |
-| Motion Designer | 450 | 650 |
-| Copywriter | 400 | 550 |
-| Translator (external) | 300 | 450 |
+| Role | Low | High | External lead time |
+|---|---|---|---|
+| Producer | 450 | 650 | 5 days |
+| Senior Designer | 500 | 700 | 4 days |
+| Designer | 350 | 500 | 3 days |
+| Motion Designer | 450 | 650 | 5 days |
+| Copywriter | 400 | 550 | 2 days |
+| Translator (external) | 300 | 450 | 3 days |
 
 ### Volume scaling
 
@@ -137,7 +141,7 @@ This sits alongside, not instead of, the standard disclaimer in `POSITIONING.md`
 ```
 Assumption   id, category, key, value_numeric, value_text, unit,
              default_value, description, affects
-RateBand     id, role, low, high, currency
+RateBand     id, role, low, high, currency, lead_time_days
 ```
 
 Seeded from the tables above. Editable through the interface. Reset restores the seed.

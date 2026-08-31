@@ -225,6 +225,7 @@ at `/assumptions`.
 | `RateBand.role` | enum (`PersonRole`) | one row per role |
 | `RateBand.low` / `RateBand.high` | float | day-rate range |
 | `RateBand.currency` | str | always `EUR` today — multi-currency is out of scope per `BRIEF_MODES.md` |
+| `RateBand.lead_time_days` | int | REVIEW_02.md P5.5: days notice before an external engagement of this role can start. Read by `app/services/assignment.py`'s `earliest_feasible_start()`/`engage_person()`; internal Team members never read it. |
 
 Not yet read by `app/services/scheduling.py` (which still uses its own hardcoded
 `CLIENT_REVIEW_DAYS`/`VOLUME_SCALE_BANDS` constants) or by anything else — Quick Estimate

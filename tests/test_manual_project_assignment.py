@@ -76,7 +76,8 @@ def test_assign_resource_refuses_when_not_enough_spare_capacity(client, db_sessi
                             "end_date": (TODAY + timedelta(days=2)).isoformat()},
                        follow_redirects=False)
     assert resp.status_code == 303
-    assert "error=assign_resource_failed" in resp.headers["location"]
+    assert "assign_error=" in resp.headers["location"]
+    assert "spare+capacity" in resp.headers["location"] or "spare%20capacity" in resp.headers["location"]
 
     assert db_session.query(Assignment).filter_by(project_id=project.id, person_id=priya.id).count() == 0
 

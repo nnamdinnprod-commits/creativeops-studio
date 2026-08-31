@@ -1,11 +1,13 @@
-from datetime import date
+from datetime import date, timedelta
 
 from app.models import Localisation, LocalisationStatus, Person, PersonRole, Priority, Project, ProjectStatus, SubStatus
+from app.seed import seed_assumptions
 
-TODAY = date(2026, 8, 21)
+TODAY = date.today()  # app/routes/pipeline.py's assign_translator uses date.today() internally
 
 
-def _seed(db_session):
+def _seed(db_session, due_date=None):
+    seed_assumptions(db_session)
     owner = Person(name="Sam", role=PersonRole.producer, capacity_pct=100, skills="", is_external=False)
     jonas = Person(name="Jonas", role=PersonRole.translator, capacity_pct=100, skills="copy_de",
                    is_external=True)
@@ -14,13 +16,18 @@ def _seed(db_session):
 
     project = Project(name="P1", brand="Fotomera", campaign="C", source_market="NL",
                       priority=Priority.medium, status=ProjectStatus.ready,
-                      deadline=TODAY, owner_id=owner.id, brief_raw="x", localisation_required=True)
+                      deadline=TODAY + timedelta(days=30), owner_id=owner.id, brief_raw="x",
+                      localisation_required=True)
     db_session.add(project)
     db_session.flush()
 
+    # Due date left far enough out that Jonas's seeded 3-day translator lead time
+    # (app/seed.py RATE_BANDS) doesn't itself block the assign in tests that don't
+    # care about lead time -- see test_engagement_lead_time.py for that behaviour.
     loc = Localisation(project_id=project.id, target_market="DE", language="de",
                        translator_id=None, status=LocalisationStatus.not_started,
-                       review_status=SubStatus.pending, qa_status=SubStatus.pending, due_date=TODAY)
+                       review_status=SubStatus.pending, qa_status=SubStatus.pending,
+                       due_date=due_date or TODAY + timedelta(days=10))
     db_session.add(loc)
     db_session.commit()
     return project, jonas, loc

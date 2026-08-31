@@ -570,13 +570,19 @@ ASSUMPTIONS: list[tuple[str, str, float, str, str, str]] = [
      "Low-confidence estimate range, high multiplier", "costing"),
 ]
 
-RATE_BANDS: list[tuple[PersonRole, float, float]] = [
-    (PersonRole.producer, 450, 650),
-    (PersonRole.senior_designer, 500, 700),
-    (PersonRole.designer, 350, 500),
-    (PersonRole.motion_designer, 450, 650),
-    (PersonRole.copywriter, 400, 550),
-    (PersonRole.translator, 300, 450),
+# lead_time_days: REVIEW_02.md P5.5 — the realistic minimum notice before an
+# external engagement of this role can start. Only read for is_external=True
+# people (app/services/assignment.py's engage_person()); internal Team members
+# are always on the roster and never gated by it. Motion gets the longest lead —
+# DEMO_DATA.md already frames motion as "the scarce skill" among internal roles
+# too. Translator matches the existing translation_turnaround_days assumption (3).
+RATE_BANDS: list[tuple[PersonRole, float, float, int]] = [
+    (PersonRole.producer, 450, 650, 5),
+    (PersonRole.senior_designer, 500, 700, 4),
+    (PersonRole.designer, 350, 500, 3),
+    (PersonRole.motion_designer, 450, 650, 5),
+    (PersonRole.copywriter, 400, 550, 2),
+    (PersonRole.translator, 300, 450, 3),
 ]
 
 
@@ -586,8 +592,9 @@ def seed_assumptions(session):
             category=category, key=key, value_numeric=value, value_text=None, unit=unit,
             default_value=value, description=description, affects=affects,
         ))
-    for role, low, high in RATE_BANDS:
-        session.add(RateBand(role=role, low=low, high=high, currency="EUR"))
+    for role, low, high, lead_time_days in RATE_BANDS:
+        session.add(RateBand(role=role, low=low, high=high, currency="EUR",
+                             lead_time_days=lead_time_days))
     session.commit()
 
 

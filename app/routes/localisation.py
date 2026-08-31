@@ -27,7 +27,7 @@ STAGE_LABELS = {
 
 @router.get("/localisation")
 def localisation_screen(request: Request, market: str | None = None, stage: str | None = None,
-                        db: Session = Depends(get_db)):
+                        assign_error: str | None = None, db: Session = Depends(get_db)):
     all_rows = db.query(Localisation).all()
     projects_by_id = {p.id: p for p in db.query(Project).all()}
 
@@ -63,5 +63,9 @@ def localisation_screen(request: Request, market: str | None = None, stage: str 
         "stage_labels": STAGE_LABELS,
         "selected_market": market,
         "selected_stage": stage,
-        "return_to": str(request.url.path) + (f"?{request.url.query}" if request.url.query else ""),
+        "assign_error": assign_error,
+        # Never carries assign_error forward — a stale refusal from a previous
+        # attempt shouldn't be re-attached to the next one's redirect target.
+        "return_to": "/localisation" + (f"?market={market}" if market else "")
+                    + (("&" if market else "?") + f"stage={stage}" if stage else ""),
     })
