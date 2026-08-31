@@ -40,6 +40,26 @@
     {% endif %}
 </div>
 
+{% if recently_resolved %}
+<!-- REVIEW_02.md P6.1: "the dashboard shows what was resolved recently, not
+     only what is outstanding" — every other panel on this page leads with a
+     problem; this is the one that shows a user they made something better. -->
+<div class="bg-white rounded shadow-sm p-4 mt-4">
+    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Recently resolved</h2>
+    <ul class="mt-2 space-y-1.5 text-sm">
+        {% for rec in recently_resolved %}
+        <li class="flex items-start gap-2">
+            <span class="inline-block px-1.5 py-0.5 rounded text-xs mt-0.5 bg-green-100 text-green-700">Resolved</span>
+            <span>
+                {{ rec.outcome_note }}
+                {% if rec.project_id in projects_by_id %}{{ project_ref(rec.project_id, projects_by_id[rec.project_id].name, "underline") }}{% endif %}
+            </span>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
     <div class="bg-white rounded shadow-sm p-4">
         <div class="text-xs text-slate-500">Active projects</div>

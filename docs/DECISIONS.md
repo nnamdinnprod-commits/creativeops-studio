@@ -1469,3 +1469,74 @@ end to end). Verified against a running server for every option kind: reassignin
 engaging Lars with his lead-time-adjusted window (confirmed on the roster only during it),
 and moving delivery (confirmed the shift resolves the conflict, not just relabels it).
 `tools/audit.py` clean of anything new.
+
+## 042 — REVIEW_02.md P6.1 + P6.2: positive-loop visibility, Creative Intelligence shrunk
+Date: 2026-08-31
+Decision: Two sections done together since P6.2's decision-rule fix and P6.1's "say so when a
+risk clears" wording ended up touching the same accept-flow code.
+**P6.1** — every "say so" claim is re-verified after the fact against the same live check the
+dashboard itself uses, never assumed from having taken an action:
+- `assign_translator()` (Localisation) captures whether the row `check_localisation_row`
+  flags as at-risk *before* the assign, and only says "Risk cleared — {market} review
+  assigned to {name}, delivery protected" (the review's own example, near-verbatim) if it
+  was at risk before and isn't after. A row that was never at risk gets a plain
+  confirmation instead — assigning a translator early isn't "clearing a risk," and claiming
+  otherwise would be the same kind of invented positive news CLAUDE.md already forbids for
+  negative numbers.
+- `_apply_resource_reallocation` (reassign / engage_external / move_delivery) re-runs
+  `get_conflicts()` after applying the change and only leads with "Risk cleared" if the
+  overloaded person is actually no longer in it — they can still be conflicted by a
+  *different* overlap this accept didn't touch, which is exactly why this is checked, not
+  assumed.
+- New "Recently resolved" dashboard panel, sourced from `Recommendation.decided_at` — every
+  accept path across P3/P5.5/P5.6 already sets this, so nothing new needed tracking, only
+  showing. Every other dashboard panel leads with a problem; this is the one that shows a
+  user they made something better, addressing the review's literal complaint ("a user never
+  experiences having made anything better").
+- Attention-count-goes-down was checked, not built — `build_attention_snapshot` and every
+  dashboard count were already live-recomputed with no caching (true of this whole app since
+  Session A), so resolving a real conflict already reduces the count on the next load.
+  Verified directly: assigning Camille to the FR bottleneck dropped "3 projects need
+  intervention" to "2" with no code change required for the count itself.
+**P6.2** — the review's own first instruction was to check whether `mock_insight_to_action`
+varies by input before assuming a single canned mock explains the "identical generic output"
+symptom. It doesn't: the mock genuinely varies `insight_summary`/`recommended_action`/
+`localisation_required` by market, CTR, and sample size — but never reads `brand` at all,
+despite the form asking the user to pick one. Not the same bug the review suspected, but a
+real, related one worth fixing.
+1. **Significance threshold**: `compute_market_comparisons` gained `MIN_SAMPLE_SIZE` (3) —
+   a real gap on a thin sample isn't a finding. Every market with both groups present is now
+   included (tagged `significant: bool`) rather than silently dropped when it doesn't clear
+   the bar, so the page can say "No significant variance this period" instead of looking like
+   it didn't notice the market at all. `/intelligence/recommend` enforces this server-side,
+   not just the template hiding the control — the same "advisory UI, enforced route" pattern
+   every other guard in this app already uses.
+2. **Reporting period**: new `distinct_periods()` — every (period_start, period_end) pair
+   actually in the data, most recent selected by default. The raw metrics table is now
+   inside a collapsed `<details>` (demoted, not primary content), labelled "Reporting period:
+   {dates}" with a real selector — today one option, because the seed data only has one
+   period, but the mechanism is genuine rather than a label pretending to be one.
+3. **Decision rule, re-run**: "accepting a recommendation must create a project that can be
+   clicked into [already true, P5.1], seen on the timeline [wasn't — nothing ever set
+   `project_type_id` or generated a schedule for it], and watched move through the pipeline
+   [already true, Pipeline reads `Project.status` live]." Fixed the middle one:
+   `_apply_production_action` now maps the created deliverables' type to a `ProjectType`
+   (`social_static`/`social_video` → Social, `motion` → Film, `paid_display`/
+   `homepage_banner`/`email` → Stills) and calls `generate_schedule()`. Verified live end to
+   end: an accepted DE recommendation's project got `project_type_id=4`, 11 generated phases,
+   showed on `/timeline` with the Ready-status "Planned" badge (decision 037), and was
+   clickable from `/pipeline`. The rule now genuinely passes — per the review's own framing,
+   that means keep and continue sharpening this page, not cut it.
+Consequences: `tests/test_insight_state.py`'s `_seed_gap()` fixture rewritten from 1 lifestyle
++ 1 product row to 3 + 3 — a 1-vs-1 comparison is exactly the noise `MIN_SAMPLE_SIZE` exists
+to exclude, so a fixture that thin was never testing a real scenario, only one the new
+threshold correctly rejects.
+Verified: `pytest` (203 passed — no net new count since the last entry, but multiple existing
+tests rewritten for the new significance gate, redirect messages, and outcome-note wording).
+Verified against a running server: the full four-step loop (bottleneck → assign Camille →
+"Risk cleared — FR review assigned to Camille, delivery protected" → dashboard count 3→2);
+the significance split (1 "New", 2 "Not significant" on a fresh reseed); the reporting-period
+label; and the full accept → schedule → Timeline → Pipeline chain for a Creative
+Intelligence recommendation. `tools/audit.py` clean of anything new (and incidentally now
+finds one fewer database-vocabulary hit in `intelligence.html`, a side effect of the
+rewrite, not something chased directly — that's P7's job).

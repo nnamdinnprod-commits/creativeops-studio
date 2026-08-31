@@ -5,7 +5,15 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.templates_env import templates
-from app.models import Localisation, LocalisationStatus, Project, ProjectPhase, ProjectStatus
+from app.models import (
+    Localisation,
+    LocalisationStatus,
+    Project,
+    ProjectPhase,
+    ProjectStatus,
+    Recommendation,
+    RecommendationStatus,
+)
 from app.services.ai.feasibility import assess_schedule_feasibility
 from app.services.ai.risk import assess_portfolio_attention
 from app.services.assumptions import get_value
@@ -93,8 +101,22 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
             })
         schedule_alerts.sort(key=lambda a: a["project"].deadline)
 
+    # REVIEW_02.md P6.1: "the dashboard shows what was resolved recently, not
+    # only what is outstanding" — every screen otherwise leads with problems, so
+    # a user never experiences having made anything better. Sourced from
+    # Recommendation.decided_at, which every accept path (P3, P5.5, P5.6) already
+    # sets — nothing new to track, just something new to show.
+    recently_resolved = (
+        db.query(Recommendation)
+        .filter_by(status=RecommendationStatus.accepted)
+        .order_by(Recommendation.decided_at.desc())
+        .limit(5)
+        .all()
+    )
+
     return templates.TemplateResponse(request, "dashboard.html", {
         "projects_by_id": {p.id: p for p in projects},
+        "recently_resolved": recently_resolved,
         "active_count": len(active_projects),
         "on_track_count": len(on_track_projects),
         "at_risk_count": len(at_risk_projects),

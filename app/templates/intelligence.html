@@ -16,6 +16,10 @@
     No designer currently has spare capacity for this recommendation. Check Resources for
     availability before requesting again.
 </div>
+{% elif not_significant %}
+<div class="mt-3 bg-slate-50 border border-slate-200 rounded p-3 text-sm text-slate-600">
+    That market's gap isn't significant this period — no recommendation to request.
+</div>
 {% elif recommendation_unchanged %}
 <div class="mt-3 bg-slate-50 border border-slate-200 rounded p-3 text-sm text-slate-600">
     Existing recommendation still current — nothing has changed since it was generated.
@@ -23,16 +27,22 @@
 {% endif %}
 
 <h2 class="text-lg font-semibold mt-6">Lifestyle vs product-only, by market</h2>
-<p class="text-slate-500 text-sm mt-1">Computed directly from the rows below — averages, not model output.</p>
+<p class="text-slate-500 text-sm mt-1">
+    Computed directly from creative performance data
+    {% if selected_period %}for {{ selected_period[0].strftime('%d %b') }}–{{ selected_period[1].strftime('%d %b') }}{% endif %}
+    — averages, not model output.
+</p>
 
 {% if comparisons %}
 <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
     {% for c in comparisons %}
     {% set insight_status = insight_status_by_market.get(c.market, {"status": "new"}) %}
-    <div class="bg-white border border-slate-200 rounded p-4 text-sm">
+    <div class="bg-white border rounded p-4 text-sm {% if not c.significant %}border-slate-100 opacity-70{% else %}border-slate-200{% endif %}">
         <div class="flex items-center gap-2">
             <div class="font-medium">{{ c.market }}</div>
-            {% if insight_status.status == 'recommendation_pending' %}
+            {% if not c.significant %}
+            <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-slate-100 text-slate-500">Not significant</span>
+            {% elif insight_status.status == 'recommendation_pending' %}
             <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-700">Recommendation pending</span>
             {% elif insight_status.status == 'actioned' %}
             <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700">Actioned</span>
@@ -46,9 +56,13 @@
             Lifestyle {{ c.lifestyle_avg_ctr }}% CTR ({{ c.lifestyle_count }} variants) vs
             Product-only {{ c.product_avg_ctr }}% CTR ({{ c.product_count }} variants)
         </div>
-        <div class="mt-1 text-xs text-slate-400">{{ c.lifestyle_count }} lifestyle variants, {{ c.product_count }} product-only variants</div>
 
-        {% if insight_status.status == 'actioned' %}
+        {% if not c.significant %}
+        <!-- REVIEW_02.md P6.2: "Everything else reads 'No significant variance this
+             period.'" Restraint is what distinguishes analysis from output — a gap
+             that's too small, or a sample that's too thin, isn't a finding. -->
+        <p class="mt-2 text-xs text-slate-500">No significant variance this period.</p>
+        {% elif insight_status.status == 'actioned' %}
         <p class="mt-3 text-xs text-slate-500">
             &rarr; {{ insight_status.outcome_note }}
             {% if insight_status.project_id in projects_by_id %}{{ project_ref(insight_status.project_id, projects_by_id[insight_status.project_id].name, "underline") }}{% endif %}
@@ -61,6 +75,7 @@
         {% endif %}
         <form method="post" action="/intelligence/recommend" class="mt-2 flex items-end gap-2" onsubmit="showLoading(this, 'Thinking…')">
             <input type="hidden" name="market" value="{{ c.market }}">
+            {% if selected_period %}<input type="hidden" name="period" value="{{ selected_period[1].isoformat() }}">{% endif %}
             <div>
                 <label class="block text-xs text-slate-500 mb-1">Brand</label>
                 <select name="brand" class="border border-slate-300 rounded px-2 py-1 text-xs">
@@ -83,7 +98,7 @@
     {% endfor %}
 </div>
 {% else %}
-<p class="mt-3 text-sm text-slate-400">No notable lifestyle-vs-product gap in the current data.</p>
+<p class="mt-3 text-sm text-slate-400">No creative performance data for this period.</p>
 {% endif %}
 
 <h2 class="text-lg font-semibold mt-8">Production recommendations</h2>
@@ -139,7 +154,28 @@
 <p class="mt-3 text-sm text-slate-400">No recommendations yet — request one from a comparison above.</p>
 {% endif %}
 
-<h2 class="text-lg font-semibold mt-8">Creative variants <span class="text-xs font-normal text-slate-400">(Demo data)</span></h2>
+<!-- REVIEW_02.md P6.2: "the metrics table demotes to a supporting panel labelled
+     with an explicit reporting period... with a period selector." A smaller
+     heading, pushed below the recommendations rather than presented as this
+     page's main content, with a real period label and a real selector over the
+     periods actually in the data (today, one — the mechanism is genuine either
+     way, not a label pretending to be one). -->
+<details class="mt-8">
+    <summary class="text-sm font-semibold text-slate-500 uppercase tracking-wide cursor-pointer">Supporting data: creative variants</summary>
+    <div class="mt-2 flex items-center justify-between flex-wrap gap-2">
+        <p class="text-xs text-slate-500">
+            {% if selected_period %}Reporting period: {{ selected_period[0].strftime('%d %b') }}–{{ selected_period[1].strftime('%d %b') }}{% else %}No reporting period selected{% endif %}
+        </p>
+        {% if periods|length > 1 %}
+        <form method="get" action="/intelligence">
+            <select name="period" onchange="this.form.submit()" class="border border-slate-300 rounded px-2 py-1 text-xs">
+                {% for p in periods %}
+                <option value="{{ p[1].isoformat() }}" {% if selected_period and p[1] == selected_period[1] %}selected{% endif %}>{{ p[0].strftime('%d %b') }}–{{ p[1].strftime('%d %b') }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        {% endif %}
+    </div>
 <div class="mt-3 overflow-x-auto">
 <table class="w-full text-sm bg-white border border-slate-200 rounded">
     <thead class="bg-slate-50 text-left text-xs text-slate-500">
@@ -165,4 +201,5 @@
     </tbody>
 </table>
 </div>
+</details>
 {% endblock %}

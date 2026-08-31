@@ -52,7 +52,7 @@ def test_assign_from_localisation_page_persists_and_stays_on_the_page(client, db
                        data={"translator_id": jonas.id, "return_to": "/localisation?market=DE"},
                        follow_redirects=False)
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/localisation?market=DE"  # not bounced to /projects/...
+    assert resp.headers["location"].startswith("/localisation?market=DE&assign_success=")  # not bounced to /projects/...
 
     db_session.refresh(loc)
     assert loc.translator_id == jonas.id
@@ -66,7 +66,7 @@ def test_assign_with_no_return_to_falls_back_to_project_page(client, db_session)
     resp = client.post(f"/localisation/{loc.id}/assign",
                        data={"translator_id": jonas.id}, follow_redirects=False)
     assert resp.status_code == 303
-    assert resp.headers["location"] == f"/projects/{project.id}"
+    assert resp.headers["location"].startswith(f"/projects/{project.id}?assign_success=")
 
 
 def test_assign_ignores_an_unsafe_return_to(client, db_session):
@@ -78,4 +78,4 @@ def test_assign_ignores_an_unsafe_return_to(client, db_session):
                        data={"translator_id": jonas.id, "return_to": "https://evil.example/"},
                        follow_redirects=False)
     assert resp.status_code == 303
-    assert resp.headers["location"] == f"/projects/{project.id}"
+    assert resp.headers["location"].startswith(f"/projects/{project.id}?assign_success=")

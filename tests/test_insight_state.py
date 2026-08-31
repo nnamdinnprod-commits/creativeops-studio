@@ -16,16 +16,22 @@ TODAY = date(2026, 8, 21)
 
 
 def _seed_gap(db_session, market="DE"):
-    """A lifestyle-vs-product gap big enough to clear GAP_THRESHOLD_PCT."""
+    """A lifestyle-vs-product gap big enough to clear GAP_THRESHOLD_PCT, with
+    enough rows in each group to also clear REVIEW_02.md P6.2's MIN_SAMPLE_SIZE
+    significance threshold (3) -- a 1-vs-1 comparison is exactly the kind of noise
+    that threshold exists to exclude, so a real test fixture must clear it too."""
     rows = [
         CreativeInsight(brand="Fotomera", market=market, format="social_static",
-                        variant_theme=VariantTheme.lifestyle, impressions=40000, ctr=2.5,
-                        engagement_rate=4.5, conversion_rate=1.4,
-                        period_start=TODAY, period_end=TODAY, insight_text=None),
+                        variant_theme=VariantTheme.lifestyle, impressions=40000 + i * 1000,
+                        ctr=2.5 + i * 0.1, engagement_rate=4.5, conversion_rate=1.4,
+                        period_start=TODAY, period_end=TODAY, insight_text=None)
+        for i in range(3)
+    ] + [
         CreativeInsight(brand="Fotomera", market=market, format="social_static",
-                        variant_theme=VariantTheme.product_only, impressions=38000, ctr=1.0,
-                        engagement_rate=1.8, conversion_rate=0.7,
-                        period_start=TODAY, period_end=TODAY, insight_text=None),
+                        variant_theme=VariantTheme.product_only, impressions=38000 + i * 1000,
+                        ctr=1.0 + i * 0.05, engagement_rate=1.8, conversion_rate=0.7,
+                        period_start=TODAY, period_end=TODAY, insight_text=None)
+        for i in range(3)
     ]
     db_session.add_all(rows)
     # A design-capable person with spare capacity, so /intelligence/recommend can find a

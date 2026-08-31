@@ -28,7 +28,7 @@ from app.services.ai.schemas import BriefExtraction
 from app.services.assignment import earliest_feasible_start, engage_person
 from app.services.assumptions import get_value
 from app.services.attention import build_attention_snapshot
-from app.services.localisation_risk import get_localisation_risks
+from app.services.localisation_risk import check_localisation_row, get_localisation_risks
 
 # A producer coordinates rather than produces, and a translator does language work via
 # the Localisation flow — neither is a plausible manual assignment to project production
@@ -311,6 +311,7 @@ def project_detail(project_id: int, request: Request, db: Session = Depends(get_
         "now": date.today(),
         "assign_resource_failed": request.query_params.get("error") == "assign_resource_failed",
         "assign_error": request.query_params.get("assign_error"),
+        "assign_success": request.query_params.get("assign_success"),
     })
 
 
@@ -397,6 +398,12 @@ def assign_translator(loc_id: int, translator_id: int = Form(...),
         )
         return RedirectResponse(url=f"{base}{separator}assign_error={quote(reason)}", status_code=303)
 
+    # REVIEW_02.md P6.1: "when an action resolves a risk, say so" — only true if
+    # it actually WAS a risk before this action. Captured before the mutation so
+    # a row that was never at risk (e.g. its due date is comfortably out) gets a
+    # plain confirmation, not a claimed fix for nothing.
+    was_at_risk = check_localisation_row(loc, today) is not None
+
     existing = (
         db.query(Assignment)
         .filter_by(project_id=loc.project_id, person_id=translator.id, project_phase_id=None)
@@ -416,8 +423,14 @@ def assign_translator(loc_id: int, translator_id: int = Form(...),
 
     loc.translator_id = translator_id
     db.commit()
-    return RedirectResponse(
-        url=_safe_return_to(return_to, f"/projects/{loc.project_id}"), status_code=303)
+
+    base = _safe_return_to(return_to, f"/projects/{loc.project_id}")
+    separator = "&" if "?" in base else "?"
+    if was_at_risk and check_localisation_row(loc, today) is None:
+        message = quote(f"Risk cleared — {loc.target_market} review assigned to {translator.name}, delivery protected.")
+    else:
+        message = quote(f"{translator.name} assigned to the {loc.target_market} review.")
+    return RedirectResponse(url=f"{base}{separator}assign_success={message}", status_code=303)
 
 
 @router.post("/localisation/{loc_id}/advance")

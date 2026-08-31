@@ -18,15 +18,36 @@ from app.models import (
 )
 from app.services.ai.insight import insight_to_action
 from app.services.capacity import all_person_capacities
-from app.services.insight import compute_insight_status, compute_market_comparisons, dismiss_market_insight
+from app.services.insight import (
+    compute_insight_status,
+    compute_market_comparisons,
+    dismiss_market_insight,
+    distinct_periods,
+)
 
 router = APIRouter()
 
 BRANDS = ["Fotomera", "Halveth", "Cassenvale"]
 
 
-def _screen_context(db: Session):
-    insights = db.query(CreativeInsight).order_by(CreativeInsight.market, CreativeInsight.variant_theme).all()
+def _screen_context(db: Session, period_end: date | None = None):
+    # REVIEW_02.md P6.2: "labelled with an explicit reporting period... with a
+    # period selector" — every distinct period actually in the data, most recent
+    # selected by default. Both the metrics table and the comparisons are scoped
+    # to whichever one is selected; creative performance reporting is periodic in
+    # reality, and pretending otherwise is what made the table read as broken
+    # rather than as a snapshot.
+    periods = distinct_periods(db)
+    selected_period = next((p for p in periods if p[1] == period_end), periods[0]) if periods else None
+
+    insights = (
+        db.query(CreativeInsight)
+        .filter(CreativeInsight.period_start == selected_period[0],
+               CreativeInsight.period_end == selected_period[1])
+        .order_by(CreativeInsight.market, CreativeInsight.variant_theme)
+        .all()
+        if selected_period else []
+    )
     comparisons = compute_market_comparisons(insights)
     insight_status_by_market = {c["market"]: compute_insight_status(db, c["market"]) for c in comparisons}
 
@@ -50,27 +71,43 @@ def _screen_context(db: Session):
         "recommendations": recommendations_view,
         "people_by_id": people_by_id,
         "projects_by_id": projects_by_id,
+        "periods": periods,
+        "selected_period": selected_period,
     }
 
 
 @router.get("/intelligence")
 def intelligence(request: Request, error: str | None = None, info: str | None = None,
-                 db: Session = Depends(get_db)):
-    context = _screen_context(db)
+                 period: str | None = None, db: Session = Depends(get_db)):
+    period_end = date.fromisoformat(period) if period else None
+    context = _screen_context(db, period_end)
     context["recommend_failed"] = error == "recommend_failed"
     context["no_candidates"] = error == "no_candidates"
+    context["not_significant"] = error == "not_significant"
     context["recommendation_unchanged"] = info == "recommendation_unchanged"
     return templates.TemplateResponse(request, "intelligence.html", context)
 
 
 @router.post("/intelligence/recommend")
 def recommend(request: Request, market: str = Form(...), brand: str = Form(...),
-             db: Session = Depends(get_db)):
-    insights = db.query(CreativeInsight).all()
+             period: str | None = Form(None), db: Session = Depends(get_db)):
+    # Scoped to the same period the comparison was shown for — a recommendation
+    # must be about the numbers the producer actually saw, not silently
+    # recomputed from every period's data pooled together.
+    query = db.query(CreativeInsight)
+    if period:
+        query = query.filter(CreativeInsight.period_end == date.fromisoformat(period))
+    insights = query.all()
     comparisons = compute_market_comparisons(insights)
     match = next((c for c in comparisons if c["market"] == market), None)
     if match is None:
         return RedirectResponse(url="/intelligence?error=recommend_failed", status_code=303)
+    # REVIEW_02.md P6.2: "a significance threshold" only has teeth if the route
+    # enforces it too, not just the template hiding the button — the template's
+    # control is advisory, same principle as every other capacity/lead-time guard
+    # in this app.
+    if not match["significant"]:
+        return RedirectResponse(url="/intelligence?error=not_significant", status_code=303)
 
     # REVIEW_02.md P4: dismissed or already-actioned is terminal — the template
     # stops offering the control once accepted or dismissed, and a raw POST must be

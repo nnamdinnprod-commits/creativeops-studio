@@ -19,12 +19,31 @@ from app.models import (
     Project,
     ProjectPhase,
     ProjectStatus,
+    ProjectType,
     Recommendation,
     RecommendationKind,
     RecommendationStatus,
     SubStatus,
 )
 from app.services.assignment import engage_person
+from app.services.capacity import get_conflicts
+from app.services.scheduling import generate_schedule
+
+# REVIEW_02.md P6.2's decision rule: "accepting a recommendation must create a
+# project that can be clicked into [P5.1], seen on the timeline [needs a
+# project_type_id and a generated schedule, which nothing set before this], and
+# watched move through the pipeline [already true, Pipeline reads Project.status]."
+# Deliverable type -> ProjectType name. insight_to_action's deliverables are
+# always social_static today (app/services/ai/mock.py), but this covers every
+# type DeliverableType actually has, not just the one currently reachable.
+_PROJECT_TYPE_BY_DELIVERABLE = {
+    "social_static": "Social / AI-generated content",
+    "social_video": "Social / AI-generated content",
+    "motion": "Film / branded content",
+    "paid_display": "Stills",
+    "homepage_banner": "Stills",
+    "email": "Stills",
+}
 
 router = APIRouter()
 
@@ -71,8 +90,12 @@ def _apply_resource_reallocation(db: Session, rec: Recommendation, payload: dict
         assignment.start_date += timedelta(days=shift)
         assignment.end_date += timedelta(days=shift)
         db.flush()
+        # REVIEW_02.md P6.1: verified, not assumed — the shift is only "risk
+        # cleared" if the overlap it targeted is actually gone.
+        still_conflicted = from_person.id in {c.person.id for c in get_conflicts(db, on_date=date.today())}
+        prefix = "Moved" if still_conflicted else "Risk cleared — moved"
         return (
-            f"Moved '{project.name}' delivery to {new_deadline.strftime('%d %b')}, "
+            f"{prefix} '{project.name}' delivery to {new_deadline.strftime('%d %b')}, "
             f"shifting {from_person.name}'s assignment to match — a client conversation "
             f"about the new date is still needed."
         )
@@ -115,7 +138,19 @@ def _apply_resource_reallocation(db: Session, rec: Recommendation, payload: dict
             phase.assigned_person_id = to_person.id
 
     db.flush()
-    return f"{chosen['action']} — reassigned from {from_person.name} to {to_person.name}."
+
+    # REVIEW_02.md P6.1: "when an action resolves a risk, say so" — re-checked
+    # after the fact against the same get_conflicts() the dashboard and Resources
+    # use, never assumed just because a reassignment happened. from_person can
+    # still be genuinely overloaded (a different conflict, untouched by this
+    # accept), which is exactly why this isn't a "this always works" message.
+    still_conflicted = from_person.id in {c.person.id for c in get_conflicts(db, on_date=date.today())}
+    if still_conflicted:
+        return f"{chosen['action']} — reassigned from {from_person.name} to {to_person.name}."
+    return (
+        f"Risk cleared — {chosen['action']}, reassigned from {from_person.name} to "
+        f"{to_person.name}. {from_person.name} is back under {from_person.capacity_pct}% capacity."
+    )
 
 
 def _apply_production_action(db: Session, rec: Recommendation, payload: dict) -> str:
@@ -146,6 +181,20 @@ def _apply_production_action(db: Session, rec: Recommendation, payload: dict) ->
         localisation_required=payload["localisation_required"],
         estimated_days=payload["estimated_days"],
     )
+    # REVIEW_02.md P6.2's decision rule: this project must be seeable on Timeline,
+    # which needs a project_type_id and a generated schedule — neither ever
+    # happened before this, so an accepted Creative Intelligence recommendation's
+    # project was permanently invisible there, silently failing the rule's own test.
+    deliverable_types = {d.get("type") for d in payload["deliverables"] if d.get("type")}
+    project_type_name = next(
+        (_PROJECT_TYPE_BY_DELIVERABLE[t] for t in deliverable_types if t in _PROJECT_TYPE_BY_DELIVERABLE),
+        None,
+    )
+    if project_type_name is not None:
+        project_type = db.query(ProjectType).filter_by(name=project_type_name).first()
+        if project_type is not None:
+            project.project_type_id = project_type.id
+
     db.add(project)
     db.flush()
 
@@ -183,6 +232,9 @@ def _apply_production_action(db: Session, rec: Recommendation, payload: dict) ->
 
     rec.project_id = project.id
     db.flush()
+
+    if project.project_type_id is not None:
+        generate_schedule(db, project)
 
     return f"Created '{project.name}' at Ready, assigned to {person.name}."
 

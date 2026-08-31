@@ -151,12 +151,17 @@ mechanical.
 
 ## Screen 5 — Creative Intelligence
 
-Mock performance data only. Clearly labelled.
+Mock performance data only. Clearly labelled. REVIEW_02.md P6.2: an analytics-style table
+of every variant cannot be this app's product — shrunk and sharpened to lead with the
+insight → recommendation → project hand-off instead.
 
-**Shows:** creative variants with market, format, CTR, engagement rate, conversion rate,
-spend, and a comparison view (e.g. lifestyle-led vs product-only by market).
+**Leads with the comparison view** (lifestyle-led vs product-only by market), each tagged
+significant or not — a real gap needs both a big-enough CTR difference and a big-enough
+sample (`MIN_SAMPLE_SIZE`); anything short of that reads *"No significant variance this
+period"* rather than being silently omitted. Restraint here is what distinguishes analysis
+from output.
 
-**Derives an insight:**
+**Derives an insight**, for a significant market only:
 
 > Lifestyle-led creative is outperforming product-only creative in Germany
 > (CTR 2.4% vs 1.1% across 6 variants).
@@ -170,7 +175,16 @@ spend, and a comparison view (e.g. lifestyle-led vs product-only by market).
 > **Status** — Awaiting approval
 
 Accepting creates a project in the pipeline with the assignment and localisation rows
-already attached. This closes the loop described at the top of this document.
+already attached, a project type assigned and a schedule generated — visible on Timeline
+and movable through the Pipeline, not just clickable. This closes the loop described at the
+top of this document, and is the specific test REVIEW_02.md's decision rule for this page
+sets: if accepting a recommendation genuinely produces a project you can click into, see on
+the timeline, and watch move through the pipeline, the page earns its place.
+
+**The raw creative-variants table demotes** to a collapsed, secondary panel labelled with
+an explicit reporting period and a period selector — creative performance reporting is
+periodic in reality, so labelling it as a snapshot makes it correct rather than looking
+broken.
 
 ---
 

@@ -15,9 +15,19 @@ from app.models import CreativeInsight, Recommendation, RecommendationKind, Reco
 # Lifestyle CTR must exceed product-only CTR by at least this many percentage
 # points, in the same market, to be worth surfacing as an actionable gap.
 GAP_THRESHOLD_PCT = 0.5
+# REVIEW_02.md P6.2: "a significance threshold" needs both a big-enough gap AND a
+# big-enough sample — a 2-point gap on n=1 isn't a finding, it's noise. Below this
+# either group's count, a comparison is marked not significant regardless of gap.
+MIN_SAMPLE_SIZE = 3
 
 
 def compute_market_comparisons(insights: list[CreativeInsight]) -> list[dict]:
+    """REVIEW_02.md P6.2: every market with both a lifestyle and a product-only
+    group is included — significant ones (real gap, real sample) first by gap
+    size, the rest after, tagged `significant: False` so the page can say "No
+    significant variance this period" instead of silently omitting them. Silently
+    dropping a market that has data at all reads as the page not noticing it, not
+    as the page having judged it unremarkable."""
     groups: dict[tuple[str, VariantTheme], list[CreativeInsight]] = defaultdict(list)
     for row in insights:
         groups[(row.market, row.variant_theme)].append(row)
@@ -33,8 +43,11 @@ def compute_market_comparisons(insights: list[CreativeInsight]) -> list[dict]:
         lifestyle_ctr = round(mean(row.ctr for row in lifestyle), 2)
         product_ctr = round(mean(row.ctr for row in product), 2)
         gap = round(lifestyle_ctr - product_ctr, 2)
-        if gap < GAP_THRESHOLD_PCT:
-            continue
+        significant = (
+            gap >= GAP_THRESHOLD_PCT
+            and len(lifestyle) >= MIN_SAMPLE_SIZE
+            and len(product) >= MIN_SAMPLE_SIZE
+        )
 
         comparisons.append({
             "market": market,
@@ -48,9 +61,24 @@ def compute_market_comparisons(insights: list[CreativeInsight]) -> list[dict]:
             "sample_size": len(lifestyle),
             "lifestyle_count": len(lifestyle),
             "product_count": len(product),
+            "significant": significant,
         })
 
-    return sorted(comparisons, key=lambda c: c["gap"], reverse=True)
+    return sorted(comparisons, key=lambda c: (not c["significant"], -c["gap"] if c["significant"] else c["market"]))
+
+
+def distinct_periods(db: Session) -> list[tuple]:
+    """REVIEW_02.md P6.2: "the metrics table demotes to a supporting panel labelled
+    with an explicit reporting period... with a period selector." Every distinct
+    (period_start, period_end) pair actually present in the data, most recent
+    first — a real selector over real periods, not a label pretending to be one."""
+    rows = (
+        db.query(CreativeInsight.period_start, CreativeInsight.period_end)
+        .distinct()
+        .order_by(CreativeInsight.period_end.desc())
+        .all()
+    )
+    return [(r[0], r[1]) for r in rows]
 
 
 def _insight_rows_for_market(db: Session, market: str) -> list[CreativeInsight]:
