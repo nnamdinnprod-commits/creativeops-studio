@@ -24,6 +24,7 @@ The central entity.
 | `risk_reason` | text, nullable | computed |
 | `localisation_required` | bool | |
 | `estimated_days` | float, nullable | |
+| `production_tempo` | enum | `fast_track` / `standard` / `full_production`, default `standard`. Scopes the readiness gate (below) — pipeline stage sequence itself is unrestricted regardless of tempo. REVIEW_02.md P5.3. |
 
 **Brand** stays a string in V1. A brands table earns its place only when a screen needs
 brand-level attributes. Note the decision in `DECISIONS.md` if that changes.

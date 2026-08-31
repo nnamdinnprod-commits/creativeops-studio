@@ -1,3 +1,4 @@
+import json
 from datetime import date
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -16,6 +17,7 @@ from app.models import (
     Person,
     PersonRole,
     Priority,
+    ProductionTempo,
     Project,
     ProjectStatus,
     Recommendation,
@@ -64,34 +66,28 @@ STATUS_LABELS = {
 
 
 def validate_transition(current: ProjectStatus, target: ProjectStatus) -> tuple[bool, str | None]:
-    """A project may move backward freely (correcting a mistake) or forward one
-    stage at a time. Skipping stages forward is refused with a reason — this is
-    the operational rule the demo's Pipeline screen demonstrates."""
+    """REVIEW_02.md P5.3: sequence is free — any stage to any stage, forwards or
+    backwards. A market re-version, a copy swap, a resize, or an artwork resend can
+    legitimately go straight to Creative Review or Delivered; a sequential-only
+    board can't represent that. The readiness gate (check_readiness_gate, below) is
+    where "is this actually ready to skip ahead" gets enforced instead."""
     if current == target:
         return False, "Already in this status."
-
-    cur_idx = STATUS_ORDER.index(current)
-    tgt_idx = STATUS_ORDER.index(target)
-
-    if tgt_idx < cur_idx:
-        return True, None
-
-    if tgt_idx == cur_idx + 1:
-        return True, None
-
-    skipped = STATUS_ORDER[cur_idx + 1 : tgt_idx]
-    skipped_names = ", ".join(STATUS_LABELS[s] for s in skipped)
-    return False, (
-        f"Cannot move directly from {STATUS_LABELS[current]} to {STATUS_LABELS[target]} — "
-        f"must pass through {skipped_names} first."
-    )
+    return True, None
 
 
 def check_readiness_gate(project: Project, target: ProjectStatus, db: Session) -> tuple[bool, str | None]:
     """PRODUCT_SPEC.md: a brief scored below the readiness threshold creates a
     project but cannot move past Ready until the gaps are filled. Only applies to
     projects that have actually been through the Brief Assistant — seed projects
-    with no BriefAnalysis on record aren't gated on a score that was never computed."""
+    with no BriefAnalysis on record aren't gated on a score that was never computed.
+
+    REVIEW_02.md P5.3: scoped by production_tempo — fast_track (a market re-version,
+    copy swap, resize, or artwork resend) skips this entirely. standard and
+    full_production both get the check below; the review only describes fast_track
+    behaving differently, so there's no invented second tier of strictness."""
+    if project.production_tempo == ProductionTempo.fast_track:
+        return True, None
     if STATUS_ORDER.index(target) <= STATUS_ORDER.index(ProjectStatus.ready):
         return True, None
     if project.brief_analysis_id is None:
@@ -101,10 +97,16 @@ def check_readiness_gate(project: Project, target: ProjectStatus, db: Session) -
     if analysis is None or analysis.readiness_score >= settings.brief_readiness_threshold:
         return True, None
 
+    # REVIEW_02.md P5.3: "the reason naming what is missing and what it blocks" —
+    # not just the aggregate score. missing_fields_json is the same list the Brief
+    # Assistant itself extracted (app/routes/brief.py), named here instead of only
+    # summarised as a percentage.
+    missing = json.loads(analysis.missing_fields_json)
+    missing_note = f" — missing {', '.join(missing)}" if missing else ""
     return False, (
         f"Brief readiness is {analysis.readiness_score}%, below the "
-        f"{settings.brief_readiness_threshold}% threshold — cannot move past Ready "
-        f"until the gaps are filled."
+        f"{settings.brief_readiness_threshold}% threshold{missing_note} — cannot move past "
+        f"Ready until the gaps are filled."
     )
 
 
@@ -140,6 +142,7 @@ def _board_context(db: Session, brand: str | None, market: str | None, priority:
         "all_brands": all_brands,
         "all_markets": all_markets,
         "all_priorities": list(Priority),
+        "all_tempos": list(ProductionTempo),
         "selected_brand": brand,
         "selected_market": market,
         "selected_priority": priority,
@@ -345,6 +348,28 @@ def change_priority(project_id: int, request: Request, priority: str = Form(...)
             db.commit()
         except ValueError:
             error_message = f"'{priority}' is not a valid priority."
+
+    context = _board_context(db, None, None, None)
+    context["error_message"] = error_message
+    context["error_project_id"] = project_id
+    return templates.TemplateResponse(request, "partials/_board.html", context)
+
+
+@router.post("/pipeline/{project_id}/tempo")
+def change_tempo(project_id: int, request: Request, tempo: str = Form(...),
+                 db: Session = Depends(get_db)):
+    """REVIEW_02.md P5.3: production_tempo is what scopes the readiness gate
+    (check_readiness_gate) — this is the control that sets it."""
+    project = db.get(Project, project_id)
+    error_message = None
+    if project is None:
+        error_message = "Project not found."
+    else:
+        try:
+            project.production_tempo = ProductionTempo(tempo)
+            db.commit()
+        except ValueError:
+            error_message = f"'{tempo}' is not a valid tempo."
 
     context = _board_context(db, None, None, None)
     context["error_message"] = error_message

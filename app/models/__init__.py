@@ -30,6 +30,18 @@ class ProjectStatus(str, enum.Enum):
     delivered = "delivered"
 
 
+class ProductionTempo(str, enum.Enum):
+    """REVIEW_02.md P5.3: what the readiness gate applies to. `fast_track` skips it
+    entirely (a market re-version, copy swap, resize, or artwork resend). `standard`
+    and `full_production` both get the existing gate — the review only describes
+    fast_track as behaving differently, so both non-fast-track tiers use the one
+    check that already existed rather than inventing an unspecified second one."""
+
+    fast_track = "fast_track"
+    standard = "standard"
+    full_production = "full_production"
+
+
 class RiskLevel(str, enum.Enum):
     none = "none"
     low = "low"
@@ -139,6 +151,12 @@ class Project(TimestampMixin, Base):
     # has neither a type nor a reason to have generated a schedule.
     project_type_id: Mapped[int | None] = mapped_column(ForeignKey("project_types.id"), nullable=True)
     volume_factor: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    # REVIEW_02.md P5.3: scopes the readiness gate (see check_readiness_gate() in
+    # app/routes/pipeline.py) — pipeline stage sequence itself is unrestricted (any
+    # stage to any stage), free movement was never the problem this field solves.
+    production_tempo: Mapped[ProductionTempo] = mapped_column(
+        Enum(ProductionTempo), nullable=False, default=ProductionTempo.standard
+    )
 
 
 class Person(TimestampMixin, Base):

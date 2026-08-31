@@ -1241,3 +1241,38 @@ renders exactly one "Planned" badge and a committed one renders none). Every add
 feasible). `tools/audit.py --url` P5.2 check now passes ("Timeline shows 6 projects against
 12 on the pipeline"); P1's "no project more than 5 working days behind" check still passes
 too, confirming the widened deadlines didn't reintroduce that class of problem.
+
+## 038 — REVIEW_02.md P5.3: sequence is free, the readiness gate is scoped by tempo
+Date: 2026-08-31
+Decision: Two changes, kept deliberately separate. `validate_transition()`
+(`app/routes/pipeline.py`) no longer refuses a forward skip — any status to any status is
+allowed now (only "already in this status" is still refused). `check_readiness_gate()` is
+unchanged in *what* it checks, but is now skipped entirely when the project's new
+`production_tempo` field is `fast_track`. Added `ProductionTempo` (`fast_track` / `standard`
+/ `full_production`, default `standard`) to `Project`, a `POST /pipeline/{id}/tempo` route
+and board control mirroring the existing priority control, and a "Fast-track" badge on the
+pipeline card. Also enriched the gate's refusal message to name the actual missing fields
+(`BriefAnalysis.missing_fields_json`, already computed by the Brief Assistant) instead of
+only the aggregate readiness score — the review's fix text asks for the reason to name "what
+is missing and what it blocks," and the score alone doesn't.
+`standard` and `full_production` get identical gate behaviour — the review only describes
+fast_track behaving differently ("A full-production project entering production without
+format specifications is still refused" reads as *preserving* the existing check, not adding
+a second, stricter one) and inventing an undescribed distinction between the other two tiers
+felt like the wrong kind of judgement call to make silently.
+No seeded project's `production_tempo` was set to anything but the `standard` default —
+none of the 12 is actually "a market re-version, a copy swap, a resize, or an artwork
+resend" in its brief content, and relabelling one that isn't would be less honest than
+leaving the field at its accurate default. The new `/pipeline/{id}/tempo` control makes the
+feature demonstrable live instead — setting a project to fast-track and skipping it straight
+to Creative Review past an unmet readiness gate is a real, working action a demo can show
+directly, not a pre-baked example.
+Consequences: `test_skipping_a_stage_forward_is_refused_with_a_reason` inverted to
+`test_skipping_a_stage_forward_is_allowed` — it asserted exactly the sequential-only
+behaviour this section removes.
+Verified: `pytest` (176 passed, up from 171 — 6 new/changed tests: free forward movement,
+fast-track skipping the gate, full_production still gated identically to standard, the new
+tempo route persisting and rejecting an invalid value, the missing-fields text appearing in
+a refusal). Verified against a running server: `POST /pipeline/4/status` moved a Brief-status
+project straight to Creative Review in one call; `POST /pipeline/4/tempo` set it fast-track
+and the board rendered the badge. `tools/audit.py` clean of anything new.

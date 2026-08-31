@@ -26,6 +26,9 @@
                     {% if project.localisation_required %}
                     <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-700">Localisation</span>
                     {% endif %}
+                    {% if project.production_tempo.value == 'fast_track' %}
+                    <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-teal-100 text-teal-700" title="Skips the readiness gate">Fast-track</span>
+                    {% endif %}
                     {% if project.id in project_risks %}
                     {% set cause = project_risks[project.id] %}
                     <span class="inline-block px-1.5 py-0.5 rounded text-xs
@@ -56,6 +59,15 @@
                     <select name="priority" class="border border-slate-300 rounded text-xs px-1 py-0.5 flex-1">
                         {% for p in all_priorities %}
                         <option value="{{ p.value }}" {% if p == project.priority %}selected{% endif %}>{{ p.value|title }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="text-xs bg-slate-200 rounded px-2 py-0.5">Set</button>
+                </form>
+                <form hx-post="/pipeline/{{ project.id }}/tempo" hx-target="#board" hx-swap="outerHTML"
+                      class="mt-1 flex gap-1">
+                    <select name="tempo" class="border border-slate-300 rounded text-xs px-1 py-0.5 flex-1">
+                        {% for t in all_tempos %}
+                        <option value="{{ t.value }}" {% if t == project.production_tempo %}selected{% endif %}>{{ t.value.replace('_', ' ')|title }}</option>
                         {% endfor %}
                     </select>
                     <button type="submit" class="text-xs bg-slate-200 rounded px-2 py-0.5">Set</button>

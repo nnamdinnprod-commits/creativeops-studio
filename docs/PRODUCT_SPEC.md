@@ -66,14 +66,19 @@ Kanban board. Columns:
 `Brief → Ready → Assigned → In Production → Creative Review → Approved → Delivered`
 
 **Card shows:** project name, brand, market, priority, owner, deadline, risk flag,
-localisation indicator.
+localisation indicator, production tempo (when fast-track).
 
-**Interactions:** move a project between columns, change priority, open detail, filter by
-brand / market / status / risk.
+**Interactions:** move a project between columns, change priority, change tempo, open
+detail, filter by brand / market / status / risk.
 
-Movement between columns is a button or select, not drag-and-drop, in V1. A status change
-that would violate a rule (e.g. moving an incomplete brief into In Production) prompts a
-warning explaining why — this is the operational logic a reviewer will look for.
+Movement between columns is a button or select, not drag-and-drop, in V1, and is free —
+any column to any column, not only the next one forward — because a market re-version,
+copy swap, resize, or artwork resend can legitimately skip straight to Creative Review or
+Delivered. What's actually gated is readiness: a status change that would violate the
+readiness rule (e.g. moving an incomplete brief into In Production) prompts a warning
+naming what's missing — this is the operational logic a reviewer will look for. The gate
+is scoped by `production_tempo` (`fast_track` / `standard` / `full_production`) —
+fast-track work skips it entirely; REVIEW_02.md P5.3.
 
 **Project detail view** shows brief text, extracted brief fields, deliverables,
 assignments, localisation rows, risk assessment, and the recommendation history for that
