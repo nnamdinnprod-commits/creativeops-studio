@@ -17,7 +17,7 @@ from app.models import (
     RecommendationStatus,
 )
 from app.services.ai.resource import recommend_resource
-from app.services.capacity import all_person_capacities, current_allocation_pct, get_conflicts
+from app.services.capacity import all_person_capacities, available_pct, get_conflicts, peak_allocation_pct
 
 router = APIRouter()
 
@@ -93,7 +93,7 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
     transfer_pct = transfer_assignment.allocation_pct
 
     overloaded_assignments = db.query(Assignment).filter_by(person_id=person_id).all()
-    overloaded_allocated = current_allocation_pct(overloaded_assignments, today)
+    overloaded_allocated = peak_allocation_pct(overloaded_assignments, today)
     overloaded_skills = set(s.strip() for s in overloaded.skills.split(",") if s.strip())
 
     # A producer coordinates rather than produces, and a translator does language
@@ -106,8 +106,8 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
         if person.id == person_id or person.role in _INELIGIBLE_ROLES:
             continue
         person_assignments = db.query(Assignment).filter_by(person_id=person.id).all()
-        allocated = current_allocation_pct(person_assignments, today)
-        available = person.capacity_pct - allocated
+        allocated = peak_allocation_pct(person_assignments, today)
+        available = available_pct(person.capacity_pct, allocated)
         if available < transfer_pct:
             continue  # not feasible — Python filters before the model ever sees it
         person_skills = set(s.strip() for s in person.skills.split(",") if s.strip())

@@ -180,14 +180,21 @@ def test_unassign_phase_removes_assignment_and_clears_person(db_session):
     assert db_session.query(Assignment).filter_by(project_phase_id=phase.id).count() == 0
 
 
-def test_overload_created_by_a_phase_assignment_is_visible_to_get_conflicts(db_session):
+def test_assign_phase_refuses_when_not_enough_spare_capacity(db_session):
+    """REVIEW_02.md P2: assign_phase() used to let a raw call bypass phase_candidates()'s
+    own availability filter (decision 020's "override" design) — capacity.py's conflict
+    detection would then surface it, treated as the intended integration. In practice this
+    is exactly how an implausible figure like "540% against 80% contracted" gets produced:
+    nothing ever stopped a person being stacked past any ceiling. assign_phase() now
+    enforces the same rule phase_candidates() uses to populate its own dropdown, so the two
+    can never disagree about who is assignable."""
     owner = Person(name="Owner", role=PersonRole.producer, capacity_pct=100, skills="", is_external=False)
     dana = Person(name="Dana", role=PersonRole.designer, capacity_pct=80, skills="", is_external=False)
     db_session.add_all([owner, dana])
     db_session.commit()
     project = _project(db_session, owner)
-    # Dana already at 50% elsewhere, capacity 80 — a 100%-allocation phase assignment pushes
-    # her segment total to 150%, well over capacity.
+    # Dana already at 50% elsewhere, capacity 80 — a 50%-allocation phase assignment would
+    # push her segment total to 100%, leaving no spare capacity for the phase default.
     other = _project(db_session, owner)
     db_session.add(Assignment(project_id=other.id, person_id=dana.id, allocation_pct=50,
                               start_date=date(2026, 9, 1), end_date=date(2026, 9, 5)))
@@ -197,8 +204,12 @@ def test_overload_created_by_a_phase_assignment_is_visible_to_get_conflicts(db_s
 
     # phase_candidates correctly excludes Dana (not enough spare capacity)...
     assert phase_candidates(db_session, phase) == []
-    # ...but a direct assign (e.g. an override) still surfaces as a real conflict, since
-    # capacity.py computes conflicts from whatever Assignment rows exist, unconditionally.
-    assign_phase(db_session, phase, dana)
+    # ...and assign_phase now refuses the same way, rather than silently stacking her past
+    # capacity — no Assignment row is created, and her existing conflict stays exactly what
+    # it was before this call.
+    ok, reason = assign_phase(db_session, phase, dana)
+    assert ok is False
+    assert "spare capacity" in reason
     conflicts = get_conflicts(db_session, on_date=date(2026, 9, 3))
-    assert any(c.person.id == dana.id for c in conflicts)
+    dana_conflicts = [c for c in conflicts if c.person.id == dana.id]
+    assert dana_conflicts == []  # 50% against 80% capacity isn't a conflict on its own

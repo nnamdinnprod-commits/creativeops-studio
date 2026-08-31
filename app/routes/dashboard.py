@@ -10,7 +10,7 @@ from app.services.ai.feasibility import assess_schedule_feasibility
 from app.services.ai.risk import assess_portfolio_attention
 from app.services.assumptions import get_value
 from app.services.attention import build_attention_snapshot
-from app.services.capacity import all_person_capacities
+from app.services.capacity import aggregate_utilisation_pct, all_person_capacities
 from app.services.localisation_risk import summarize_by_market
 from app.services.scheduling import build_feasibility_facts
 
@@ -52,9 +52,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     tight_count = sum(1 for c in capacities if c.status == "tight")
     available_count = sum(1 for c in capacities if c.status == "available")
     total_people = len(capacities)
-    total_capacity = sum(c.person.capacity_pct for c in capacities) or 1
-    total_allocated = sum(c.allocated_pct for c in capacities)
-    aggregate_utilisation = round(100 * total_allocated / total_capacity)
+    aggregate_utilisation = aggregate_utilisation_pct(capacities)
 
     localisation_rows = db.query(Localisation).all()
     loc_total = len(localisation_rows)

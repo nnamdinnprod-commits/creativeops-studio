@@ -10,7 +10,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from app.models import Assignment, PhaseKind, Person, ProjectPhase
-from app.services.capacity import allocation_timeline
+from app.services.capacity import available_pct, max_allocation_pct
 
 # PLANNING.md doesn't specify an allocation percentage for a phase-derived assignment. 100
 # (one person, fully dedicated to the phase) was the first guess, but checked against the
@@ -21,15 +21,6 @@ from app.services.capacity import allocation_timeline
 # mostly-fractional allocations already used throughout this app's demo data — is the
 # documented default instead. See DECISIONS.md.
 PHASE_ASSIGNMENT_ALLOCATION_PCT = 50
-
-
-def _max_allocation_in_window(assignments: list[Assignment], start: date, end: date) -> int:
-    """The worst-case (highest) total allocation percentage active at any point in
-    [start, end] — not just a single snapshot date, since a phase can span days during
-    which a person's other commitments start or end."""
-    segments = allocation_timeline(assignments)
-    overlapping = [s for s in segments if s.end >= start and s.start <= end]
-    return max((s.allocation_pct for s in overlapping), default=0)
 
 
 @dataclass
@@ -52,8 +43,8 @@ def phase_candidates(db: Session, phase: ProjectPhase) -> list[PhaseCandidate]:
         if person.role.value not in required:
             continue
         person_assignments = [a for a in all_assignments if a.person_id == person.id]
-        allocated = _max_allocation_in_window(person_assignments, phase.start_date, phase.end_date)
-        available = person.capacity_pct - allocated
+        allocated = max_allocation_pct(person_assignments, phase.start_date, phase.end_date)
+        available = available_pct(person.capacity_pct, allocated)
         if available < PHASE_ASSIGNMENT_ALLOCATION_PCT:
             continue  # not feasible — filtered before any UI ever offers the option
         candidates.append(PhaseCandidate(person=person, allocated_pct=allocated, available_pct=available))
@@ -77,6 +68,20 @@ def assign_phase(db: Session, phase: ProjectPhase, person: Person) -> tuple[bool
         return False, f"{person.name} is a {person.role.value.replace('_', ' ')}, not one of: {readable}."
 
     existing = db.query(Assignment).filter_by(project_phase_id=phase.id).first()
+
+    # REVIEW_02.md P2: phase_candidates() filters the dropdown by availability, but that
+    # filter is advisory only unless it's also enforced here — a raw POST (stale page,
+    # replayed form) could otherwise bypass it and stack a person's allocation past any
+    # plausible ceiling. Excludes this phase's own current assignment so re-confirming the
+    # same person to the same phase isn't rejected for capacity it already holds.
+    other_assignments = [
+        a for a in db.query(Assignment).filter_by(person_id=person.id).all()
+        if existing is None or a.id != existing.id
+    ]
+    allocated = max_allocation_pct(other_assignments, phase.start_date, phase.end_date)
+    if available_pct(person.capacity_pct, allocated) < PHASE_ASSIGNMENT_ALLOCATION_PCT:
+        return False, f"{person.name} doesn't have enough spare capacity for this phase."
+
     if existing is not None:
         db.delete(existing)
         db.flush()

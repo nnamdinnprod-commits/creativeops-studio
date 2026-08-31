@@ -50,11 +50,33 @@ def allocation_timeline(assignments: list[Assignment]) -> list[AllocationSegment
     return segments
 
 
-def current_allocation_pct(assignments: list[Assignment], on_date: date | None = None) -> int:
-    """Total allocation percentage for whichever of the given assignments are
-    active on `on_date` (defaults to today)."""
-    on_date = on_date or date.today()
-    return sum(a.allocation_pct for a in assignments if a.start_date <= on_date <= a.end_date)
+def max_allocation_pct(assignments: list[Assignment], start: date, end: date | None = None) -> int:
+    """The worst (highest) total allocation percentage active at any point in
+    [start, end]. `end=None` means unbounded — "from start onward, forever."
+
+    REVIEW_02.md P2 fix item 1: this is the one place a window-bounded peak
+    allocation is computed. `peak_allocation_pct` (below) and
+    app/services/assignment.py's phase-candidate check both call this rather
+    than each re-deriving it from `allocation_timeline`.
+    """
+    segments = allocation_timeline(assignments)
+    overlapping = [s for s in segments if s.end >= start and (end is None or s.start <= end)]
+    return max((s.allocation_pct for s in overlapping), default=0)
+
+
+def peak_allocation_pct(assignments: list[Assignment], from_date: date | None = None) -> int:
+    """The worst (highest) total allocation percentage active at any point from
+    `from_date` onward (defaults to today) — not just today's snapshot.
+
+    REVIEW_02.md P2: a person who is free today but double-booked starting next
+    week must read as overloaded everywhere, not just in the one place that
+    happens to scan forward. This is the single definition of "how loaded is
+    this person" for anything shown as a status: the Resources table, the
+    dashboard's overloaded count, and the conflict list all call this, so they
+    can never structurally disagree the way a today-only snapshot let them.
+    """
+    from_date = from_date or date.today()
+    return max_allocation_pct(assignments, start=from_date)
 
 
 def capacity_status(allocated_pct: int, capacity_pct: int, tight_threshold: int | None = None) -> str:
@@ -67,6 +89,23 @@ def capacity_status(allocated_pct: int, capacity_pct: int, tight_threshold: int 
     if allocated_pct >= tight_threshold:
         return "tight"
     return "available"
+
+
+def available_pct(capacity_pct: int, allocated_pct: int) -> int:
+    """Spare capacity given contracted capacity and current allocation. Trivial
+    arithmetic, but named and centralised (REVIEW_02.md P2 fix item 1) so every
+    caller that needs "how much room is left" reads it the same way, rather than
+    re-deriving `capacity_pct - allocated_pct` inline at each call site."""
+    return capacity_pct - allocated_pct
+
+
+def aggregate_utilisation_pct(capacities: list["PersonCapacity"]) -> int:
+    """Team-wide utilisation: total allocated as a percentage of total contracted
+    capacity, rounded. Centralised here rather than in the dashboard route (P2 fix
+    item 1) — it's the same class of arithmetic as everything else in this module."""
+    total_capacity = sum(c.person.capacity_pct for c in capacities) or 1
+    total_allocated = sum(c.allocated_pct for c in capacities)
+    return round(100 * total_allocated / total_capacity)
 
 
 @dataclass
@@ -82,7 +121,7 @@ def person_capacity(person: Person, assignments: list[Assignment], projects_by_i
                     on_date: date | None = None) -> PersonCapacity:
     on_date = on_date or date.today()
     person_assignments = [a for a in assignments if a.person_id == person.id]
-    allocated = current_allocation_pct(person_assignments, on_date)
+    allocated = peak_allocation_pct(person_assignments, on_date)
     status = capacity_status(allocated, person.capacity_pct)
 
     upcoming_deadlines = [
@@ -95,7 +134,7 @@ def person_capacity(person: Person, assignments: list[Assignment], projects_by_i
     return PersonCapacity(
         person=person,
         allocated_pct=allocated,
-        available_pct=person.capacity_pct - allocated,
+        available_pct=available_pct(person.capacity_pct, allocated),
         status=status,
         next_deadline=next_deadline,
     )

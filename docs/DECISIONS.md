@@ -918,3 +918,69 @@ references to the old name outside this decision entry and `docs/REVIEW_02.md`, 
 historical), `pytest` (140 passed), a fresh `--reset` seed, and `build_feasibility_facts`
 re-run directly against the renamed project (still fully feasible, unaffected — the rename
 touches display text only, not scheduling math).
+
+## 032 — REVIEW_02.md P2: one definition of "how loaded is this person," enforced not just displayed
+Date: 2026-08-31
+Decision: Four changes to `app/services/capacity.py` and its callers:
+1. Added `peak_allocation_pct(assignments, from_date)` — the worst allocation across a
+   person's timeline from `from_date` onward, not a single-date snapshot. `person_capacity()`
+   (and therefore `all_person_capacities()`, used by the Resources table, the dashboard's
+   overloaded count, and the Creative Intelligence screen) now calls this instead of the old
+   `current_allocation_pct`, which only looked at exactly one day.
+2. Consolidated the window-bounded peak calculation that `app/services/assignment.py`
+   (`phase_candidates()`) had reimplemented locally (`_max_allocation_in_window`) into
+   `capacity.py`'s `max_allocation_pct(assignments, start, end=None)` — `peak_allocation_pct`
+   is just this with `end=None`. Also added `available_pct()` and `aggregate_utilisation_pct()`
+   so the trivial `capacity - allocated` subtraction and the dashboard's team-wide percentage
+   aren't each re-derived at their call sites. Deleted `current_allocation_pct` — once
+   `person_capacity()` moved off it, nothing else called it.
+3. **`assign_phase()` now enforces the same availability rule `phase_candidates()` uses to
+   populate its own dropdown**, instead of allowing a direct call to bypass it. This reverses
+   part of decision 020, which deliberately let an "override" stack a person past
+   `phase_candidates()`'s filter on the theory that `capacity.py`'s conflict detection would
+   catch it as "the intended integration, not a gap." It doesn't — nothing ever re-checked
+   availability after the first assignment, so repeated or replayed assigns could stack a
+   person's allocation with no ceiling. This is the mechanism `REVIEW_02.md` describes
+   producing "540% against 80% contracted": not one bug in one place, but the combination of
+   a snapshot-only status figure (fixed by change 1) and an unenforced availability filter
+   (fixed here).
+4. Labelled the accepted-recommendation figures on `/resources` "At time of recommendation"
+   (`app/templates/resources.html`) — those numbers are correctly frozen at
+   `payload.impact.*_new_allocation` from when the recommendation was generated (P2 fix item
+   4 says this is correct and should stay), but nothing signalled they weren't live, which is
+   how they read as one more contradictory number next to the table and the conflict panel.
+Alternatives considered: leaving `assign_phase()`'s override in place and instead capping
+`allocation_pct` at display time (e.g. clamping anything over some ceiling) — rejected because
+it would hide a real data problem behind a fake number, the opposite of what P1 and P2 both
+already established this session (a plausible real shortfall beats a suppressed one).
+Why: `REVIEW_02.md`'s fix item 1 ("there should be one place, delete the others, route
+through capacity.py") was already mostly true — `dashboard.py`, `resources.py`, and
+`assignment.py` all called into `capacity.py`'s primitives rather than reimplementing
+allocation math from scratch. The actual bug was semantic, not structural: two call sites
+used the *same* primitive with *different window definitions* (a single date vs. a full
+timeline), so they could legitimately disagree about the same person on the same day. Fix
+item 3 ("define the window explicitly and use it consistently") is the real fix; the
+mechanical "one file" consolidation (changes 2 and 4) was worth doing anyway since it was
+already most of the way there and `tools/audit.py`'s own heuristic flagged the remaining
+inline subtractions.
+Consequences: a person who is free today but double-booked starting next week now shows as
+tight/overloaded immediately, not only once that week arrives — this is a behaviour change,
+not just a display fix, and makes the Resources table slightly more pessimistic-looking on
+days when no one's *current* segment is over capacity but a future one is. That is the
+correct trade for this app: `DEMO_DATA.md`'s conflicts are meant to be visible, not deferred.
+`assign_phase()` refusing an over-capacity assignment also changes
+`test_overload_created_by_a_phase_assignment_is_visible_to_get_conflicts` (renamed
+`test_assign_phase_refuses_when_not_enough_spare_capacity`) — it asserted the old override
+behaviour directly, so it had to change with it, not just tolerate it. Added
+`test_allocation_identical_whichever_service_path_computes_it` per `REVIEW_02.md`'s own
+verify bar. Verified: `pytest` (142 passed, up from 140 — two new tests, one rewritten), a
+fresh `--reset` seed, and `tools/audit.py --url` against a locally running instance — the P2
+"Over-capacity summary reads '1 of 8' with no contradiction" check now passes; the tool's
+own "different percentages across pages" and "9999%" warnings on `/timeline` and
+`/intelligence` are false positives (a phase-candidate's window-specific "% free" is a
+different, correctly-labelled metric from a person's overall status, and the "9999%" is the
+regex matching the tail of an unrelated long decimal, e.g. `1.5499999999999998%` — a real but
+separate float-formatting issue, not a capacity bug, left for a P7 copy pass). `tools/audit.py`
+(no `--url`) still flags one inline `aggregate_utilisation_pct(capacities)` call as "arithmetic
+outside capacity.py" — a false positive from the same coarse regex matching `utilisation\s*=`
+against the call site, not a computation.
