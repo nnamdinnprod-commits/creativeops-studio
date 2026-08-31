@@ -1540,3 +1540,59 @@ label; and the full accept → schedule → Timeline → Pipeline chain for a Cr
 Intelligence recommendation. `tools/audit.py` clean of anything new (and incidentally now
 finds one fewer database-vocabulary hit in `intelligence.html`, a side effect of the
 rewrite, not something chased directly — that's P7's job).
+
+## 043 — REVIEW_02.md P6.3: derive the Blocked tile from the four named states
+Date: 2026-08-31
+Decision: New `build_blocked_snapshot()` in `app/services/attention.py`, deliberately
+separate from `build_attention_snapshot()` — "at risk" answers a deadline-exposure
+question, "blocked" answers "what is structurally stuck and why," and the review names
+four sources that don't map onto the existing capacity/localisation/deadline/brief cause
+set. A project can be both at risk and blocked; the two functions don't share state.
+Each of the four sources, and the honest gap it required filling in:
+1. **`waiting_on_client` beyond the agreed review window** — "agreed review window" is
+   `client_review_days` (already a live Assumption, `ASSUMPTIONS.md`). "Since when" has no
+   dedicated status-history table, so `Project.updated_at` is the proxy — nothing else in
+   this app writes to a project row between pipeline status changes, so it's a fair read of
+   "when did this project last move." `get_value()` only called when a waiting_on_client
+   project actually exists, matching the guarded-fetch pattern `dashboard.py` already uses
+   for `client_review_minimum_days` — most test fixtures carry no Assumption rows at all.
+2. **Brief below readiness threshold, past its intended start date** — no `intended_start`
+   field exists on `Project`. `deadline - estimated_days` is the honest proxy: the date
+   work would have needed to start to land on time, computed from two fields the row
+   already carries rather than inventing a new one. A project with no `estimated_days` is
+   skipped, not flagged — there's nothing to compute the date from.
+3. **Localisation stalled with no translator** — reuses `Localisation.translator_id is
+   None` but deliberately *not* `localisation_risk.py`'s `RISK_WINDOW_DAYS` gate. That gate
+   answers "is the deadline close," which is what already feeds the dashboard's
+   "localisation" at-risk cause. A stall is a different, standing question — in_translation
+   /in_review/qa with nobody assigned is stuck regardless of how many days remain.
+4. **A started phase with nobody assigned** — `ProjectPhase.start_date <= today`,
+   `assigned_person_id is None`, not complete. Milestones and phases with empty
+   `required_roles` are excluded: `app/services/assignment.py` never lets those be staffed
+   in the first place (`if phase.is_milestone: ...`), so flagging them as unstaffed would be
+   reporting a non-problem.
+Dashboard wiring: `blocked_ids` computed first and subtracted from `at_risk_ids` on
+overlap, preserving the four dashboard tiles' original invariant — On track + At risk +
+Blocked = Active, exactly, same as when `blocked` meant only the "brief" cause. The
+previous "brief" proxy for the whole tile is gone; brief-readiness is now one of four
+inputs, correctly scoped to the subset that's also past its intended start.
+"Clicking the tile opens the filtered list" (the review's own verification line): the
+Blocked dashboard tile is now a link to `/pipeline?blocked=1`; `_board_context()` gained a
+`blocked` flag that filters the board to `build_blocked_snapshot()`'s project set — the
+same function the dashboard tile counts, so the two numbers can't disagree. Board cards
+also gained a "Blocked" badge (dark, distinct from the four risk-cause badges), hover
+title carrying the specific reason, taking precedence over an at-risk badge on the same
+card so a card never shows two conflicting explanations.
+Consequences: none of the other mutating pipeline routes (`change_status`, priority, tempo)
+preserve `blocked=1` on their post-action board refresh — pre-existing behaviour, they
+already drop brand/market/priority the same way, not something this entry's scope covers.
+Verified: `pytest` (203 passed, no existing test touched). Verified against a running
+server on a fresh seed: dashboard Blocked tile read 4, `/pipeline?blocked=1` returned
+exactly 4 cards each carrying a "Blocked" badge (3 unstaffed-phase, 1 stalled-localisation
+— seed data has no waiting_on_client-past-window or brief-past-start case), the "Clear
+filters" link removes the query param, and the filter banner's count matches the tile.
+The two paths seed data doesn't exercise (`waiting_on_client` past window, brief past
+intended start) verified directly against the live DB with one row's status/estimated_days
+temporarily forced and reverted — both produced a single correctly-worded flag, no
+exception. `tools/audit.py` unchanged from before this entry (same pre-existing P2/P7
+findings, nothing new).

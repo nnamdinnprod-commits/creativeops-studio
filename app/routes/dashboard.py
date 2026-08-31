@@ -17,7 +17,7 @@ from app.models import (
 from app.services.ai.feasibility import assess_schedule_feasibility
 from app.services.ai.risk import assess_portfolio_attention
 from app.services.assumptions import get_value
-from app.services.attention import build_attention_snapshot
+from app.services.attention import build_attention_snapshot, build_blocked_snapshot
 from app.services.capacity import aggregate_utilisation_pct, all_person_capacities
 from app.services.localisation_risk import summarize_by_market
 from app.services.scheduling import build_feasibility_facts
@@ -34,20 +34,23 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     attention = assess_portfolio_attention(snapshot)
     snapshot_by_project_id = {entry["project_id"]: entry for entry in snapshot}
 
+    # REVIEW_02.md P6.3: blocked is its own question ("what is stuck, and why"),
+    # not a cause tag borrowed from the at-risk snapshot. Computed first and given
+    # precedence over at-risk on overlap, so the four tiles still partition every
+    # active project exactly once — a project blocked on a stalled localisation
+    # row is blocked, not also double-counted as at-risk for the same row.
+    blocked_ids = {entry["project_id"] for entry in build_blocked_snapshot(db, on_date=today)}
+
     at_risk_ids = {
         pid for pid, entry in snapshot_by_project_id.items()
-        if entry["cause"] in ("capacity", "localisation", "deadline")
-    }
-    blocked_ids = {
-        pid for pid, entry in snapshot_by_project_id.items()
-        if entry["cause"] == "brief"
+        if entry["cause"] in ("capacity", "localisation", "deadline") and pid not in blocked_ids
     }
 
     # REVIEW_02.md P5.4: on_hold/cancelled/archived are exception states, not work
     # in flight — counting them as "active" would make the dashboard's on-track/at-
     # risk/blocked split lie about how much is actually moving. waiting_on_client
     # stays active: it's real, ongoing work, just paused externally rather than by
-    # us — the full "derive the Blocked tile from these states" wiring is P6.3.
+    # us, and is one of the states the Blocked tile itself now derives from.
     _INACTIVE_STATUSES = (ProjectStatus.delivered, ProjectStatus.on_hold,
                           ProjectStatus.cancelled, ProjectStatus.archived)
     active_projects = [p for p in projects if p.status not in _INACTIVE_STATUSES]

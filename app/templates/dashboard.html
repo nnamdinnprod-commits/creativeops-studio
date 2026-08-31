@@ -73,10 +73,10 @@
         <div class="text-xs text-slate-500">At risk</div>
         <div class="text-2xl font-semibold mt-1 text-red-700">{{ at_risk_count }}</div>
     </div>
-    <div class="bg-white rounded shadow-sm p-4">
+    <a href="/pipeline?blocked=1" class="bg-white rounded shadow-sm p-4 hover:bg-slate-50">
         <div class="text-xs text-slate-500">Blocked</div>
-        <div class="text-2xl font-semibold mt-1 text-slate-400">{{ blocked_count }}</div>
-    </div>
+        <div class="text-2xl font-semibold mt-1 {% if blocked_count %}text-slate-700{% else %}text-slate-400{% endif %}">{{ blocked_count }}</div>
+    </a>
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">

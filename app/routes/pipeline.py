@@ -27,7 +27,7 @@ from app.services.ai.localisation import check_localisation_risk
 from app.services.ai.schemas import BriefExtraction
 from app.services.assignment import earliest_feasible_start, engage_person
 from app.services.assumptions import get_value
-from app.services.attention import build_attention_snapshot
+from app.services.attention import build_attention_snapshot, build_blocked_snapshot
 from app.services.localisation_risk import check_localisation_row, get_localisation_risks
 
 # A producer coordinates rather than produces, and a translator does language work via
@@ -150,7 +150,8 @@ def check_readiness_gate(project: Project, target: ProjectStatus, db: Session) -
     )
 
 
-def _board_context(db: Session, brand: str | None, market: str | None, priority: str | None):
+def _board_context(db: Session, brand: str | None, market: str | None, priority: str | None,
+                   blocked: bool = False):
     query = db.query(Project)
     if brand:
         query = query.filter(Project.brand == brand)
@@ -159,6 +160,14 @@ def _board_context(db: Session, brand: str | None, market: str | None, priority:
     if priority:
         query = query.filter(Project.priority == priority)
     projects = query.all()
+
+    # REVIEW_02.md P6.3: "clicking the [Blocked] tile opens the filtered list" —
+    # same blocked-project derivation the dashboard tile counts, so the two never
+    # disagree about which projects are blocked.
+    blocked_snapshot = build_blocked_snapshot(db)
+    blocked_causes = {entry["project_id"]: entry for entry in blocked_snapshot}
+    if blocked:
+        projects = [p for p in projects if p.id in blocked_causes]
 
     columns = {status: [] for status in STATUS_ORDER}
     for project in projects:
@@ -186,15 +195,17 @@ def _board_context(db: Session, brand: str | None, market: str | None, priority:
         "selected_brand": brand,
         "selected_market": market,
         "selected_priority": priority,
+        "selected_blocked": blocked,
         "people_by_id": people_by_id,
         "project_risks": project_risks,
+        "blocked_causes": blocked_causes,
     }
 
 
 @router.get("/pipeline")
 def pipeline(request: Request, brand: str | None = None, market: str | None = None,
-            priority: str | None = None, db: Session = Depends(get_db)):
-    context = _board_context(db, brand, market, priority)
+            priority: str | None = None, blocked: bool = False, db: Session = Depends(get_db)):
+    context = _board_context(db, brand, market, priority, blocked)
     return templates.TemplateResponse(request, "pipeline.html", context)
 
 
