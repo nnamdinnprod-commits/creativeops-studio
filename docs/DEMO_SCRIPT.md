@@ -18,16 +18,21 @@ could connect. Say it up front. Overclaiming is the only way to lose the room.
 
 ## 1. Dashboard — 40 seconds
 
-Open on "Needs attention". With a fresh seed it reads **"4 projects need intervention this
-week"** — lead with the two that carry the rest of the demo, and don't dwell on the other two:
+Open on "Needs attention". With a fresh seed it reads **"3 projects need intervention this
+week"** (sometimes 4 — see the note below) — lead with the two that carry the rest of the
+demo, and don't dwell on the rest:
 - *Winter Campaign Refresh* is at risk — Alex is at 95% allocation against a Friday deadline → Resources
 - *Autumn Prints FR Push* is blocked — the FR review has no assigned translator with 3 days to deadline → Pipeline
-- (Two more — *Loyalty Relaunch Teaser* and *Loyalty App Push* — are flagged for running out
-  of runway against their deadline. Real, not a bug: a deadline-proximity rule added after
-  the first version of this script. Name it in passing if asked, don't spend time on it.)
+- *Loyalty App Push* is flagged for running out of runway against its deadline. Real, not a
+  bug: a deadline-proximity rule. Name it in passing if asked, don't spend time on it.
 
 The point: a producer's first ten minutes of the day are usually spent reconstructing this by
 hand. Here it's already waiting.
+
+*(A fourth item — Loyalty Relaunch Teaser, the same deadline-proximity rule — shows up on some
+days and not others: its deadline sits right on the edge of the 7-working-day window, so it
+flips in and out depending which weekday you seed on. Not a bug if you rehearsed on a
+different day than you present and the count reads "4" instead of "3".)*
 
 *(One more item — a brief readiness warning — will appear here later if you revisit the
 Dashboard after step 5. That's not a bug: it only shows up once a brief has actually been
@@ -35,10 +40,13 @@ scored, same as in a real studio.)*
 
 ## 2. Pipeline — 30 seconds
 
-Show the board. Then open **"Loyalty App Push"** (Brief column) and attempt to move it
-straight to **In Production**. It's refused: *"Cannot move directly from Brief to In
-Production — must pass through Ready, Assigned first."* The refusal is the interesting part
-— it's operational policy made mechanical, not a UI limitation.
+Show the board — movement between stages is free (any column to any column; a market
+re-version or a copy swap can legitimately jump straight to Creative Review, not just move one
+step at a time). Then, on **"Loyalty App Push"** (Brief column), pick **On Hold** from the
+status dropdown and click **Move** without typing a reason. It's refused: *"Moving to On Hold
+needs a reason — add one before saving."* Type one and it goes through. The refusal is the
+interesting part — pausing or cancelling a project always demands an explanation, the same
+accountability a real producer would insist on, made mechanical instead of optional.
 
 ## 3. Resource conflict — 50 seconds
 
@@ -50,17 +58,21 @@ Teaser*.
 
 ## 4. AI recommendation and approval — 50 seconds
 
-Click **"Get AI recommendation for Winter Campaign Refresh"**. The recommendation:
+Click **"Get AI recommendation for Winter Campaign Refresh"**. It returns a ranked set of
+options, not one take-it-or-leave-it call:
 
-> Maya holds a matching skill and has 55% available. Moving Winter Campaign Refresh from
-> Alex to Maya drops Alex from 95% to 40%, protecting the Friday deadline.
+> **A · Reassign to Maya** — no cost, available today, has worked this brand before
+> **B · Move delivery to 20 Sep** — no cost, no resource change, client conversation required
+>
+> Recommended: A.
 
-**Reject it once** — the card moves to "Rejected" and stays visible in history; nothing about
+**Reject all** — the card moves to "Rejected" and stays visible in history; nothing about
 Alex's allocation changes. This demonstrates rejection is a real state, not a formality.
 
-Click **"Get AI recommendation"** again, then **Accept**. Watch the numbers move live: Alex
+Click **"Get AI recommendation"** again, then **Accept A**. Watch the numbers move live: Alex
 40%, Maya 100%. This is the "humans stay in control" argument, demonstrated rather than
-asserted.
+asserted — and a stronger version of it than a single suggestion to rubber-stamp: a real
+decision has alternatives with different costs, and choosing between them is the point.
 
 **This changes who's actually free later in the demo.** After this step, Maya is the one at
 100% and Alex has the headroom — so in step 6, the production recommendation names *Alex*,
@@ -127,9 +139,11 @@ operations decides what to do about it. This is the bridge.*
 
 Open **Autumn Prints FR Push** from the pipeline. Its Risk assessment panel reads: *"FR
 review has no assigned translator with 3 days to deadline."* Assign a translator from the
-dropdown right there — watch the risk assessment clear immediately, and the red "Risk:
-Localisation" badge disappear from its pipeline card. Localisation as part of the production
-workflow, not a downstream afterthought discovered too late.
+dropdown right there — watch the risk assessment clear immediately, and the "Localisation"
+risk badge disappear from its pipeline card (a separate purple "Localisation" badge stays —
+that one just means the project needs localisation at all, not that it's at risk).
+Localisation as part of the production workflow, not a downstream afterthought discovered too
+late.
 
 ## 8. Timeline and planning — 50 seconds (cut first if short on time)
 

@@ -15,6 +15,7 @@ from app.models import (
     BriefAnalysis,
     Localisation,
     LocalisationStatus,
+    PhaseKind,
     Project,
     ProjectPhase,
     ProjectPhaseStatus,
@@ -229,9 +230,12 @@ def build_blocked_snapshot(db: Session, on_date: date | None = None) -> list[dic
             "suggested_screen": "localisation",
         })
 
-    # 4. A scheduled phase that has started with nobody assigned. Milestones and
-    # phases with no required_roles (e.g. an internal-only checkpoint) don't need
-    # a person, so they're excluded rather than flagged as unstaffed.
+    # 4. A scheduled phase that has started with nobody assigned. Scoped to
+    # PhaseKind.production, same as app/services/assignment.py's assign_phase()
+    # ("only production-kind phases carry deliverable work") — flagging a prep or
+    # review phase here would ask a producer to fix something the UI has no
+    # mechanism to let them fix. Milestones and phases with no required_roles
+    # (e.g. an internal-only checkpoint) don't need a person either.
     started_unstaffed = (
         db.query(ProjectPhase)
         .filter(
@@ -240,6 +244,7 @@ def build_blocked_snapshot(db: Session, on_date: date | None = None) -> list[dic
             ProjectPhase.assigned_person_id.is_(None),
             ProjectPhase.is_milestone.is_(False),
             ProjectPhase.required_roles != "",
+            ProjectPhase.kind == PhaseKind.production,
         )
         .all()
     )

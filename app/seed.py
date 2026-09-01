@@ -278,8 +278,12 @@ def seed(session):
                     translator_id=None, status=LocalisationStatus.not_started,
                     review_status=SubStatus.pending, qa_status=SubStatus.pending,
                     due_date=TODAY + timedelta(days=3)),
+        # DEMO_DATA.md's deliberate bottleneck is FR only (row above) — ES sits at
+        # not_started rather than in_translation so it doesn't independently trip
+        # P6.3's "stalled with no translator" blocked cause and mask the FR beat
+        # DEMO_SCRIPT.md step 7 depends on (see DECISIONS.md, step 7 fix).
         Localisation(project_id=p5.id, target_market="ES", language="es",
-                    translator_id=None, status=LocalisationStatus.in_translation,
+                    translator_id=None, status=LocalisationStatus.not_started,
                     review_status=SubStatus.pending, qa_status=SubStatus.pending,
                     due_date=TODAY + timedelta(days=10)),
         # P7 — Yearly Mother's Day Assets (ready, not yet in production)

@@ -1658,3 +1658,72 @@ snap-carousel behaves as intended (one column plus a peek) and every stacked tab
 inside its own container rather than the page. `tools/audit.py` P7 section down to the one
 confirmed `timeline.rows` false positive; P0/P2 findings unchanged (pre-existing, out of
 this entry's scope).
+
+## 045 — DEMO_SCRIPT.md re-verified against the running app, and a real P6.3 bug it surfaced
+Date: 2026-09-01
+Decision: Ran every step of `DEMO_SCRIPT.md` live against a fresh reseed rather than reading
+it against the code. Two steps had gone stale from V2 work already landed this session; a
+third pointed at a real product bug, not a script problem.
+**Step 2 rewritten.** P5.3 (decision 038) made pipeline sequence fully free and scoped the
+readiness gate to projects with a `brief_analysis_id` — but every seeded project has none
+(only a project created live through the Brief Assistant does), so the script's own
+"Loyalty App Push refuses Brief → In Production" demonstration silently succeeds now; I ran
+it and confirmed the move goes through with no refusal. No existing seeded project can
+demonstrate the readiness gate any more. Per the owner's choice of option (a): swapped it for
+P5.4's reason-required rule instead (attempt On Hold with no `status_reason`, refused: "Moving
+to On Hold needs a reason — add one before saving.") — same beat ("operational policy made
+mechanical, not a UI limitation"), a refusal that still fires reliably on fresh seed data with
+no dependency on brief state.
+**Step 4 rewritten.** P5.6 (decision 041) changed `recommend_resource` from one narrative
+sentence to ranked options — the script's quoted paragraph ("Maya holds a matching skill and
+has 55% available...") no longer exists anywhere; live output is an A/B option list with its
+own Accept per option and a single "Reject all". Rewrote the quote to the actual live text and
+changed "Reject it once" → "Reject all" to match the real button. The numeric claims (Alex
+40%, Maya 100% after accepting A) were still exactly right — only the framing needed fixing.
+**Step 7 — the real bug.** Assigning the FR translator correctly cleared the risk assessment
+panel, but the pipeline card's badge didn't clear as scripted — it still read "Blocked"
+afterward. Traced to `build_blocked_snapshot`'s cause 4 (decision 043, "a scheduled phase that
+has started with nobody assigned"): it excluded milestones and phases with no
+`required_roles`, but not phase *kind* — so `prep`/`review`/`delivery` phases were being
+flagged right alongside `production` ones. `app/services/assignment.py`'s `assign_phase()` —
+the only mechanism that ever staffs a phase — refuses anything that isn't
+`PhaseKind.production` ("only production-kind phases carry deliverable work"). Flagging a prep
+phase as blocked-for-no-assignee was asking a producer to fix something the product gives them
+no way to fix. Fixed at the source: `build_blocked_snapshot` now filters to
+`ProjectPhase.kind == PhaseKind.production`, matching `assign_phase()`'s own scope exactly.
+This wasn't demo-data noise — every one of the six demo-scheduled projects has an early
+`prep`-kind "Brief & scoping" phase that starts before "today" by construction (it's
+back-scheduled from a deadline weeks out) and is never auto-staffed by
+`seed_demo_schedules()`, so 4 of 6 were being flagged blocked on every single reseed before
+this fix, for a reason nobody could ever act on. After the fix, the blocked set is only
+`production`-kind phases genuinely started with nobody on them — 2–3 on a fresh seed, varying
+by which day you run it, all fixable through Timeline's assign flow.
+Also, alongside the phase-kind fix: `app/seed.py`'s project 5 (Autumn Prints FR Push) had a
+second localisation row (ES, `in_translation`, no translator) that independently qualified for
+cause 3 ("localisation stalled") — not the deliberate bottleneck (`DEMO_DATA.md` #4 specifies
+FR only), just an incidental detail that happened to also trip the new blocked derivation.
+Changed its status to `not_started` (queued, not stalled) so it stops masking the FR beat.
+And the script's own claim — "the red 'Risk: Localisation' badge" — was never quite accurate:
+the badge reads "Localisation" (no "Risk:" prefix) and is blue
+(`bg-blue-100 text-blue-700`), not red. Corrected the wording rather than the badge, since the
+badge's copy and color already follow the same convention every other cause badge on that
+board uses.
+**Step 1 reworded, not fixed** — nothing broken, a pre-existing fragility (decision 037 already
+named it) just happened to show today: with a fresh seed, "Needs attention" reads 3, not the
+script's hardcoded 4 — Loyalty Relaunch Teaser's `TODAY+10`-calendar-day deadline sits right on
+the edge of `attention.py`'s 7-*working*-day window, so it flips in and out depending which
+weekday you seed on. Reworded to state the 3-item reliable core and note the day-dependent
+4th, the same hedge the presenting notes already use for exact dates and day names elsewhere
+in this file — did not touch the seed date itself, since decision 037 already tried widening it
+once and reverted after it broke schedule feasibility elsewhere.
+Steps 3, 5, 6, 8 verified live, unchanged: word-for-word conflict text, readiness score and
+missing-fields list, the DE card's CTR numbers and full recommendation text (including the
+Alex/Maya name swap depending on step 4's order — reran both orders to confirm), the created
+project's Ready status with deliverable/assignment/localisation attached, and Timeline's
+Behind badge plus staffing-gap rings.
+Verified: `pytest` (203 passed). Every rewritten step re-run live end to end after the fixes,
+against a fresh reseed, including the actual refusal text for the new step 2 and the actual
+option list for the new step 4. `tools/audit.py --url` unchanged from before this entry aside
+from Blocked count reading a genuine 2-3 instead of the old phantom 4; same pre-existing P2/
+P5.1 false positives (multi-metric table rows; brief/intelligence pages with nothing named yet
+to link).
