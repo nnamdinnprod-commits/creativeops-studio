@@ -30,6 +30,7 @@ from app.models import (
     SubStatus,
     VariantTheme,
 )
+from app.services.project_creation import resolve_project_type_id
 from app.services.scheduling import generate_schedule
 
 TODAY = date.today()
@@ -533,6 +534,27 @@ def seed_demo_schedules(session):
         generate_schedule(session, project)
 
 
+def backfill_project_types(session):
+    """REVIEW_03.md R6 / DECISIONS.md project_creation.py: every project this app
+    creates now gets a project_type_id inferred from its Deliverable rows
+    (app/services/project_creation.py's resolve_project_type_id) — the six seed
+    projects DEMO_SCHEDULE_PROJECTS doesn't cover never got one. Backfills the
+    type only, deliberately not a schedule: seed_demo_schedules() already
+    excludes these six for reasons specific to this seed data (two carry
+    DEMO_DATA.md's tight-deadline conflicts, two are still at status Brief with
+    nothing concrete to schedule against, two are functionally finished), and
+    none of that reasoning is about whether the project has a type — it's about
+    whether generating a schedule for it would be misleading. A project with
+    no Deliverable rows, or none matching a known type, is left as it was."""
+    for project in session.query(Project).filter(Project.project_type_id.is_(None)).all():
+        deliverable_types = {
+            d.type.value for d in
+            session.query(Deliverable).filter_by(project_id=project.id).all()
+        }
+        project.project_type_id = resolve_project_type_id(session, deliverable_types)
+    session.commit()
+
+
 # --- Assumptions and rate bands (docs/ASSUMPTIONS.md, Session 3) ---
 # category, key, value, unit, description, affects — default_value is set equal to value at
 # seed time, per ASSUMPTIONS.md's "reset restores the seed."
@@ -648,6 +670,8 @@ def main():
         else:
             seed_demo_schedules(session)
             print(f"Demo schedules generated for {len(DEMO_SCHEDULE_PROJECTS)} projects.")
+
+        backfill_project_types(session)
     finally:
         session.close()
 

@@ -8,42 +8,19 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import (
     Assignment,
-    Deliverable,
-    DeliverableStatus,
-    DeliverableType,
-    Localisation,
-    LocalisationStatus,
     Person,
     PersonRole,
     Priority,
     Project,
     ProjectPhase,
     ProjectStatus,
-    ProjectType,
     Recommendation,
     RecommendationKind,
     RecommendationStatus,
-    SubStatus,
 )
 from app.services.assignment import engage_person
 from app.services.capacity import get_conflicts
-from app.services.scheduling import generate_schedule
-
-# REVIEW_02.md P6.2's decision rule: "accepting a recommendation must create a
-# project that can be clicked into [P5.1], seen on the timeline [needs a
-# project_type_id and a generated schedule, which nothing set before this], and
-# watched move through the pipeline [already true, Pipeline reads Project.status]."
-# Deliverable type -> ProjectType name. insight_to_action's deliverables are
-# always social_static today (app/services/ai/mock.py), but this covers every
-# type DeliverableType actually has, not just the one currently reachable.
-_PROJECT_TYPE_BY_DELIVERABLE = {
-    "social_static": "Social / AI-generated content",
-    "social_video": "Social / AI-generated content",
-    "motion": "Film / branded content",
-    "paid_display": "Stills",
-    "homepage_banner": "Stills",
-    "email": "Stills",
-}
+from app.services.project_creation import finalize_project
 
 router = APIRouter()
 
@@ -155,7 +132,11 @@ def _apply_resource_reallocation(db: Session, rec: Recommendation, payload: dict
 
 def _apply_production_action(db: Session, rec: Recommendation, payload: dict) -> str:
     """DATA_MODEL.md: accepting creates a Project at status ready, its
-    Deliverables, the Assignment, and the Localisation row, in one transaction."""
+    Deliverables, the Assignment, and the Localisation row, in one transaction.
+    Type resolution, deliverables, localisation rows, and the generated
+    schedule all go through finalize_project() (REVIEW_03.md R6) — this
+    function's own job is just the facts unique to a production-action accept:
+    which person, which window, which brand."""
     facts = json.loads(rec.computed_facts_json)
     brand = facts.get("brand", "Fotomera")
     market = payload["deliverables"][0]["market"] if payload["deliverables"] else facts.get("market", "NL")
@@ -179,35 +160,14 @@ def _apply_production_action(db: Session, rec: Recommendation, payload: dict) ->
         owner_id=owner.id,
         brief_raw=payload["insight_summary"],
         localisation_required=payload["localisation_required"],
+        # The mock's own quantity-based estimate (app/services/ai/mock.py) —
+        # finalize_project() only fills this in when it's still None, so this
+        # number is kept rather than overwritten by its generic schedule-span
+        # fallback.
         estimated_days=payload["estimated_days"],
     )
-    # REVIEW_02.md P6.2's decision rule: this project must be seeable on Timeline,
-    # which needs a project_type_id and a generated schedule — neither ever
-    # happened before this, so an accepted Creative Intelligence recommendation's
-    # project was permanently invisible there, silently failing the rule's own test.
-    deliverable_types = {d.get("type") for d in payload["deliverables"] if d.get("type")}
-    project_type_name = next(
-        (_PROJECT_TYPE_BY_DELIVERABLE[t] for t in deliverable_types if t in _PROJECT_TYPE_BY_DELIVERABLE),
-        None,
-    )
-    if project_type_name is not None:
-        project_type = db.query(ProjectType).filter_by(name=project_type_name).first()
-        if project_type is not None:
-            project.project_type_id = project_type.id
-
     db.add(project)
     db.flush()
-
-    for d in payload["deliverables"]:
-        if d.get("type") in DeliverableType.__members__:
-            db.add(Deliverable(
-                project_id=project.id,
-                type=DeliverableType(d["type"]),
-                market=d.get("market", market),
-                format_spec=d.get("format_spec"),
-                status=DeliverableStatus.not_started,
-                deadline=end,
-            ))
 
     db.add(Assignment(
         project_id=project.id,
@@ -218,23 +178,14 @@ def _apply_production_action(db: Session, rec: Recommendation, payload: dict) ->
         role_on_project=person.role.value.replace("_", " "),
     ))
 
-    if payload["localisation_required"]:
-        db.add(Localisation(
-            project_id=project.id,
-            target_market=market,
-            language=market.lower(),
-            translator_id=None,
-            status=LocalisationStatus.not_started,
-            review_status=SubStatus.pending,
-            qa_status=SubStatus.pending,
-            due_date=end,
-        ))
+    finalize_project(
+        db, project,
+        deliverables=payload["deliverables"],
+        localisation_targets=[market] if payload["localisation_required"] else [],
+    )
 
     rec.project_id = project.id
     db.flush()
-
-    if project.project_type_id is not None:
-        generate_schedule(db, project)
 
     return f"Created '{project.name}' at Ready, assigned to {person.name}."
 

@@ -9,23 +9,18 @@ from app.database import get_db
 from app.templates_env import templates
 from app.models import (
     BriefAnalysis,
-    Deliverable,
-    DeliverableStatus,
-    DeliverableType,
-    Localisation,
-    LocalisationStatus,
     Person,
     PersonRole,
     Priority,
     Project,
     ProjectStatus,
-    SubStatus,
 )
 from app.services.ai.brief import analyse_brief
 from app.services.ai.estimate import quick_estimate
 from app.services.ai.schemas import BriefExtraction
 from app.services.brief import RUBRIC_BLOCKS, RUBRIC_WEIGHTS, score_readiness
 from app.services.estimate import compute_estimate
+from app.services.project_creation import finalize_project
 
 router = APIRouter()
 
@@ -211,34 +206,20 @@ def create_project(request: Request, analysis_id: int = Form(...), project_name:
         brief_raw=analysis.raw_text,
         brief_analysis_id=analysis.id,
         localisation_required=extraction.localisation.required,
-        estimated_days=None,
     )
     db.add(project)
     db.flush()
 
-    for d in extraction.deliverables:
-        if d.type and d.type in DeliverableType.__members__:
-            db.add(Deliverable(
-                project_id=project.id,
-                type=DeliverableType(d.type),
-                market=d.market or source_market,
-                format_spec=d.format_spec,
-                status=DeliverableStatus.not_started,
-                deadline=deadline,
-            ))
-
-    if extraction.localisation.required:
-        for target in extraction.localisation.targets:
-            db.add(Localisation(
-                project_id=project.id,
-                target_market=target,
-                language=target.lower(),
-                translator_id=None,
-                status=LocalisationStatus.not_started,
-                review_status=SubStatus.pending,
-                qa_status=SubStatus.pending,
-                due_date=deadline,
-            ))
+    # REVIEW_03.md R6: type, estimate, deliverables, localisation rows, and a
+    # generated schedule where a type resolves — every project-creation path
+    # goes through this now, not just recommendations.py's. Before this, a
+    # Brief Assistant project could never generate a schedule, appear on
+    # /timeline, or be caught by the Blocked tile's brief-stalled check.
+    finalize_project(
+        db, project,
+        deliverables=[d.model_dump() for d in extraction.deliverables],
+        localisation_targets=extraction.localisation.targets if extraction.localisation.required else [],
+    )
 
     analysis.created_project_id = project.id
     db.commit()
