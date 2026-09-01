@@ -1,8 +1,25 @@
+import json
+import re
 from datetime import date, timedelta
 
-from app.models import Assignment, PersonRole, Person, Priority, Project, ProjectStatus, ProjectType
+from app.models import (
+    Assignment,
+    BriefAnalysis,
+    PersonRole,
+    Person,
+    Priority,
+    Project,
+    ProjectStatus,
+    ProjectType,
+)
 from app.seed import seed_assumptions, seed_phase_templates
 from app.services.scheduling import generate_schedule
+
+
+def _tile_count(html: str, label: str) -> int:
+    match = re.search(rf"{label}</div>\s*<div[^>]*>(\d+)</div>", html)
+    assert match is not None, f"could not find the {label!r} tile in the dashboard HTML"
+    return int(match.group(1))
 
 
 def test_dashboard_renders_with_no_scheduled_projects(client, db_session):
@@ -34,6 +51,39 @@ def test_dashboard_schedule_tile_flags_an_infeasible_project(client, db_session)
     assert "Every generated schedule fits its deadline" not in resp.text
     # REVIEW_02.md P5.1: the schedule alert names a project -- it must link to it.
     assert f'href="/projects/{project.id}"' in resp.text
+
+
+def test_low_readiness_brief_counts_as_at_risk_not_on_track(client, db_session):
+    """REVIEW_03.md R1 audit: dashboard.py's at-risk filter used to only count
+    the capacity/localisation/deadline attention causes, silently dropping
+    "brief" — a project flagged in the Needs Attention panel for a low
+    readiness score counted toward neither At risk nor Blocked (no
+    estimated_days here, so it can't be brief-stalled either) and was
+    silently bucketed as on-track, contradicting the panel above it."""
+    owner = Person(name="Owner", role=PersonRole.producer, capacity_pct=100,
+                   skills="", is_external=False)
+    db_session.add(owner)
+    db_session.flush()
+
+    project = Project(name="Vague Brief Project", brand="Fotomera", campaign="C",
+                      source_market="NL", priority=Priority.medium, status=ProjectStatus.brief,
+                      deadline=date.today() + timedelta(days=21), owner_id=owner.id,
+                      brief_raw="x")
+    db_session.add(project)
+    db_session.flush()
+
+    analysis = BriefAnalysis(raw_text="x", extracted_json="{}", readiness_score=50,
+                             missing_fields_json=json.dumps(["deadline"]),
+                             blocking_reasons=json.dumps({}), created_project_id=project.id)
+    db_session.add(analysis)
+    db_session.commit()
+
+    resp = client.get("/dashboard")
+    assert resp.status_code == 200
+    assert "Vague Brief Project" in resp.text  # named in the Needs Attention panel
+    assert _tile_count(resp.text, "At risk") == 1
+    assert _tile_count(resp.text, "On track") == 0
+    assert _tile_count(resp.text, "Blocked") == 0
 
 
 def test_needs_attention_item_links_to_the_project_it_names(client, db_session):

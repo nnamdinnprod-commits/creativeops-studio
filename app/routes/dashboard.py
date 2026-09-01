@@ -41,10 +41,16 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     # row is blocked, not also double-counted as at-risk for the same row.
     blocked_ids = {entry["project_id"] for entry in build_blocked_snapshot(db, on_date=today)}
 
-    at_risk_ids = {
-        pid for pid, entry in snapshot_by_project_id.items()
-        if entry["cause"] in ("capacity", "localisation", "deadline") and pid not in blocked_ids
-    }
+    # REVIEW_03.md R1 audit: this used to only count "capacity"/"localisation"/
+    # "deadline" causes, silently dropping "brief" — a project flagged in the
+    # attention panel for a low readiness score counted toward neither this
+    # tile nor Blocked (build_blocked_snapshot's brief-stalled cause needs
+    # estimated_days, which wasn't always set) and read as on-track, the exact
+    # opposite of what the panel above it says. Every cause in the attention
+    # snapshot is a real reason a project needs attention; the only thing that
+    # should ever remove one from this tile is already being counted as
+    # Blocked instead, not which of the four causes it happens to be.
+    at_risk_ids = {pid for pid in snapshot_by_project_id if pid not in blocked_ids}
 
     # REVIEW_02.md P5.4: on_hold/cancelled/archived are exception states, not work
     # in flight — counting them as "active" would make the dashboard's on-track/at-
