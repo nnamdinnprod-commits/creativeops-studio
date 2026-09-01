@@ -8,8 +8,32 @@ from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.models import Assignment, PhaseKind, PhaseTemplate, Project, ProjectPhase, ProjectPhaseStatus
+from app.models import (
+    Assignment,
+    PhaseKind,
+    PhaseTemplate,
+    Project,
+    ProjectPhase,
+    ProjectPhaseStatus,
+    ProjectStatus,
+)
 from app.services.assumptions import get_value
+
+# REVIEW_03.md R1 follow-up: is_feasible always compares a schedule's earliest
+# phase start against *today*, never against the deadline itself — a sound
+# question for work still in flight, but an ill-posed one for a project that
+# already finished. A deadline in the past always back-schedules to a start
+# even further in the past, so a Delivered or Approved project's "shortfall"
+# grows without bound the longer it's been done, no matter what date it
+# actually finished on. dashboard.py and timeline.py both skip
+# build_feasibility_facts() for a project in this set, same reasoning
+# DECISIONS.md 037 already used to keep such projects off the schedule in the
+# first place — this only matters now that REVIEW_03.md's project-creation
+# consolidation gives them a schedule too.
+NOT_ASSESSED_FOR_FEASIBILITY = (
+    ProjectStatus.approved, ProjectStatus.delivered, ProjectStatus.on_hold,
+    ProjectStatus.cancelled, ProjectStatus.archived,
+)
 
 # docs/ASSUMPTIONS.md "Review and approval cycles". Fallback defaults for callers with no
 # Assumption table to read (tests, or any standalone use of back_schedule()/

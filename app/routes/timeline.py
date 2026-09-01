@@ -8,7 +8,7 @@ from app.models import PhaseKind, Person, Project, ProjectPhase, ProjectType
 from app.services.ai.feasibility import assess_schedule_feasibility
 from app.services.assignment import assign_phase, phase_candidates, unassign_phase
 from app.services.assumptions import get_value
-from app.services.scheduling import build_feasibility_facts
+from app.services.scheduling import NOT_ASSESSED_FOR_FEASIBILITY, build_feasibility_facts
 from app.services.timeline import build_timeline, conflicted_phase_ids, milestone_list
 
 router = APIRouter()
@@ -70,6 +70,8 @@ def timeline(request: Request, brand: str | None = None, market: str | None = No
     if projects_with_phases:
         client_review_minimum_days = int(get_value(db, "client_review_minimum_days"))
         for project, phases in projects_with_phases:
+            if project.status in NOT_ASSESSED_FOR_FEASIBILITY:
+                continue
             facts = build_feasibility_facts(phases, project.deadline,
                                             client_review_minimum_days=client_review_minimum_days)
             if not facts.get("feasible", True):

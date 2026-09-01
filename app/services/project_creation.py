@@ -52,12 +52,19 @@ PROJECT_TYPE_BY_DELIVERABLE = {
 
 def resolve_project_type_id(db: Session, deliverable_types: set[str]) -> int | None:
     """First deliverable type with a known mapping wins (matches
-    recommendations.py's pre-existing behaviour). None if no deliverable maps
-    to a type, or that ProjectType hasn't been seeded — both are honest "we
-    don't know" states, not errors: a project with no resolvable type simply
-    can't generate a schedule yet, same as today."""
+    recommendations.py's pre-existing behaviour) — "first" meaning
+    PROJECT_TYPE_BY_DELIVERABLE's own fixed key order, not `deliverable_types`'
+    iteration order. `deliverable_types` is a set of strings, and Python
+    randomizes string hashing per process, so iterating it directly would pick
+    a different type on different runs for any project whose deliverables map
+    to more than one ProjectType — a real nondeterminism the original
+    single-caller code never surfaced (recommendations.py's own deliverables
+    were always social_static in practice). None if no deliverable maps to a
+    type, or that ProjectType hasn't been seeded — both are honest "we don't
+    know" states, not errors: a project with no resolvable type simply can't
+    generate a schedule yet, same as today."""
     type_name = next(
-        (PROJECT_TYPE_BY_DELIVERABLE[t] for t in deliverable_types if t in PROJECT_TYPE_BY_DELIVERABLE),
+        (PROJECT_TYPE_BY_DELIVERABLE[t] for t in PROJECT_TYPE_BY_DELIVERABLE if t in deliverable_types),
         None,
     )
     if type_name is None:

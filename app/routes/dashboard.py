@@ -20,7 +20,7 @@ from app.services.assumptions import get_value
 from app.services.attention import build_attention_snapshot, build_blocked_snapshot
 from app.services.capacity import aggregate_utilisation_pct, all_person_capacities
 from app.services.localisation_risk import summarize_by_market
-from app.services.scheduling import build_feasibility_facts
+from app.services.scheduling import NOT_ASSESSED_FOR_FEASIBILITY, build_feasibility_facts
 
 router = APIRouter()
 
@@ -91,7 +91,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         client_review_minimum_days = int(get_value(db, "client_review_minimum_days"))
         for pid in scheduled_ids:
             project = next((p for p in projects if p.id == pid), None)
-            if project is None:
+            if project is None or project.status in NOT_ASSESSED_FOR_FEASIBILITY:
                 continue
             phases = db.query(ProjectPhase).filter_by(project_id=pid).all()
             facts = build_feasibility_facts(phases, project.deadline, today=today,

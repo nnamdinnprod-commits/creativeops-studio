@@ -535,23 +535,32 @@ def seed_demo_schedules(session):
 
 
 def backfill_project_types(session):
-    """REVIEW_03.md R6 / DECISIONS.md project_creation.py: every project this app
-    creates now gets a project_type_id inferred from its Deliverable rows
-    (app/services/project_creation.py's resolve_project_type_id) — the six seed
-    projects DEMO_SCHEDULE_PROJECTS doesn't cover never got one. Backfills the
-    type only, deliberately not a schedule: seed_demo_schedules() already
-    excludes these six for reasons specific to this seed data (two carry
-    DEMO_DATA.md's tight-deadline conflicts, two are still at status Brief with
-    nothing concrete to schedule against, two are functionally finished), and
-    none of that reasoning is about whether the project has a type — it's about
-    whether generating a schedule for it would be misleading. A project with
-    no Deliverable rows, or none matching a known type, is left as it was."""
+    """REVIEW_03.md R1/R6: every project this app creates now gets a
+    project_type_id inferred from its Deliverable rows
+    (app/services/project_creation.py's resolve_project_type_id), and a
+    generated schedule wherever a type resolves — the six seed projects
+    DEMO_SCHEDULE_PROJECTS doesn't cover never got either, which is why
+    Timeline still showed only 6 of 12 projects even after the type-only
+    version of this backfill (REVIEW_03.md follow-up to R1's audit).
+
+    Two of those six stay unscheduled regardless: Loyalty App Push and
+    Retouch Guidelines Refresh are still at status Brief with no Deliverable
+    rows at all — an intentionally vague brief has nothing concrete to infer a
+    type or a schedule from, and inventing one would be the opposite of
+    honest. The other four (Winter Campaign Refresh, Loyalty Relaunch Teaser,
+    Canvas Prints Paid Display, New Year Cards Social Set) do get a schedule
+    now; DEMO_DATA.md's five required conflicts were re-verified against the
+    result and needed two seed-date adjustments — see the comments on those
+    two projects above."""
     for project in session.query(Project).filter(Project.project_type_id.is_(None)).all():
         deliverable_types = {
             d.type.value for d in
             session.query(Deliverable).filter_by(project_id=project.id).all()
         }
         project.project_type_id = resolve_project_type_id(session, deliverable_types)
+        if project.project_type_id is not None:
+            session.flush()
+            generate_schedule(session, project)
     session.commit()
 
 
