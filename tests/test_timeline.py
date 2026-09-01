@@ -152,6 +152,23 @@ def test_route_renders_empty_state_with_no_schedules(client, db_session):
     assert "No projects have a generated schedule yet" in resp.text
 
 
+def test_route_lists_a_typeless_project_with_a_stated_reason(client, db_session):
+    """REVIEW_03.md item (a): an absent project reads as a bug; a stated
+    reason reads as the system knowing its own limits."""
+    owner = _seed_person(db_session)
+    project = Project(name="Vague Brief Project", brand="Fotomera", campaign="C",
+                      source_market="NL", priority=Priority.low, status=ProjectStatus.brief,
+                      deadline=date(2026, 12, 1), owner_id=owner.id, brief_raw="x")
+    db_session.add(project)
+    db_session.commit()
+
+    resp = client.get("/timeline")
+    assert resp.status_code == 200
+    assert "Not yet scheduled" in resp.text
+    assert "Vague Brief Project" in resp.text
+    assert "no deliverables defined yet" in resp.text
+
+
 def test_route_renders_a_generated_schedule(client, db_session):
     seed_phase_templates(db_session)
     seed_assumptions(db_session)
@@ -169,6 +186,7 @@ def test_route_renders_a_generated_schedule(client, db_session):
     assert resp.status_code == 200
     assert "Shoot Project" in resp.text
     assert "Brief &amp; scoping" in resp.text or "Brief & scoping" in resp.text
+    assert "Not yet scheduled" not in resp.text
 
 
 def test_route_marks_a_ready_project_as_planned_not_committed(client, db_session):

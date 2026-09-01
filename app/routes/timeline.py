@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.templates_env import templates
-from app.models import PhaseKind, Person, Project, ProjectPhase, ProjectType
+from app.models import Deliverable, PhaseKind, Person, Project, ProjectPhase, ProjectType
 from app.services.ai.feasibility import assess_schedule_feasibility
 from app.services.assignment import assign_phase, phase_candidates, unassign_phase
 from app.services.assumptions import get_value
@@ -21,6 +21,19 @@ def timeline(request: Request, brand: str | None = None, market: str | None = No
     scheduled_ids = [row[0] for row in db.query(ProjectPhase.project_id).distinct().all()]
     scheduled_projects = db.query(Project).filter(Project.id.in_(scheduled_ids)).all()
     people_by_id = {p.id: p for p in db.query(Person).all()}
+
+    # REVIEW_03.md item (a): an absent project reads as a bug; a stated reason
+    # reads as the system knowing its own limits. Shown unfiltered — brand/
+    # market/type/owner describe the chart above, not this footnote, and a
+    # project with no type has no project_type_id to filter by anyway.
+    unscheduled_projects = []
+    for project in db.query(Project).filter(Project.project_type_id.is_(None)).order_by(Project.deadline).all():
+        has_deliverables = db.query(Deliverable).filter_by(project_id=project.id).first() is not None
+        reason = (
+            "deliverables don't match a known project type" if has_deliverables
+            else "no deliverables defined yet"
+        )
+        unscheduled_projects.append({"project": project, "reason": reason})
 
     projects = scheduled_projects
     if brand:
@@ -79,6 +92,7 @@ def timeline(request: Request, brand: str | None = None, market: str | None = No
 
     return templates.TemplateResponse(request, "timeline.html", {
         "timeline": context,
+        "unscheduled_projects": unscheduled_projects,
         "all_brands": sorted({p.brand for p in scheduled_projects}),
         "all_markets": sorted({p.source_market for p in scheduled_projects}),
         "project_types": db.query(ProjectType).order_by(ProjectType.name).all(),
