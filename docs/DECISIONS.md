@@ -1271,3 +1271,42 @@ would start to blur into R2.2's company-pricing territory.
 Consequences: `DEMO_DATA.md`'s scale note and people table updated (10→13). Full suite: 218
 passed (no test changes needed — nothing hardcoded the exact people count). Verified live: all
 three appear in the Talent Pool on `/resources`.
+
+## 055 — REVIEW_03.md R2.1: reduce_scope, a fourth option kind, always computed
+Date: 2026-09-03
+Decision: Added `reduce_scope` as a new `ResourceOption` kind, computed unconditionally
+whenever the conflicted project has more than one `Deliverable` row — unlike reassign/
+engage_external (need a qualifying person) or move_delivery (needs an overlapping other
+assignment to compute a shift against), it depends on nothing but the project's own scope, so
+it's the closest thing to a lever that's "always there." Reduces the overloaded person's own
+allocation on that specific project by cutting deliverables, proportionally: points needed to
+bring them back to their own contracted capacity, divided by the transfer's own allocation,
+gives the fraction of deliverables to drop. Accepting it deletes the dropped `Deliverable` rows
+outright (no `DeliverableStatus` value exists for "cut," and a row left in some other state
+would still read as work owed) and sets the `Assignment`'s `allocation_pct` to the precomputed
+reduced figure.
+`_KIND_PRIORITY` extended to `reassign(0) / engage_external(1) / reduce_scope(2) /
+move_delivery(3)` — still cheapest-and-fastest first, but reduce_scope now sits ahead of
+move_delivery in `mock_recommend_resource`'s own preference, since it costs nothing and needs
+no one else's calendar, only a smaller brief. The old "the deadline itself is the only lever
+left" rationale is now reserved for the genuine single-option case (`len(options) == 1`); when
+move_delivery is merely the best of several real options, the rationale says that instead.
+Two wording bugs caught only by running this live, not by the tests written before checking
+the real output: the reduce_scope detail named the deliverable's *market* ("drops NL"), which
+reads as dropping a market entirely when — as for Winter Campaign Refresh — the remaining
+deliverable targets the same market; switched to naming the deliverable *type* ("drops
+homepage banner (NL)"). And the headroom comparison clause (decision 053) named a runner-up's
+percentage even when it exactly tied the winner's — true of every uncommitted external
+candidate, who are all sitting at 100% free by construction — which stated a number without
+explaining anything, since headroom didn't actually decide between them (lead time did); the
+clause is now silent when the top two tie.
+Alternatives considered: picking which deliverables to cut by some notion of priority —
+rejected, `Deliverable` has no priority field to base that on; cutting from the end of a
+stable id order is named as an honest placeholder in the code comment, not a claim that these
+specific ones are the right ones for a producer to drop.
+Consequences: `ResourceOption` gained `deliverable_ids`/`reduced_allocation_pct`, both `None`
+for every other kind. `DEMO_SCRIPT.md` step 4 updated to the real three-option output for
+Winter Campaign Refresh, re-verified live after every wording fix. Four new tests (kind
+presence/absence by deliverable count, accept actually deletes and reduces, and a
+never-a-dead-end case with no viable candidate at all still returning `{reduce_scope,
+move_delivery}` rather than `None`). Full suite: 222 passed. All eight screens render.

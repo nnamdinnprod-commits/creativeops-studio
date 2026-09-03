@@ -69,7 +69,7 @@ class AttentionBrief(BaseModel):
 
 class ResourceOption(BaseModel):
     label: str  # "A" / "B" / "C"
-    kind: Literal["reassign", "engage_external", "move_delivery"]
+    kind: Literal["reassign", "engage_external", "move_delivery", "reduce_scope"]
     action: str  # one-line action, e.g. "Reassign to Maya"
     detail: str  # the cost/availability/lead-time line
     to_person_id: int | None = None  # reassign / engage_external
@@ -80,6 +80,11 @@ class ResourceOption(BaseModel):
     start_date: str | None = None
     end_date: str | None = None
     new_deadline: str | None = None  # move_delivery only, ISO date
+    # reduce_scope only, REVIEW_03.md R2.1: the specific Deliverable rows this
+    # option would drop and the resulting allocation, computed once here so
+    # accepting it later applies exactly what was shown, not a re-derived guess.
+    deliverable_ids: list[int] | None = None
+    reduced_allocation_pct: int | None = None
 
 
 class ResourceRecommendation(BaseModel):

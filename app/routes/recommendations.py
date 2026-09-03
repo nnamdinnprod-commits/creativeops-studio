@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import (
     Assignment,
+    Deliverable,
     Person,
     PersonRole,
     Priority,
@@ -74,6 +75,27 @@ def _apply_resource_reallocation(db: Session, rec: Recommendation, payload: dict
             f"{prefix} '{project.name}' delivery to {new_deadline.strftime('%d %b')}, "
             f"shifting {from_person.name}'s assignment to match — a client conversation "
             f"about the new date is still needed."
+        )
+
+    if chosen["kind"] == "reduce_scope":
+        # REVIEW_03.md R2.1: "accepting any of the three must actually apply
+        # it" — the cut Deliverable rows are deleted, not just marked somehow;
+        # DeliverableStatus has no "cut"/"cancelled" value, and a row left
+        # sitting there in some other state would still read as work owed.
+        project = db.get(Project, assignment.project_id)
+        cut_ids = chosen.get("deliverable_ids") or []
+        cut_deliverables = db.query(Deliverable).filter(Deliverable.id.in_(cut_ids)).all()
+        dropped = sorted(f"{d.type.value.replace('_', ' ')} ({d.market})" for d in cut_deliverables)
+        for deliverable in cut_deliverables:
+            db.delete(deliverable)
+        assignment.allocation_pct = chosen["reduced_allocation_pct"]
+        db.flush()
+        still_conflicted = from_person.id in {c.person.id for c in get_conflicts(db, on_date=date.today())}
+        prefix = "Reduced scope" if still_conflicted else "Risk cleared — reduced scope"
+        return (
+            f"{prefix} on '{project.name}': dropped {', '.join(dropped) or 'the agreed deliverables'}, "
+            f"{from_person.name}'s allocation on this project falls to {assignment.allocation_pct}% — "
+            f"a client conversation about the smaller brief is still needed."
         )
 
     # reassign (internal) and engage_external both move the same assignment to a

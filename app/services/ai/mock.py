@@ -410,11 +410,17 @@ def mock_recommend_resource(conflict_facts: dict) -> ResourceRecommendation:
     overloaded = conflict_facts["overloaded_person"]
     options = [ResourceOption(**opt) for opt in conflict_facts["options"]]
 
-    # Cheapest, fastest first: an internal reassignment costs nothing and needs no
-    # notice, so it's preferred whenever one exists; external engagement is the
-    # next-best real alternative; moving delivery is the last resort — it doesn't
-    # resolve the conflict itself, it needs a client conversation first.
-    _KIND_PRIORITY = {"reassign": 0, "engage_external": 1, "move_delivery": 2}
+    # Cheapest, fastest first: an internal reassignment costs nothing and needs
+    # no notice, so it's preferred whenever one exists; external engagement is
+    # the next-best real alternative; reducing scope costs no money and needs
+    # no one else's time, but does change what gets delivered; moving delivery
+    # is the last resort — it doesn't resolve the conflict itself, it needs a
+    # client conversation first. REVIEW_03.md R2.1: "there are always three
+    # levers" (money / scope / time) — reduce_scope and move_delivery are both
+    # computed whenever they're possible at all (resources.py), so this
+    # function is choosing among real alternatives, not just reaching for
+    # whichever one happens to exist.
+    _KIND_PRIORITY = {"reassign": 0, "engage_external": 1, "reduce_scope": 2, "move_delivery": 3}
     recommended = min(options, key=lambda o: _KIND_PRIORITY[o.kind])
 
     # Built from recommended.action/detail directly rather than parsed out of
@@ -423,12 +429,31 @@ def mock_recommend_resource(conflict_facts: dict) -> ResourceRecommendation:
     # about their exact wording.
     caveats = []
     if recommended.kind == "move_delivery":
-        rationale = (
-            "No internal or external candidate can take this on in time — the deadline "
-            "itself is the only lever left, and that needs a client conversation, not a "
-            "Python decision."
-        )
+        # REVIEW_03.md R2.1: "the deadline itself is the only lever left" was
+        # only ever true when nothing else was computable at all — now that
+        # reduce_scope exists for any project with more than one deliverable,
+        # that framing is reserved for the genuine case (len(options) == 1);
+        # when move_delivery is merely the *recommended* choice among several
+        # real ones, say that instead of implying the others don't exist.
+        if len(options) == 1:
+            rationale = (
+                "No internal or external candidate can take this on in time, and this "
+                "project has nothing left to trim — the deadline itself is the only "
+                "lever left, and that needs a client conversation, not a Python decision."
+            )
+        else:
+            rationale = (
+                f"{recommended.action} — the other options either cost money or need "
+                f"someone else's time; this needs neither, just a client conversation "
+                f"about the date."
+            )
         caveats.append("Confirm the new date with the client before treating this as resolved.")
+    elif recommended.kind == "reduce_scope":
+        rationale = (
+            f"{recommended.action} — {recommended.detail}. No cost, no lead time, and "
+            f"no one else's calendar involved — just a smaller brief."
+        )
+        caveats.append("Confirm which deliverables to drop with the client before treating this as resolved.")
     elif recommended.kind == "engage_external":
         rationale = (
             f"No one on the Team has spare capacity for this. {recommended.action} from "

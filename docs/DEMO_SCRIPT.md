@@ -59,12 +59,20 @@ Teaser*.
 ## 4. AI recommendation and approval — 50 seconds
 
 Click **"Get AI recommendation for Winter Campaign Refresh"**. It returns a ranked set of
-options, not one take-it-or-leave-it call:
+options — time, money, and scope are all real levers, shown even when one is clearly best,
+not one take-it-or-leave-it call:
 
 > **A · Reassign to Maya** — no cost, available today, 55% free, has worked this brand before
-> **B · Move delivery to 20 Sep** — no cost, no resource change, client conversation required
+> **B · Reduce to 1 of 2 deliverables** — delivers on the original date, drops the homepage
+> banner, Alex's allocation on this project falls to 28%
+> **C · Move delivery to 20 Sep** — no cost, no resource change, client conversation required
 >
 > Recommended: A.
+
+**This is the point of R2.1**: a recommendation that can't find a candidate used to say "the
+deadline itself is the only lever left" — false, and a producer would know it. Reduce scope
+and move delivery cost nothing and need nobody else's calendar; they're computed and shown
+every time, not just when reassignment fails.
 
 **Reject all** — the card moves to "Rejected" and stays visible in history; nothing about
 Alex's allocation changes. This demonstrates rejection is a real state, not a formality.

@@ -10,6 +10,9 @@ from datetime import date, timedelta
 
 from app.models import (
     Assignment,
+    Deliverable,
+    DeliverableStatus,
+    DeliverableType,
     Person,
     PersonRole,
     Priority,
@@ -215,6 +218,88 @@ def test_accept_option_c_moves_delivery_and_shifts_the_assignment(client, db_ses
     assert ctx["a2"].end_date == original_deadline + timedelta(days=shift)
     # The conflict this was meant to resolve is actually gone, not just relabelled.
     assert ctx["alex"].id not in {c.person.id for c in get_conflicts(db_session, on_date=TODAY)}
+
+
+def test_reduce_scope_appears_when_the_project_has_more_than_one_deliverable(db_session):
+    """REVIEW_03.md R2.1: 'there are always three levers: time, money, scope' --
+    scope is computable whenever a project has something left to trim, and it
+    doesn't depend on anyone else's calendar or spare capacity."""
+    ctx = _seed_conflict(db_session, project_deadline_days=14, add_external_candidate=False)
+    db_session.add_all([
+        Deliverable(project_id=ctx["p2"].id, type=DeliverableType.social_static, market="NL",
+                   status=DeliverableStatus.not_started, deadline=None),
+        Deliverable(project_id=ctx["p2"].id, type=DeliverableType.homepage_banner, market="NL",
+                   status=DeliverableStatus.not_started, deadline=None),
+    ])
+    db_session.commit()
+
+    facts = _build_conflict_facts(db_session, ctx["alex"].id, ctx["p2"].id)
+    reduce_scope = next(o for o in facts["options"] if o["kind"] == "reduce_scope")
+    assert reduce_scope["deliverable_ids"]
+    assert reduce_scope["reduced_allocation_pct"] < 40  # ctx's transfer_pct for p2 is 40
+
+
+def test_reduce_scope_never_appears_for_a_single_deliverable_project(db_session):
+    ctx = _seed_conflict(db_session, project_deadline_days=14, add_external_candidate=False)
+    db_session.add(Deliverable(project_id=ctx["p2"].id, type=DeliverableType.social_static,
+                               market="NL", status=DeliverableStatus.not_started, deadline=None))
+    db_session.commit()
+
+    facts = _build_conflict_facts(db_session, ctx["alex"].id, ctx["p2"].id)
+    assert "reduce_scope" not in {o["kind"] for o in facts["options"]}
+
+
+def test_accept_reduce_scope_deletes_the_dropped_deliverables_and_lowers_allocation(client, db_session):
+    """REVIEW_03.md R2.1: 'accepting any of the three must actually apply it.'"""
+    ctx = _seed_conflict(db_session, project_deadline_days=14, add_external_candidate=False)
+    kept = Deliverable(project_id=ctx["p2"].id, type=DeliverableType.social_static, market="NL",
+                       status=DeliverableStatus.not_started, deadline=None)
+    dropped = Deliverable(project_id=ctx["p2"].id, type=DeliverableType.homepage_banner, market="NL",
+                          status=DeliverableStatus.not_started, deadline=None)
+    db_session.add_all([kept, dropped])
+    db_session.commit()
+
+    client.post("/resources/recommend", data={"person_id": ctx["alex"].id, "project_id": ctx["p2"].id})
+    rec = db_session.query(Recommendation).filter_by(kind=RecommendationKind.resource_reallocation).one()
+    payload = json.loads(rec.payload_json)
+    reduce_scope = next(o for o in payload["options"] if o["kind"] == "reduce_scope")
+
+    resp = client.post(f"/recommendations/{rec.id}/accept", data={"option_label": reduce_scope["label"]})
+    assert resp.status_code == 200
+
+    remaining_ids = {d.id for d in db_session.query(Deliverable).filter_by(project_id=ctx["p2"].id).all()}
+    assert set(reduce_scope["deliverable_ids"]).isdisjoint(remaining_ids)
+    db_session.refresh(ctx["a2"])
+    assert ctx["a2"].allocation_pct == reduce_scope["reduced_allocation_pct"]
+
+
+def test_never_a_dead_end_when_only_scope_and_time_are_possible(db_session):
+    """REVIEW_03.md R2.1: the old 'the deadline itself is the only lever left'
+    message should become unreachable in the ordinary case -- once a project
+    has more than one deliverable, reduce_scope is always there alongside
+    move_delivery, even with no viable candidate anywhere."""
+    ctx = _seed_conflict(db_session, project_deadline_days=14, add_external_candidate=False)
+    # Maya has no assignment of her own in this fixture, so she's 100% free and
+    # would otherwise trivially qualify as a reassign candidate -- load her down
+    # below p2's 40% transfer so this genuinely exercises "no candidate at all."
+    db_session.add(Assignment(project_id=ctx["p1"].id, person_id=ctx["maya"].id, allocation_pct=70,
+                              start_date=TODAY - timedelta(days=10), end_date=TODAY + timedelta(days=30)))
+    db_session.add_all([
+        Deliverable(project_id=ctx["p2"].id, type=DeliverableType.social_static, market="NL",
+                   status=DeliverableStatus.not_started, deadline=None),
+        Deliverable(project_id=ctx["p2"].id, type=DeliverableType.homepage_banner, market="NL",
+                   status=DeliverableStatus.not_started, deadline=None),
+    ])
+    db_session.commit()
+
+    facts = _build_conflict_facts(db_session, ctx["alex"].id, ctx["p2"].id)
+    assert facts is not None
+    kinds = {o["kind"] for o in facts["options"]}
+    assert kinds == {"reduce_scope", "move_delivery"}
+
+    from app.services.ai.resource import recommend_resource
+    rec = recommend_resource(facts)
+    assert "only lever left" not in rec.rationale
 
 
 def test_accept_falls_back_to_the_recommended_label_if_none_posted(client, db_session):

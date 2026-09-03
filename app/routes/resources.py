@@ -10,6 +10,7 @@ from app.database import get_db
 from app.templates_env import templates
 from app.models import (
     Assignment,
+    Deliverable,
     Person,
     PersonRole,
     Project,
@@ -246,8 +247,11 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
         # REVIEW_03.md R2.4: "say so in the rationale" — named here, in the
         # Python-computed detail line, not left for the mock to invent. Only
         # the strongest runner-up is named; a distant third place doesn't add
-        # information a producer needs to decide.
-        if len(ranked) < 2:
+        # information a producer needs to decide. Silent when headroom is tied
+        # (e.g. two uncommitted externals both sitting at 100% free) — the two
+        # only differ by lead time there, and naming an identical percentage as
+        # if it explained the pick would be misleading, not informative.
+        if len(ranked) < 2 or ranked[0]["available_pct"] == ranked[1]["available_pct"]:
             return ""
         runner_up = ranked[1]
         return f", against {runner_up['name']}'s {runner_up['available_pct']}%"
@@ -287,7 +291,8 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
             "label": "", "kind": "engage_external",
             "action": f"Engage {best_external['name']} (external, {best_external['role'].replace('_', ' ')})",
             "detail": (
-                f"{cost_note}, {lead_time}-day lead time, available {best_external['available_from']}"
+                f"{cost_note}, {lead_time}-day lead time, available {best_external['available_from']}, "
+                f"{best_external['available_pct']}% free"
                 f"{_headroom_clause(ranked_external)}"
             ),
             "to_person_id": best_external["id"],
@@ -295,11 +300,51 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
             "new_deadline": None,
         })
 
-    # Always computable, unlike the two above: how many days the transfer
-    # assignment's own start would need to move to clear whichever of the
-    # overloaded person's OTHER assignments it currently overlaps — the real
-    # cause of the conflict. Assumes the deadline (and this assignment) shift
-    # together by that many days; accepting this option moves both.
+    # REVIEW_03.md R2.1: "there are always three levers: time, money, scope" —
+    # this is the scope one, and unlike reassign/engage_external it never
+    # depends on anyone else's calendar. Cutting deliverables reduces the
+    # overloaded person's own allocation on THIS project directly. Needs at
+    # least two deliverables to have anything left after cutting one.
+    project_deliverables = (
+        db.query(Deliverable).filter_by(project_id=project.id).order_by(Deliverable.id).all()
+    )
+    if len(project_deliverables) > 1:
+        # Points to shed = how much this specific assignment needs to give up
+        # to bring the person's overall peak back to their own contracted
+        # capacity — floored at 1 (there's always something to name even for a
+        # marginal overage) and capped at what this assignment actually carries
+        # (can't shed more than the project accounts for).
+        points_to_shed = min(max(overloaded_allocated - overloaded.capacity_pct, 1), transfer_pct)
+        cut_fraction = points_to_shed / transfer_pct
+        # No priority field exists on Deliverable to pick *which* ones matter
+        # least — cutting from the end of a stable id order is an honest
+        # placeholder for "the producer picks," not a claim that these
+        # specific ones are the right ones.
+        deliverables_to_cut = min(
+            max(1, round(len(project_deliverables) * cut_fraction)),
+            len(project_deliverables) - 1,
+        )
+        cut = project_deliverables[-deliverables_to_cut:]
+        remaining = len(project_deliverables) - deliverables_to_cut
+        reduced_allocation = round(transfer_pct * remaining / len(project_deliverables))
+        dropped = ", ".join(f"{d.type.value.replace('_', ' ')} ({d.market})" for d in cut)
+        options.append({
+            "label": "", "kind": "reduce_scope",
+            "action": f"Reduce to {remaining} of {len(project_deliverables)} deliverables",
+            "detail": (
+                f"delivers on the original date, drops {dropped} — "
+                f"{overloaded.name}'s allocation on this project falls to {reduced_allocation}%"
+            ),
+            "to_person_id": None, "new_deadline": None,
+            "deliverable_ids": [d.id for d in cut],
+            "reduced_allocation_pct": reduced_allocation,
+        })
+
+    # Always computable, unlike reassign/engage_external: how many days the
+    # transfer assignment's own start would need to move to clear whichever of
+    # the overloaded person's OTHER assignments it currently overlaps — the
+    # real cause of the conflict. Assumes the deadline (and this assignment)
+    # shift together by that many days; accepting this option moves both.
     overlapping_others = [
         a for a in overloaded_assignments
         if a.id != transfer_assignment.id and a.start_date <= window_end and a.end_date >= window_start
@@ -315,7 +360,7 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
 
     if not options:
         return None
-    for label, opt in zip("ABC", options):
+    for label, opt in zip("ABCD", options):
         opt["label"] = label
 
     return {
