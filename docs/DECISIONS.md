@@ -1192,3 +1192,33 @@ reads/writes) — all fixed to use the live-computed equivalents, none deleted. 
 still not this decision's problem). Full suite otherwise green. Verified live against a fresh
 reseed: all eight screens render, phase assign/unassign and the localisation "Yes/No" field
 behave identically to before.
+
+## 052 — The two parked test_assignment.py failures were a real bug, not a stale test
+Date: 2026-09-03
+Decision: `phase_candidates()`'s lead-time check —
+`if phase.start_date < earliest_feasible_start(db, person, today): continue` — ran
+unconditionally, for internal and external people alike. Now gated to `person.is_external`.
+Why the two tests failed: both hardcoded a phase window of 2026-09-01 to 2026-09-03 with no
+`today` argument, defaulting to the real clock. `earliest_feasible_start()` returns exactly
+`today` for an internal person (no lead time) — once real time passed 2026-09-01, the check
+`phase.start_date < today` started firing for every internal candidate, correctly by the
+check's own logic, but the check's own logic was wrong.
+Confirmed as a live, reachable bug before touching anything, not just a test artifact: queried
+`phase_candidates()` against the real seed data's Winter Campaign Refresh — "Generation &
+production," a phase already flagged Blocked by attention.py's cause 4 (started, nobody
+assigned) — and it returned zero candidates, despite Priya, Elena, and Maya all having real
+spare capacity. Timeline's own Assign control offered no one, internal or external, for a
+phase the dashboard was simultaneously telling the producer was stuck. Exactly the "the tool
+must never dead-end" failure R2.1 names, just found in the phase-assignment path instead of
+the resource-recommendation one it was written about.
+Alternatives considered: updating the two tests' hardcoded dates to relative ones and leaving
+the check as-is — rejected once the live seed data reproduced the same zero-candidates result;
+a passing test on top of a live dead end would have been the wrong fix.
+Consequences: both parked tests pass again, and — because the fix removes the only
+`today`-dependent branch internal-only test scenarios exercise — pass regardless of future
+calendar drift, no date-relativization needed on their existing hardcoded dates. Two new
+tests added, both pinning `today` explicitly rather than relying on the real clock: one
+confirming an internal person is now offered for a phase already underway, one confirming an
+external person's own lead time still gates the same phase (`engage_person()` enforces the
+identical rule on accept, so the two must not disagree). Full suite: 217 passed, 0 failed.
+Verified live: Winter Campaign Refresh's blocked phase now offers Priya, Elena, and Maya.

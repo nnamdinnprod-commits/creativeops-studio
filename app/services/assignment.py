@@ -118,7 +118,17 @@ def phase_candidates(db: Session, phase: ProjectPhase, today: date | None = None
     REVIEW_02.md P5.5: "the ability to bring in external resource of any role, on
     demand" — an external person with a matching role and enough spare capacity is
     as valid a candidate as anyone on the Team, unless their role's lead time
-    (RateBand, Assumptions) rules out starting by the phase's own start date."""
+    (RateBand, Assumptions) rules out starting by the phase's own start date.
+
+    The lead-time check only applies to an external person. It used to run
+    unconditionally, which meant an internal person — whose earliest_feasible_start
+    is always just `today`, no lead time at all — was refused as a candidate for
+    any phase whose start_date had already passed, a real and reachable bug: a
+    phase flagged by the Blocked tile as "started, nobody assigned" is exactly a
+    phase with a past start_date, and Timeline's own Assign control offered no one
+    for it, internal or external, with real spare capacity sitting unused. External
+    people still need the lead-time floor (engage_person() enforces the same rule
+    on accept, so the two can't disagree)."""
     today = today or date.today()
     required = {r.strip() for r in phase.required_roles.split(",") if r.strip()}
     if not required:
@@ -129,7 +139,7 @@ def phase_candidates(db: Session, phase: ProjectPhase, today: date | None = None
     for person in db.query(Person).all():
         if person.role.value not in required:
             continue
-        if phase.start_date < earliest_feasible_start(db, person, today):
+        if person.is_external and phase.start_date < earliest_feasible_start(db, person, today):
             continue  # can't start in time — filtered before any UI ever offers it
         person_assignments = [a for a in all_assignments if a.person_id == person.id]
         allocated = max_allocation_pct(person_assignments, phase.start_date, phase.end_date)

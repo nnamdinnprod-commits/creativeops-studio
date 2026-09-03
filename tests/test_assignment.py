@@ -75,6 +75,53 @@ def test_phase_candidates_excludes_people_without_capacity_across_the_full_windo
     assert candidates == []
 
 
+def test_phase_candidates_offers_an_internal_person_for_a_phase_already_underway(db_session):
+    """Real bug, found while diagnosing why this test file's other two
+    phase_candidates tests started failing as real time caught up with their
+    hardcoded dates: the lead-time check ran unconditionally, so an internal
+    person -- whose earliest_feasible_start is always just `today`, no lead
+    time -- was refused as a candidate for any phase whose start_date had
+    already passed. That's exactly the situation a Blocked "started, nobody
+    assigned" phase is in: Timeline's own Assign control offered no one for
+    it, internal or external, with real spare capacity sitting unused.
+    Pinned to an explicit past date rather than a hardcoded one, so this
+    doesn't silently pass again as time moves on and start dropping true."""
+    owner = Person(name="Owner", role=PersonRole.producer, capacity_pct=100, skills="", is_external=False)
+    designer = Person(name="Dana", role=PersonRole.designer, capacity_pct=100, skills="", is_external=False)
+    db_session.add_all([owner, designer])
+    db_session.commit()
+
+    project = _project(db_session, owner)
+    today = date(2026, 9, 10)
+    phase = _phase(db_session, project, start=today - timedelta(days=10), end=today - timedelta(days=8),
+                   required_roles="designer")
+
+    candidates = phase_candidates(db_session, phase, today=today)
+    assert [c.person.name for c in candidates] == ["Dana"]
+
+
+def test_phase_candidates_still_enforces_lead_time_for_an_external_person(db_session):
+    """The fix above only exempts internal people -- an external hire's own
+    lead time (RateBand) must still gate a phase whose start has already
+    passed just as much as one that hasn't started yet; engage_person()
+    enforces the same rule on accept, and the two must not disagree."""
+    from app.models import RateBand
+
+    owner = Person(name="Owner", role=PersonRole.producer, capacity_pct=100, skills="", is_external=False)
+    freelancer = Person(name="Lars", role=PersonRole.designer, capacity_pct=100, skills="", is_external=True)
+    db_session.add_all([owner, freelancer, RateBand(role=PersonRole.designer, low=300, high=500,
+                                                    currency="EUR", lead_time_days=5)])
+    db_session.commit()
+
+    project = _project(db_session, owner)
+    today = date(2026, 9, 10)
+    phase = _phase(db_session, project, start=today - timedelta(days=10), end=today - timedelta(days=8),
+                   required_roles="designer")
+
+    candidates = phase_candidates(db_session, phase, today=today)
+    assert candidates == []
+
+
 def test_phase_candidates_sorted_most_available_first(db_session):
     owner = Person(name="Owner", role=PersonRole.producer, capacity_pct=100, skills="", is_external=False)
     busy = Person(name="Busy", role=PersonRole.designer, capacity_pct=100, skills="", is_external=False)
