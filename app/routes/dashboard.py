@@ -72,8 +72,12 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     )
 
     capacities = all_person_capacities(db, on_date=today)
-    overloaded_count = sum(1 for c in capacities if c.status == "overloaded")
-    tight_count = sum(1 for c in capacities if c.status == "tight")
+    # REVIEW_03.md R11: "at six people, counts are abstraction for no reason
+    # — name them." Overloaded and tight are named individually (usually one
+    # or two people, and each one is exactly who needs attention); available
+    # stays a count — naming everyone with room isn't information, it's noise.
+    overloaded_people = [c.person for c in capacities if c.status == "overloaded"]
+    tight_people = [c.person for c in capacities if c.status == "tight"]
     available_count = sum(1 for c in capacities if c.status == "available")
     total_people = len(capacities)
     aggregate_utilisation = aggregate_utilisation_pct(capacities)
@@ -131,8 +135,8 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         "at_risk_count": len(at_risk_projects),
         "blocked_count": len(blocked_projects),
         "upcoming_deadlines": upcoming_deadlines,
-        "overloaded_count": overloaded_count,
-        "tight_count": tight_count,
+        "overloaded_people": overloaded_people,
+        "tight_people": tight_people,
         "available_count": available_count,
         "total_people": total_people,
         "aggregate_utilisation": aggregate_utilisation,

@@ -31,7 +31,10 @@
     </thead>
     <tbody>
         {% for pc in capacities %}
-        <tr class="border-b border-slate-100">
+        {# REVIEW_03.md R11: an anchor so the dashboard's capacity tile can
+           link each named person straight to their own row, not just to the
+           screen in general. #}
+        <tr id="person-{{ pc.person.id }}" class="border-b border-slate-100">
             <td class="px-3 py-2 font-medium">
                 {{ pc.person.name }}
                 {% if pc.person.is_external %}

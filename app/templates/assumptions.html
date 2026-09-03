@@ -11,21 +11,29 @@
 {% for category in category_order %}
 <div class="bg-white rounded shadow-sm p-4 mt-4">
     <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">{{ category }}</h2>
+    {% if category == "Volume scaling" %}
+    <p class="text-xs text-slate-500 mt-1">{{ volume_scaling_note }}</p>
+    {% endif %}
     <div class="mt-2 overflow-x-auto">
     <table class="w-full text-sm">
         <thead class="text-left text-xs text-slate-500">
             <tr>
-                <th class="py-1 pr-3">Key</th>
+                <th class="py-1 pr-3">Assumption</th>
                 <th class="py-1 pr-3">Value</th>
                 <th class="py-1 pr-3">Default</th>
-                <th class="py-1 pr-3">Affects</th>
-                <th class="py-1">Notes</th>
+                <th class="py-1">Affects</th>
             </tr>
         </thead>
         <tbody>
         {% for a in by_category[category] %}
         <tr class="border-t border-slate-100">
-            <td class="py-2 pr-3 font-mono text-xs text-slate-700">{{ a.key }}</td>
+            {# REVIEW_03.md R9.1: the raw key ({{ a.key }}) is never shown -- a
+               human label instead, with the fuller description underneath it,
+               same shape as the review's own worked example. #}
+            <td class="py-2 pr-3">
+                <div class="font-medium text-slate-700">{{ assumption_labels.get(a.key, a.key) }}</div>
+                <div class="text-xs text-slate-400">{{ a.description }}</div>
+            </td>
             <td class="py-2 pr-3">
                 <form method="post" action="/assumptions/{{ a.id }}/update" class="flex items-center gap-1">
                     <input type="number" step="any" name="value_numeric" value="{{ '%g' % a.value_numeric }}"
@@ -34,9 +42,8 @@
                     <button type="submit" class="text-xs text-blue-600 underline">Save</button>
                 </form>
             </td>
-            <td class="py-2 pr-3 text-xs text-slate-400">{{ '%g' % a.default_value }}</td>
-            <td class="py-2 pr-3 text-xs text-slate-400">{{ a.affects }}</td>
-            <td class="py-2 text-xs text-slate-500">{{ a.description }}</td>
+            <td class="py-2 pr-3 text-xs text-slate-400">{{ '%g' % a.default_value }} {{ a.unit }}</td>
+            <td class="py-2 text-xs text-slate-400">{{ a.affects }}</td>
         </tr>
         {% endfor %}
         </tbody>
@@ -44,6 +51,45 @@
     </div>
 </div>
 {% endfor %}
+
+<div class="bg-white rounded shadow-sm p-4 mt-4">
+    <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Confidence bands</h2>
+    <p class="text-xs text-slate-500 mt-1">How wide an estimate's range is when the brief is vague, so a guess never reads as a quote.</p>
+    <div class="mt-2 overflow-x-auto">
+    <table class="w-full text-sm">
+        <thead class="text-left text-xs text-slate-500">
+            <tr>
+                <th class="py-1 pr-3">When the brief is</th>
+                <th class="py-1 pr-3">Estimate shown as</th>
+                <th class="py-1">Edit (low / high multiplier)</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in confidence_rows %}
+        <tr class="border-t border-slate-100">
+            <td class="py-2 pr-3 font-medium text-slate-700">{{ row.label }}</td>
+            <td class="py-2 pr-3 text-slate-600">{{ row.range_display }}</td>
+            <td class="py-2">
+                <div class="flex items-center gap-2 text-xs">
+                    <form method="post" action="/assumptions/{{ row.low.id }}/update" class="flex items-center gap-1">
+                        <input type="number" step="any" name="value_numeric" value="{{ '%g' % row.low.value_numeric }}"
+                               class="border border-slate-300 rounded px-2 py-0.5 w-16 text-sm">
+                        <button type="submit" class="text-blue-600 underline">Save</button>
+                    </form>
+                    <span class="text-slate-300">/</span>
+                    <form method="post" action="/assumptions/{{ row.high.id }}/update" class="flex items-center gap-1">
+                        <input type="number" step="any" name="value_numeric" value="{{ '%g' % row.high.value_numeric }}"
+                               class="border border-slate-300 rounded px-2 py-0.5 w-16 text-sm">
+                        <button type="submit" class="text-blue-600 underline">Save</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
 
 <div class="bg-white rounded shadow-sm p-4 mt-4">
     <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Day rate bands</h2>

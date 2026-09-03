@@ -80,9 +80,40 @@ def test_route_renders_grouped_table(client, db_session):
     resp = client.get("/assumptions")
     assert resp.status_code == 200
     assert "Review and approval cycles" in resp.text
-    assert "client_review_days" in resp.text
     assert "Day rate bands" in resp.text
     assert "Producer" in resp.text
+
+
+def test_route_hides_raw_keys_behind_human_labels(client, db_session):
+    """REVIEW_03.md R9.1: the raw database key must never be shown -- a human
+    label instead, with the fuller description underneath it."""
+    seed_assumptions(db_session)
+    resp = client.get("/assumptions")
+    assert resp.status_code == 200
+    assert "client_review_days" not in resp.text
+    assert "volume_scale_16_30" not in resp.text
+    assert "confidence_high_low_factor" not in resp.text
+    assert "Client review round" in resp.text
+    assert "Length of a standard client review round" in resp.text
+
+
+def test_route_collapses_confidence_bands_to_four_ranges(client, db_session):
+    """REVIEW_03.md R9.2: eight rows (four tiers x low/high factor) become
+    four, each expressed as the range a producer actually reads."""
+    seed_assumptions(db_session)
+    resp = client.get("/assumptions")
+    assert resp.status_code == 200
+    for label in ["Fully specified", "Mostly specified", "Partly assumed", "Mostly assumed"]:
+        assert label in resp.text
+    assert "-5% / +10%" in resp.text or "−5% / +10%" in resp.text
+
+
+def test_route_states_the_reason_for_volume_scaling(client, db_session):
+    """REVIEW_03.md R9.3."""
+    seed_assumptions(db_session)
+    resp = client.get("/assumptions")
+    assert resp.status_code == 200
+    assert "effort grows more slowly than asset count" in resp.text.lower()
 
 
 def test_route_update_assumption_persists_new_value(client, db_session):

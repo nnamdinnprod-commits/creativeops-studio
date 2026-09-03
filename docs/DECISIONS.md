@@ -1310,3 +1310,41 @@ Winter Campaign Refresh, re-verified live after every wording fix. Four new test
 presence/absence by deliverable count, accept actually deletes and reduces, and a
 never-a-dead-end case with no viable candidate at all still returning `{reduce_scope,
 move_delivery}` rather than `None`). Full suite: 222 passed. All eight screens render.
+
+## 056 — REVIEW_03.md R9 + R11: human labels on Assumptions, named people on the capacity tile
+Date: 2026-09-03
+Decision: R9 — Assumptions page no longer shows the raw `Assumption.key` string anywhere; a
+hand-written `ASSUMPTION_LABELS` dict maps each of the 13 non-confidence-band keys to a short
+human label, with the existing longer description kept underneath it. The eight confidence-band
+rows (four tiers × low/high factor, stored as separate `Assumption` rows because each is
+independently editable) are grouped into four displayed rows, one per tier, each showing the
+range a producer actually reads ("-5% / +10%") rather than two signed factors a reader has to
+combine themselves; editing either bound still posts to its own underlying row, unchanged.
+Volume scaling gets one added sentence stating why it exists ("effort grows more slowly than
+asset count as a project adds markets/deliverables") since the number alone doesn't explain
+itself.
+R11 — the dashboard's Team Capacity tile named counts only ("1 of 6 over capacity"), which is
+abstraction for no reason once the roster is small enough that "over capacity" almost always
+means one specific person. `overloaded_count`/`tight_count` became `overloaded_people`/
+`tight_people` (lists of `Person`, computed in `dashboard.py` from the same `all_person_capacities`
+call as before), each name linking to `/resources#person-{id}` — an anchor added to that table's
+row for exactly this. Available stays a count: naming everyone with room is noise, not
+information. The tile's wrapping `<a>` became a `<div>` since each name is now its own link and
+nesting an `<a>` inside an `<a>` is invalid HTML (the same rule decision 036 already applied).
+Alternatives considered: a single sentence summarising the whole roster in prose (e.g. "Alex is
+over capacity, 6 have room") without per-name links — rejected because linking each name straight
+to their row is what actually lets a producer act, not just read.
+Two things caught only by running this live, not by the tests written first: (1) the assertion
+`"Alex is over capacity" in resp.text` can never pass literally, since the name is (correctly)
+wrapped in an `<a>` — there's always a `</a>` between the name and "is"; the test was rewritten
+to match the actual required markup (`...>Alex</a> is over capacity`) rather than plain prose.
+(2) the template originally put the for-loop and the trailing "is/are over capacity" text on
+separate indented lines, which Jinja renders with a literal newline and leading whitespace
+between them instead of a single space — cosmetically invisible in a browser (which collapses
+whitespace) but broke substring assertions; collapsed each block onto one physical line so the
+rendered text has exactly the intended single space.
+Consequences: `app/routes/assumptions.py` gained `ASSUMPTION_LABELS`, `VOLUME_SCALING_NOTE`,
+`CONFIDENCE_TIER_LABELS`, and confidence-row grouping; `assumptions.html` rewritten to match.
+`app/routes/dashboard.py` and `dashboard.html` updated for named capacity; `resources.html`
+gained the per-row anchor. Full suite: 226 passed. All eight screens verified live against the
+reset seed database, including the `/resources#person-N` anchor target.

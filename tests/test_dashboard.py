@@ -115,6 +115,45 @@ def test_on_track_at_risk_and_blocked_partition_active_projects(client, db_sessi
     assert active > 0  # a vacuously-true 0 == 0 would defeat the point of this test
 
 
+def test_capacity_tile_names_people_instead_of_counting_them(client, db_session):
+    """REVIEW_03.md R11: "1 of 6 over capacity" used to be the only thing
+    shown -- at six people, that's abstraction for no reason. Overloaded and
+    tight people are named individually, each linked to their own row on
+    /resources; available stays a count."""
+    alex = Person(name="Alex", role=PersonRole.senior_designer, capacity_pct=80,
+                 skills="layout", is_external=False)
+    maya = Person(name="Maya", role=PersonRole.designer, capacity_pct=100,
+                 skills="layout", is_external=False)
+    free = Person(name="Free", role=PersonRole.copywriter, capacity_pct=100,
+                 skills="", is_external=False)
+    db_session.add_all([alex, maya, free])
+    db_session.flush()
+
+    today = date.today()
+    project = Project(name="P1", brand="Fotomera", campaign="C", source_market="NL",
+                      priority=Priority.medium, status=ProjectStatus.in_production,
+                      deadline=today + timedelta(days=10), owner_id=alex.id, brief_raw="x")
+    db_session.add(project)
+    db_session.flush()
+    db_session.add_all([
+        Assignment(person_id=alex.id, project_id=project.id, allocation_pct=95,
+                  start_date=today, end_date=today + timedelta(days=10)),
+        Assignment(person_id=maya.id, project_id=project.id, allocation_pct=90,
+                  start_date=today, end_date=today + timedelta(days=10)),
+    ])
+    db_session.commit()
+
+    resp = client.get("/dashboard")
+    assert resp.status_code == 200
+    # The name itself is a link to /resources, so "Alex is over capacity" is
+    # never one unbroken string -- check the link and the surrounding text.
+    assert f'href="/resources#person-{alex.id}" class="hover:underline">Alex</a> is over capacity' in resp.text
+    assert f'href="/resources#person-{maya.id}" class="hover:underline">Maya</a> is tight' in resp.text
+    assert "1 have room" in resp.text
+    # The old count-only phrasing must not still be there alongside the names.
+    assert "of 3 over capacity" not in resp.text
+
+
 def test_needs_attention_item_links_to_the_project_it_names(client, db_session):
     """REVIEW_02.md P5.1: dashboard attention items are one of the explicitly
     named locations a project must be reachable from."""

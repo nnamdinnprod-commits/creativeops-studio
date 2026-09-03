@@ -98,11 +98,27 @@
 
     <div class="bg-white rounded shadow-sm p-4">
         <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">Team capacity</h2>
-        <a href="/resources" class="mt-3 block text-sm font-medium hover:underline">
-            <span class="text-red-700">{{ overloaded_count }} of {{ total_people }} over capacity</span> ·
-            <span class="text-amber-700">{{ tight_count }} tight</span> ·
-            <span class="text-green-700">{{ available_count }} available</span>
-        </a>
+        {# REVIEW_03.md R11: names instead of counts -- at six people, "1 of 6
+           over capacity" is abstraction for no reason. A div, not the single
+           <a> this used to be, since each name below is its own link to that
+           person's row on /resources; nesting a link inside a link is invalid
+           HTML (same rule DECISIONS.md 036 already applied elsewhere). #}
+        <div class="mt-3 text-sm">
+            {% if overloaded_people %}
+            <span class="text-red-700 font-medium">{% for p in overloaded_people %}<a href="/resources#person-{{ p.id }}" class="hover:underline">{{ p.name }}</a>{% if not loop.last %}{% if loop.revindex0 == 1 %} and {% else %}, {% endif %}{% endif %}{% endfor %} {{ 'is' if overloaded_people|length == 1 else 'are' }} over capacity</span>
+            {% endif %}
+            {% if overloaded_people and (tight_people or available_count) %}<span class="text-slate-300"> · </span>{% endif %}
+            {% if tight_people %}
+            <span class="text-amber-700 font-medium">{% for p in tight_people %}<a href="/resources#person-{{ p.id }}" class="hover:underline">{{ p.name }}</a>{% if not loop.last %}{% if loop.revindex0 == 1 %} and {% else %}, {% endif %}{% endif %}{% endfor %} {{ 'is' if tight_people|length == 1 else 'are' }} tight</span>
+            {% endif %}
+            {% if tight_people and available_count %}<span class="text-slate-300"> · </span>{% endif %}
+            {% if available_count %}
+            <span class="text-green-700">{{ available_count }} have room</span>
+            {% endif %}
+            {% if not overloaded_people and not tight_people and not available_count %}
+            <span class="text-slate-400">No one on the roster yet.</span>
+            {% endif %}
+        </div>
         <div class="mt-1 text-xs text-slate-400">Team aggregate {{ aggregate_utilisation }}%</div>
         <a href="/resources" class="text-xs text-slate-500 hover:underline mt-3 inline-block">View resource plan &rarr;</a>
     </div>

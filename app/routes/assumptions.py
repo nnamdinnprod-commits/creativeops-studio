@@ -12,6 +12,54 @@ router = APIRouter()
 
 CATEGORY_ORDER = ["Review and approval cycles", "Lead times", "Volume scaling", "Confidence bands"]
 
+# REVIEW_03.md R9.1: "the same failure as 'rows,' one layer deeper" — the raw
+# key was the only label this page ever gave a value, and a database column
+# name is not something a Creative Ops reviewer should have to read. Hand-
+# written rather than a mechanical key.replace('_', ' ') — "Client review
+# round" reads better than "Client review days" ever would, and there are
+# only 13 of these (confidence bands are handled separately below).
+ASSUMPTION_LABELS = {
+    "client_review_days": "Client review round",
+    "client_review_minimum_days": "Minimum client review (compressed)",
+    "internal_review_days": "Internal review round",
+    "default_review_rounds": "Assumed review rounds",
+    "localisation_review_days": "Localisation review, per market",
+    "fabrication_lead_days": "Fabrication lead time",
+    "talent_booking_lead_days": "Talent booking lead time",
+    "location_permit_lead_days": "Location permit lead time",
+    "translation_turnaround_days": "Translation turnaround",
+    "volume_scale_1_6": "Volume scaling, 1–6 assets",
+    "volume_scale_7_15": "Volume scaling, 7–15 assets",
+    "volume_scale_16_30": "Volume scaling, 16–30 assets",
+    "volume_scale_31_60": "Volume scaling, 31–60 assets",
+}
+
+# REVIEW_03.md R9.3: "volume scaling needs its reason" — a fixed sentence
+# above the category's table rather than repeated per row, since the reason
+# is the same for all four bands. The 2.5x/3.3x example is the actual
+# volume_scale_16_30 factor against a naive linear read of the same range —
+# not an invented illustration.
+VOLUME_SCALING_NOTE = (
+    "Effort grows more slowly than asset count, because setup is a fixed cost — "
+    "twenty assets take roughly 2.5× the time of six, not 3.3×."
+)
+
+# REVIEW_03.md R9.2: "eight rows becomes four, expressed as what the user
+# sees" — a range a producer reads directly, not two separate multipliers
+# they'd have to do the arithmetic on themselves.
+CONFIDENCE_TIER_LABELS = {
+    "high": "Fully specified",
+    "medium": "Mostly specified",
+    "low_medium": "Partly assumed",
+    "low": "Mostly assumed",
+}
+CONFIDENCE_TIER_ORDER = ["high", "medium", "low_medium", "low"]
+
+
+def _signed_pct(factor: float) -> str:
+    pct = round((factor - 1) * 100)
+    return f"{'+' if pct >= 0 else ''}{pct}%"
+
 # REVIEW_02.md P3: "Change an assumption -> reschedule every affected project."
 # Every other assumption (volume scaling, lead times, confidence bands,
 # client_review_minimum_days) is already read live at display time by
@@ -39,11 +87,31 @@ def assumptions(request: Request, db: Session = Depends(get_db)):
     for rows in by_category.values():
         rows.sort(key=lambda a: a.key)
 
+    # REVIEW_03.md R9.2: confidence bands render as their own section below,
+    # not through the generic per-key table — pulled out of by_category so
+    # the generic loop's category list doesn't also render them.
+    confidence_by_key = {a.key: a for a in by_category.pop("Confidence bands", [])}
+    confidence_rows = []
+    for tier in CONFIDENCE_TIER_ORDER:
+        low = confidence_by_key.get(f"confidence_{tier}_low_factor")
+        high = confidence_by_key.get(f"confidence_{tier}_high_factor")
+        if low is None or high is None:
+            continue
+        confidence_rows.append({
+            "label": CONFIDENCE_TIER_LABELS[tier],
+            "low": low,
+            "high": high,
+            "range_display": f"{_signed_pct(low.value_numeric)} / {_signed_pct(high.value_numeric)}",
+        })
+
     rate_bands = db.query(RateBand).order_by(RateBand.role).all()
 
     return templates.TemplateResponse(request, "assumptions.html", {
         "category_order": [c for c in CATEGORY_ORDER if by_category.get(c)],
         "by_category": by_category,
+        "assumption_labels": ASSUMPTION_LABELS,
+        "volume_scaling_note": VOLUME_SCALING_NOTE,
+        "confidence_rows": confidence_rows,
         "rate_bands": rate_bands,
     })
 
