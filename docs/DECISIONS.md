@@ -1023,6 +1023,51 @@ and note the day-dependent one, rather than touching the seed date (already trie
 Consequences: steps 3, 5, 6, 8 verified live, unchanged. Every rewritten step re-run live end
 to end after the fixes, against a fresh reseed.
 
+## 046 — REVIEW_03.md R1 audit ran first, and it re-scoped the review
+Date: 2026-09-02
+Decision: Before touching any code, audited every model column that stores a value derived
+from other rows (REVIEW_03.md R1's own instruction), then re-scoped the review against the
+result rather than executing R1 as originally written. The audit found the stored-value list
+short — most of what `REVIEW_02.md` P3 already fixed (012, 019, 021, 032, 034, 042, 043, 045)
+— and found that three of R1's five confirmed symptoms are not stored-value drift at all:
+`dashboard.py`'s at-risk filter excludes the "brief" cause outright (a live filtering gap);
+`summarize_by_market()` computes its headline from one row and its translator list from every
+row in the market (a live aggregation-granularity bug); and `/brief/analyse` already
+recomputes from scratch on every submission — the "stale" score is `mock_analyse_brief`'s
+rigid deadline/approval-owner regex matching, not a stored result. Only two symptoms were the
+audited kind: `Project.project_type_id`/`estimated_days` were never written by `brief.py`'s
+Full Brief flow, so a Brief-Assistant-created project could never generate a schedule or be
+caught by the Blocked tile's brief-stalled check (REVIEW_03.md R6, the same root cause).
+Re-scoped R1 into a five-item sequence, one commit each: (1) consolidate project creation —
+done; (2) dashboard at-risk filtering; (3) mock extraction quality, combined with R10's
+identical-output problem since both are the same thin-mocks weakness; (4) the localisation
+card's aggregation bug; (5) the actual stored-column cleanup R1 originally asked for.
+`REVIEW_03.md` rewritten in place — R1 marked superseded with the audit's findings and the
+five-item plan, R6 marked done, and every place that cross-referenced "R1" (R5.1, R7, R8's
+coverage note, R11) updated to point at the specific item that now covers it, per the owner's
+instruction that a future reader should find the current plan, not the abandoned one.
+Alternatives considered: running R1 as originally scoped (delete-and-recompute across the
+audited columns) without re-checking it against the five confirmed symptoms first.
+Why: the owner asked for the audit specifically so its length could determine how the rest of
+the review gets sequenced, on the stated premise that a wrong root-cause guess costs more than
+the audit itself. The audit proved the premise: two of the five symptoms had a completely
+different class of cause (a filter, a mock's regex) that no amount of "find derived columns
+and compute at render" would have touched.
+Consequences: item 1 (project creation) is committed — see `app/services/project_creation.py`
+and the seed backfill. A follow-up surfaced during item 1 verification: scheduling every seed
+project surfaced two more real bugs — a latent nondeterminism in `resolve_project_type_id`
+(iterating a set of strings, whose order isn't stable across process runs) and a feasibility
+check that always compares a schedule's start against *today* rather than the deadline, which
+made a Delivered or Approved project's "behind schedule" number grow without bound regardless
+of when it actually finished. Both fixed in the same follow-up commit
+(`NOT_ASSESSED_FOR_FEASIBILITY`, `app/services/scheduling.py`). Timeline coverage: 6 of 12 to
+10 of 12 — the remaining two are still-vague Brief-status projects with no Deliverable rows to
+infer a type from, left unscheduled rather than invented. DEMO_DATA.md's five required
+conflicts re-verified against a running server after both commits: unchanged. Two pre-existing
+test failures in `tests/test_assignment.py`, unrelated to any of this work, found during
+verification and parked — to be diagnosed (real bug vs. stale test) after item 5, not fixed or
+silently deleted before then.
+
 ## 047 — REVIEW_03.md item 2: at-risk tile no longer drops the "brief" cause
 Date: 2026-09-02
 Decision: `dashboard.py`'s `at_risk_ids` used to be `entry["cause"] in ("capacity",
@@ -1112,48 +1157,3 @@ Consequences: six new tests (two unit, four route-level). Verified live against 
 data: the FR card (the review's own example) now reads with no translator names and a
 working assign control; the DE card reads "queue moving — 7 in flight, handled by Jonas,"
 coherent since both halves describe the same rows.
-
-## 046 — REVIEW_03.md R1 audit ran first, and it re-scoped the review
-Date: 2026-09-02
-Decision: Before touching any code, audited every model column that stores a value derived
-from other rows (REVIEW_03.md R1's own instruction), then re-scoped the review against the
-result rather than executing R1 as originally written. The audit found the stored-value list
-short — most of what `REVIEW_02.md` P3 already fixed (012, 019, 021, 032, 034, 042, 043, 045)
-— and found that three of R1's five confirmed symptoms are not stored-value drift at all:
-`dashboard.py`'s at-risk filter excludes the "brief" cause outright (a live filtering gap);
-`summarize_by_market()` computes its headline from one row and its translator list from every
-row in the market (a live aggregation-granularity bug); and `/brief/analyse` already
-recomputes from scratch on every submission — the "stale" score is `mock_analyse_brief`'s
-rigid deadline/approval-owner regex matching, not a stored result. Only two symptoms were the
-audited kind: `Project.project_type_id`/`estimated_days` were never written by `brief.py`'s
-Full Brief flow, so a Brief-Assistant-created project could never generate a schedule or be
-caught by the Blocked tile's brief-stalled check (REVIEW_03.md R6, the same root cause).
-Re-scoped R1 into a five-item sequence, one commit each: (1) consolidate project creation —
-done; (2) dashboard at-risk filtering; (3) mock extraction quality, combined with R10's
-identical-output problem since both are the same thin-mocks weakness; (4) the localisation
-card's aggregation bug; (5) the actual stored-column cleanup R1 originally asked for.
-`REVIEW_03.md` rewritten in place — R1 marked superseded with the audit's findings and the
-five-item plan, R6 marked done, and every place that cross-referenced "R1" (R5.1, R7, R8's
-coverage note, R11) updated to point at the specific item that now covers it, per the owner's
-instruction that a future reader should find the current plan, not the abandoned one.
-Alternatives considered: running R1 as originally scoped (delete-and-recompute across the
-audited columns) without re-checking it against the five confirmed symptoms first.
-Why: the owner asked for the audit specifically so its length could determine how the rest of
-the review gets sequenced, on the stated premise that a wrong root-cause guess costs more than
-the audit itself. The audit proved the premise: two of the five symptoms had a completely
-different class of cause (a filter, a mock's regex) that no amount of "find derived columns
-and compute at render" would have touched.
-Consequences: item 1 (project creation) is committed — see `app/services/project_creation.py`
-and the seed backfill. A follow-up surfaced during item 1 verification: scheduling every seed
-project surfaced two more real bugs — a latent nondeterminism in `resolve_project_type_id`
-(iterating a set of strings, whose order isn't stable across process runs) and a feasibility
-check that always compares a schedule's start against *today* rather than the deadline, which
-made a Delivered or Approved project's "behind schedule" number grow without bound regardless
-of when it actually finished. Both fixed in the same follow-up commit
-(`NOT_ASSESSED_FOR_FEASIBILITY`, `app/services/scheduling.py`). Timeline coverage: 6 of 12 to
-10 of 12 — the remaining two are still-vague Brief-status projects with no Deliverable rows to
-infer a type from, left unscheduled rather than invented. DEMO_DATA.md's five required
-conflicts re-verified against a running server after both commits: unchanged. Two pre-existing
-test failures in `tests/test_assignment.py`, unrelated to any of this work, found during
-verification and parked — to be diagnosed (real bug vs. stale test) after item 5, not fixed or
-silently deleted before then.
