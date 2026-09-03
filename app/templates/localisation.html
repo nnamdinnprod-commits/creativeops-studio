@@ -20,22 +20,40 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {% for s in market_summaries %}
         <div class="bg-white border rounded p-3 text-sm {% if s.at_risk %}border-red-200{% else %}border-slate-200{% endif %}">
-            <div class="font-medium {% if s.at_risk %}text-red-700{% else %}text-slate-700{% endif %}">{{ s.headline }}</div>
-            <div class="mt-2 text-xs text-slate-500 space-y-0.5">
-                <div>{{ s.volume_in_flight }} in flight</div>
-                <div>
-                    {% if s.translator_ids %}
-                    Assigned: {% for tid in s.translator_ids %}{{ people_by_id[tid].name if tid in people_by_id else '—' }}{% if not loop.last %}, {% endif %}{% endfor %}
-                    {% else %}
-                    No translator assigned in this market
+            {# REVIEW_03.md R7 (b): the card filters the grid below to this market — an <a>
+               wrapping only the read-only summary, never the assign form, so a form control
+               is never nested inside a link (same rule the project_ref partial follows). #}
+            <a href="/localisation?market={{ s.market }}" class="block hover:underline">
+                <div class="font-medium {% if s.at_risk %}text-red-700{% else %}text-slate-700{% endif %}">{{ s.headline }}</div>
+                <div class="mt-2 text-xs text-slate-500 space-y-0.5">
+                    <div>{{ s.volume_in_flight }} in flight</div>
+                    {% if s.at_risk %}
+                    {# REVIEW_03.md R7 (a): no translator roster here — those names would
+                       describe other rows in this market, not the one the headline is about. #}
+                    {% elif s.translator_ids %}
+                    <div>Handled by {% for tid in s.translator_ids %}{{ people_by_id[tid].name if tid in people_by_id else '—' }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+                    {% endif %}
+                    {% if s.oldest_item %}
+                    <div>Oldest in queue:
+                        {% if s.oldest_item.project_id in projects_by_id %}{{ project_ref(s.oldest_item.project_id, projects_by_id[s.oldest_item.project_id].name) }}{% else %}—{% endif %}
+                        ({{ s.oldest_item.status.value.replace('_', ' ')|title }})</div>
                     {% endif %}
                 </div>
-                {% if s.oldest_item %}
-                <div>Oldest in queue:
-                    {% if s.oldest_item.project_id in projects_by_id %}{{ project_ref(s.oldest_item.project_id, projects_by_id[s.oldest_item.project_id].name) }}{% else %}—{% endif %}
-                    ({{ s.oldest_item.status.value.replace('_', ' ')|title }})</div>
-                {% endif %}
-            </div>
+            </a>
+            {% if s.at_risk and s.flagged_localisation_id %}
+            {# REVIEW_03.md R7 (c): the card carries the fix, not just the problem. #}
+            {% if translators %}
+            <form method="post" action="/localisation/{{ s.flagged_localisation_id }}/assign" class="mt-2 flex items-center gap-1">
+                <input type="hidden" name="return_to" value="{{ return_to }}">
+                <select name="translator_id" class="border border-slate-300 rounded text-xs px-1 py-0.5">
+                    {% for t in translators %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+                </select>
+                <button type="submit" class="text-xs bg-slate-800 text-white rounded px-2 py-0.5">Assign translator</button>
+            </form>
+            {% else %}
+            <div class="mt-2 text-xs text-slate-400">No translators on record to assign.</div>
+            {% endif %}
+            {% endif %}
         </div>
         {% endfor %}
     </div>
