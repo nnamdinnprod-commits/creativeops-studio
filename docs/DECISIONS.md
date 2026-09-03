@@ -1253,3 +1253,21 @@ step 4's quote updated to the real live text. One new test
 ranking directly. Full suite: 218 passed. Verified live: Winter Campaign Refresh still
 recommends Maya alone; Loyalty Relaunch Teaser now recommends Maya with Nadia named as the
 runner-up in both the option detail and the rationale.
+
+## 054 — REVIEW_03.md item 2: three more external individuals, one per uncovered role
+Date: 2026-09-03
+Decision: Added Freya (senior designer), Noor (designer), Idris (copywriter) — all external,
+individuals only (a company/agency resource type is R2.2, explicitly out of scope here). Lars
+already covers motion; these three cover every other creative role an "Engage external" option
+can name, so that lever has something real to offer regardless of which role is actually short
+on a given conflict, not just when the shortage happens to be motion.
+Alternatives considered: giving each freelancer its own hand-set day rate, to make "varied ...
+day rates" a per-person fact rather than a per-role one.
+Why: `RateBand` is already keyed by role, and the six existing bands already vary meaningfully
+(designer €350–500/3-day lead vs. senior designer €500–700/4-day vs. copywriter €400–550/2-day)
+— three freelancers in three different roles get genuinely different rates and lead times for
+free, from data that already exists, rather than needing a new per-person rate concept that
+would start to blur into R2.2's company-pricing territory.
+Consequences: `DEMO_DATA.md`'s scale note and people table updated (10→13). Full suite: 218
+passed (no test changes needed — nothing hardcoded the exact people count). Verified live: all
+three appear in the Talent Pool on `/resources`.

@@ -8,12 +8,14 @@ to set anything up. Every conflict below exists because a specific screen needs 
 ## Scale
 
 Small enough to read on one screen, large enough to be believable: **3 brands, 5 markets,
-10 people, 12 projects, ~30 deliverables, ~20 localisation rows, ~24 creative insight rows.**
-(10, not 9 — REVIEW_03.md R2.4 added Nadia, an internal designer sharing Alex's skills, so a
-reassignment recommendation has a genuine second candidate to rank against Maya instead of
-one candidate by construction. Before that, 9 not 8 — REVIEW_02.md P5.6 added an external
-motion designer so its own example recommendation option, "Engage Lars," is reachable in the
-live demo, not just described.)
+13 people, 12 projects, ~30 deliverables, ~20 localisation rows, ~24 creative insight rows.**
+(13, not 10 — REVIEW_03.md item 2 added three more external individuals, Freya/Noor/Idris,
+one per creative role Lars doesn't cover, so "Engage external" has a real option regardless of
+which role is actually short. Before that, 10 not 9 — REVIEW_03.md R2.4 added Nadia, an
+internal designer sharing Alex's skills, so a reassignment recommendation has a genuine second
+candidate to rank against Maya instead of one candidate by construction. Before that, 9 not 8
+— REVIEW_02.md P5.6 added an external motion designer so its own example recommendation
+option, "Engage Lars," is reachable in the live demo, not just described.)
 
 ## Brands and markets
 
@@ -48,6 +50,9 @@ Invented first names only. Mix of internal and external, with capacity that is n
 | Jonas | Translator (DE) | external | Talent Pool — not on the capacity roster until engaged (REVIEW_02.md P5.5) |
 | Camille | Translator (FR) | external | Talent Pool; deliberately *not* engaged for one FR project |
 | Lars | Motion Designer | external | Talent Pool — REVIEW_02.md P5.6's own "Engage Lars" resource-option example, made reachable |
+| Freya | Senior Designer | external | Talent Pool — shares Alex's skills, an external option for his own role |
+| Noor | Designer | external | Talent Pool — shares Maya/Priya/Nadia's role |
+| Idris | Copywriter | external | Talent Pool — an external option alongside Tomas |
 
 Skills should be specific enough that the resource recommendation has something real to
 reason about: `motion`, `retouching`, `layout`, `copy_de`, `copy_fr`, `paid_formats`.

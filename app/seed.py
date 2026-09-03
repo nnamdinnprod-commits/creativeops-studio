@@ -77,7 +77,21 @@ def seed(session):
     # when internal capacity runs out" actually matters.
     lars = Person(name="Lars", role=PersonRole.motion_designer, capacity_pct=100,
                  skills="motion", is_external=True)
-    people = [alex, maya, sam, elena, tomas, priya, nadia, jonas, camille, lars]
+    # REVIEW_03.md item 2: individuals only — a company/agency resource type is
+    # R2.2, explicitly out of scope here. Three more externals, in the three
+    # creative roles Lars doesn't cover, so "Engage external" has a real option
+    # to offer regardless of which role is actually short — each inherits its
+    # own day-rate range and lead time from RateBand (seed_assumptions() below),
+    # which already varies meaningfully by role; no per-person rate override
+    # needed to get genuinely different numbers per freelancer.
+    freya = Person(name="Freya", role=PersonRole.senior_designer, capacity_pct=100,
+                   skills="layout,retouching", is_external=True)
+    noor = Person(name="Noor", role=PersonRole.designer, capacity_pct=100,
+                  skills="retouching,paid_formats", is_external=True)
+    idris = Person(name="Idris", role=PersonRole.copywriter, capacity_pct=100,
+                   skills="copy_de", is_external=True)
+    people = [alex, maya, sam, elena, tomas, priya, nadia, jonas, camille, lars,
+             freya, noor, idris]
     session.add_all(people)
     session.flush()  # assign ids
 
@@ -675,7 +689,7 @@ def main():
             print("Seed data already present — skipping (use --reset to start clean).")
         else:
             seed(session)
-            print("Seed data created: 10 people, 12 projects, 11 assignments, "
+            print("Seed data created: 13 people, 12 projects, 11 assignments, "
                   "18 deliverables, 20 localisation rows, 24 creative insights.")
 
         if session.query(ProjectType).count() > 0:
