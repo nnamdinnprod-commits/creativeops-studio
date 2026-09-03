@@ -98,12 +98,13 @@ All in `.env.example` — copy it to `.env` and adjust if needed:
 python -m app.seed
 ```
 
-Creates the SQLite database and seeds it with fictional demo data: 9 people (plus an
-external talent pool), 12 projects, assignments, deliverables, localisation, phase templates
-and creative insights — including five specific, verifiable situations the demo relies on
-(see `docs/DEMO_DATA.md`): an overloaded designer, a viable reassignment target, a genuinely
-vague brief, a French localisation gap, and a German creative-performance pattern worth
-acting on.
+Creates the SQLite database and seeds it with fictional demo data: 13 people (plus an
+external talent pool spanning every creative role, so a resource recommendation always has a
+real alternative to offer, not just Alex), 12 projects, assignments, deliverables,
+localisation, phase templates and creative insights — including five specific, verifiable
+situations the demo relies on (see `docs/DEMO_DATA.md`): an overloaded designer, a viable
+reassignment target, a genuinely vague brief, a French localisation gap, and a German
+creative-performance pattern worth acting on.
 
 Idempotent — running it again does nothing if data already exists. To start over from a
 clean state:
@@ -143,12 +144,14 @@ retry control — never a traceback, never raw model output.
 pytest
 ```
 
-203 tests covering: capacity math (allocation, overlap detection, conflict thresholds), the
+255 tests covering: capacity math (allocation, overlap detection, conflict thresholds), the
 brief readiness rubric, AI schema validation including the "invention guard" (an AI response
 referencing a project not in its input is dropped, not rendered), the localisation risk rule,
 project creation from a brief end-to-end, back-scheduling and feasibility, the resource and
-translator engagement flows, and the recommendation accept/reject cycle (accepting actually
-changes state; rejecting doesn't, and stays in history).
+translator engagement flows, the recommendation accept/reject cycle (accepting actually
+changes state; rejecting doesn't, and stays in history), and the production-cost model —
+including a test that asserts Quick Estimate and the Full Brief Assistant return the
+byte-identical external-spend figure for matching inputs, not just "both non-zero."
 
 No test makes a live API call — everything runs against the mock layer or fixture responses.
 
@@ -161,18 +164,39 @@ seed data.
 
 ## Known limitations
 
-This is a one-day V1 build. Deliberately out of scope, per `docs/BUILD_PLAN.md` and
-`docs/PRODUCT_SPEC.md`:
+This started as a one-day V1 build and has had several rounds of owner review since
+(`docs/REVIEW_03.md` is the current one) — most of what a reviewer would notice in a
+five-minute demo has been addressed. What's still deliberately out of scope, or genuinely
+unfinished:
 
 - No authentication — anyone with the URL can act as "Demo User"
 - No real third-party integrations — everything under `app/services/ai/` that isn't
   `mock.py` talks to OpenAI or Anthropic directly if configured; nothing else is wired up
-- No deployment infrastructure, no containers, no background jobs
+- No deployment infrastructure beyond the single Render service in `render.yaml` — no
+  containers, no background jobs, no CI
 - No drag-and-drop on the Pipeline board — status changes are a dropdown + button, by design
   (an invalid move needs to show *why* it's refused, which a drag gesture can't do as clearly)
-- `Project.risk_level` / `risk_reason` columns exist in the schema but are always their
-  default — risk badges are computed live from current data instead of a stored, synced
-  value (see decision 012 in `docs/DECISIONS.md`)
+- **Blocked projects show a status but not yet a structured reason, owner, or routing rule**
+  (`REVIEW_03.md` R3) — the dashboard and pipeline correctly *count* what's blocked and why in
+  the attention panel, but there's no dedicated "awaiting client PO, owner: Sam, chase by
+  Thursday" field, and a block caused by something outside the studio doesn't yet route
+  itself to a different column
+- **The resource pool is a fixed list of people**, internal plus an external talent pool —
+  there's no "company/agency" resource type (a production company, a localisation agency
+  priced as a day-rate band rather than a person), and adding someone new means editing seed
+  data, not filling in a form from the Resources page or inline from a recommendation
+  (`REVIEW_03.md` R2.2/R2.3)
+- **The production-cost model prices a shoot as a lump-sum planning band per scale tier**
+  (`REVIEW_03.md` R4.1), not itemized line items — talent, travel, music, insurance are
+  named as excluded rather than priced separately. The fuller itemized version (R4.2) is an
+  explicitly later step, not attempted here; see `docs/BRIEF_MODES.md`'s Costing section and
+  `docs/ASSUMPTIONS.md` for exactly what's included today
+- **Timeline has no navigation of its own** — no horizontal scroll or date-range control, and
+  no per-project timeline view on a project's own detail page (`REVIEW_03.md` R8); the
+  full-portfolio view and its milestone list are the only way to see scheduled phases today
+- **Lead-time assumptions are four generic figures**, not the fuller per-project-type
+  breakdown (separate lines for film, event, stills, social, and localisation lead times) an
+  estimator would ideally read from (`REVIEW_03.md` R9.4)
 - Mobile gets a "does not embarrass you" pass, not full optimisation — the main screens
   stack cleanly and the Pipeline board and tables scroll instead of breaking layout at
   narrow widths, but touch targets, gestures and true small-screen ergonomics were never
@@ -181,4 +205,5 @@ This is a one-day V1 build. Deliberately out of scope, per `docs/BUILD_PLAN.md` 
 ## What's next, if this continues
 
 Real integration behind the existing mock boundary in `app/services/ai/`, historical capacity
-data to make effort estimates learned rather than assumed, and authentication.
+data to make effort estimates learned rather than assumed, authentication, and the remaining
+`REVIEW_03.md` items above.

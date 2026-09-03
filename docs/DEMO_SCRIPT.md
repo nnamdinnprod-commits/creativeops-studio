@@ -1,11 +1,13 @@
-# Demo Script — About 7 Minutes
+# Demo Script — About 8 Minutes
 
 The demo has one job: make a Creative Operations leader think *this person understands how
 a studio actually runs*. Feature tours do not achieve that. A single traced thread does.
-Two threads, really: resourcing (steps 3–4) and creative-intelligence-to-production (step 6),
-with production planning (step 8) as a third, shorter one. If time is short, cut step 8 first
-— everything before it stands on its own. See `docs/DECISIONS.md` 028 for how this script was
-re-verified end to end against the live app.
+Three threads, really: resourcing (steps 3–4), the cost model (the second half of step 5),
+and creative-intelligence-to-production (step 6), with production planning (step 8) as a
+fourth, shorter one. If time is short, cut step 8 first, then step 5's cost-model half —
+everything else stands on its own. See `docs/DECISIONS.md` 028 for how this script was
+originally verified end to end against the live app, and 057–059 for the cost-model work
+step 5 now demonstrates.
 
 **Before you start:** `python -m app.seed --reset` for a clean database, and confirm
 `AI_PROVIDER=mock` in `.env` (or unset) so nothing depends on network connectivity.
@@ -63,8 +65,8 @@ options — time, money, and scope are all real levers, shown even when one is c
 not one take-it-or-leave-it call:
 
 > **A · Reassign to Maya** — no cost, available today, 55% free, has worked this brand before
-> **B · Reduce to 1 of 2 deliverables** — delivers on the original date, drops the homepage
-> banner, Alex's allocation on this project falls to 28%
+> **B · Reduce to 1 of 2 deliverables** — delivers on the original date, drops homepage
+> banner (NL), Alex's allocation on this project falls to 28%
 > **C · Move delivery to 20 Sep** — no cost, no resource change, client conversation required
 >
 > Recommended: A.
@@ -82,12 +84,15 @@ Click **"Get AI recommendation"** again, then **Accept A**. Watch the numbers mo
 asserted — and a stronger version of it than a single suggestion to rubber-stamp: a real
 decision has alternatives with different costs, and choosing between them is the point.
 
-**This changes who's actually free later in the demo.** After this step, Maya is the one at
-100% and Alex has the headroom — so in step 6, the production recommendation names *Alex*,
-not Maya. That's the same live-capacity read doing its job twice, not an inconsistency; say so
-if you're running steps out of order in rehearsal and the name doesn't match what you expected.
+**This changes who's actually free later in the demo.** After this step, Maya is full and
+Alex has headroom again — but in step 6, the production recommendation names *Nadia*, a
+designer who shares Alex's skills and has even more headroom than he does (added
+specifically so more than one person ever qualifies for a job — R2.4). That's the same
+live-capacity read, ranking by actual headroom rather than picking the first qualified name
+it finds, doing its job twice — not an inconsistency; say so if you're running steps out of
+order in rehearsal and the name doesn't match what you expected.
 
-## 5. Brief assistant — 80 seconds
+## 5. Brief assistant — 120 seconds
 
 Open the Brief Assistant — it lands on **Quick Estimate**, the default mode. This fixes a
 real flaw: a tool that refuses to answer until a brief is complete has failed at the job real
@@ -103,6 +108,25 @@ Say the line: these numbers read from an editable **Assumptions** library (`/ass
 the studio's own planning heuristics, day rates and review-cycle lengths, visible and
 adjustable rather than buried in code.
 
+**Now the number that used to embarrass the tool.** Clear the box and type:
+
+> A branded content film shoot for the US market, multi-location, talent-led, for three brands.
+
+Before this fix, a brief like this returned a few tens of thousands of euros — a multi-brand
+production shoot priced as if it were an in-house social batch, off by roughly an order of
+magnitude, and any Creative Operations reviewer would know it on sight. Now it shows two
+figures side by side, not one merged number: **Internal effort €23,750–€39,270** and
+**External production spend €174,000–€493,000**, totalling **€197,750–€532,270** — a
+defensible planning range for the year's biggest shoot, not a rounding error. Point at the
+line underneath naming the dominant driver — *"The base production cost is the largest
+single swing in this figure"* — and the one below it stating exactly what that figure does
+and doesn't include (production, crew, location, equipment and post; excludes talent buyout,
+travel, music, insurance and media spend). Both are editable on `/assumptions`, same as
+everything else here — say so if asked, since a portfolio piece that hides its own numbers
+would undercut the whole argument. Point at the three new dropdowns (scale, territory, brand
+count) beside Recalculate: pre-filled from the brief's own wording where it gives a clean
+signal, always a producer's own click away from being corrected rather than trusted blind.
+
 Click the **Full Brief** tab. Paste this (or use *Loyalty App Push*'s own brief text from its
 project detail page):
 
@@ -117,25 +141,39 @@ missing information" competence made systematic, not vibes. Give it a project na
 then **Create project from brief** — it lands in the pipeline at Brief, and (per step 2's
 rule) can't be pushed past Ready until those gaps close.
 
-## 6. Creative intelligence to production — 70 seconds
+## 6. Creative intelligence to production — 80 seconds
 
 **The centrepiece — give it the most time.**
 
 On Creative Intelligence, find the **DE** card (there may be a couple of other market cards
-from incidental data — DE is the one with a real sample behind it, 6 lifestyle variants).
-It reads: **Lifestyle 2.37% CTR (6 variants) vs Product-only 1.10% CTR (6 variants)**.
+from incidental data — DE is the one with a real sample behind it, 6 lifestyle variants
+across all three brands combined). It reads: **Lifestyle 2.37% CTR (6 variants) vs
+Product-only 1.10% CTR (6 variants)**.
 
-Pick a brand, click **"Get production recommendation"**. The result:
+Pick a brand — **Fotomera** — and click **"Get production recommendation"**. The result:
 
-> Produce 3 additional lifestyle-led variants for DE — 2.1 days effort, Alex has the window,
-> DE copy review required before publish, awaiting approval.
+> Produce 3 additional Fotomera lifestyle-led variants for DE — Low confidence.
+> Lifestyle-led creative is outperforming product-only creative for Fotomera in DE
+> (CTR 2.35% vs 0.95%, n=2 lifestyle variants). Estimated effort 2.1 days · Suggested
+> resource Nadia · Window 5–7 Sep · Localisation: DE copy review required before publish.
+> Awaiting approval.
 
 (If you're running this step before step 4 in some future rehearsal order, it may name Maya
 instead — see the note at the end of step 4 for why that's expected, not a bug.)
 
-Read the caveat aloud: *"Sample size is small (n=6); treat as directional."* The restraint is
-part of the argument — a lifestyle-led pattern from six variants is a lead worth acting on,
-not a proven law, and the system says so instead of overselling it.
+**Then pick a different brand — Halveth — without accepting the first.** Same market, same
+DE card, a genuinely different result: *"CTR 2.25% vs 1.25%"*, a different rationale, and the
+recommendation still names Nadia (the same computed candidate list, since capacity hasn't
+changed between the two calls). This is the actual point of R10: every brand used to return
+the identical canned response regardless of which one you picked — the most visible "this
+isn't real" tell on the site. Showing two brands side by side, each reading its own real
+numbers, is the proof rather than a claim.
+
+Go back and accept Fotomera's. Read the caveat aloud: *"Based on Fotomera's own 2 lifestyle
+variants in DE, not the full market sample; treat as directional."* The restraint is part of
+the argument, and naming the real sample size (2, not the market's 6) rather than borrowing
+the bigger number is the same honesty the confidence label enforces — a lead worth acting on,
+not a proven law.
 
 **Accept it.** Show the new project appearing in the Pipeline at Ready, then open it — the
 Deliverable, the Assignment, and the Localisation row are all already attached.
@@ -200,7 +238,11 @@ should make.
   whenever you last ran the seed script, not hardcoded — the demo never goes stale, but the
   exact day names ("Friday") stay accurate only right after a fresh seed. Step 8 deliberately
   avoids reading exact dates aloud for the same reason — describe the pattern, not the number.
-- Steps 1–7 are the same traced thread this script always had, re-verified end to end against
-  a real cold start (`DECISIONS.md` 028) — every number and refusal message in them is exactly
-  what the running app produces. Step 8 is new territory (Sessions B and C); if it's ever cut,
-  the demo still stands completely on its own without it.
+- Every number and refusal message in this script — including step 5's cost-model half and
+  step 6's per-brand recommendations, both rewritten after `DECISIONS.md` 057–059 changed
+  what those screens actually produce — was re-verified against a real cold start
+  (`python -m app.seed --reset`, no manual state) immediately before this revision, not
+  assumed to still hold from an earlier one. If a number here ever stops matching what you
+  see live, trust the app and re-verify this file, not the other way round. Step 8 is the
+  newest, thinnest thread; if it's ever cut, the demo still stands completely on its own
+  without it.

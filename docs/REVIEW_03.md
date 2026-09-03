@@ -87,33 +87,47 @@ Agreed sequence, one commit per item:
    R8's coverage note).
 2. **Dashboard at-risk filtering** — `dashboard.py`'s at-risk filter excludes the "brief"
    cause; fix the filter so a project flagged in the attention panel is never silently
-   bucketed as on-track.
+   bucketed as on-track. **Done.** The filter now counts every attention cause not already
+   claimed by Blocked; a new test locks the invariant that on-track + at-risk + blocked
+   always equals active, against the full seed dataset.
 3. **Mock extraction quality** — widen `mock_analyse_brief`'s deadline and approval-owner
    matching, add localisation deadline to the rubric, and fix `mock_insight_to_action`'s
    identical-output-per-brand problem (R10) at the same time — both are the same underlying
-   weakness (thin mocks) in the mode that gets demoed.
+   weakness (thin mocks) in the mode that gets demoed. **Done.** Deadline matching now
+   recognises real date formats, not just weekday names; approval-owner matching covers
+   several phrasings; localisation gained its own deadline field, extracted and scored
+   separately from the project deadline. R10 verified as a side effect of the same pass —
+   see its own section below.
 4. **Localisation card** — rewrite `summarize_by_market()`'s output shape so the card states
-   one coherent fact instead of two true facts about different rows.
+   one coherent fact instead of two true facts about different rows. **Done.** Market cards
+   are now clickable (filter the grid to that market) and carry an inline "Assign
+   translator" action; the self-contradiction is fixed by scoping `translator_ids` to the
+   same row the headline describes.
 5. **Stored-column cleanup** — the audited part of the original R1: compute
    `ProjectPhase.assigned_person_id` and `Project.localisation_required` at render instead of
-   storing them; delete the dead `risk_level`, `risk_reason`, `ProjectPhase.status`,
-   `Deliverable.status` columns.
+   storing them; delete the dead `risk_level`, `risk_reason`, `ProjectPhase.status` columns.
+   **Done**, with one correction the audit above got wrong: `Deliverable.status` turned out
+   to have real writers and a real reader (`project_detail.html`) — not dead after all — so
+   it was kept rather than deleted, logged as a correction rather than silently done.
 
-**Parked, not part of this review:** two pre-existing test failures in `test_assignment.py`,
-found while verifying item 1, unrelated to any of the above. To be triaged after item 5 —
-each one gets diagnosed as a real bug or a stale test before anything is changed to make the
-suite pass.
+**Parked, then resolved:** two pre-existing test failures in `test_assignment.py`, found
+while verifying item 1. Diagnosed after item 5 as instructed — one was a real, live bug
+(`phase_candidates()`'s lead-time check ran for internal people too, who have no lead time to
+enforce; once the real clock passed the tests' hardcoded dates it silently excluded every
+internal candidate from a started phase) and is fixed; the other was confirmed as a stale
+test expectation and updated to match the (correct) current behaviour. Neither was deleted to
+make the suite pass.
 
 ---
 
-## R2 — Open the resourcing model **[DEMO]**
+## R2 — Open the resourcing model **[DEMO — R2.1 and R2.4 done, R2.2/R2.3/R2.5 open]**
 
 Every recommendation currently resolves to Alex, and when it cannot, it declares the problem
 unsolvable. Both stem from the same cause: the system can only see a closed list of eight
 people, against twelve projects. It is structurally short of capacity, so it will always
 fail eventually.
 
-### R2.1 The tool must never dead-end
+### R2.1 The tool must never dead-end **[DONE]**
 
 A recommendation currently reads:
 
@@ -134,6 +148,12 @@ That is false, and a producer knows it is false. There are always three levers:
 >
 > Recommended: A — the deadline is external and the cost is small against the media spend behind it.
 
+**Done.** `reduce_scope` added as a fourth `ResourceOption` kind, computed whenever the
+conflicted project has more than one deliverable — always available alongside
+reassign/engage_external/move_delivery, not just when reassignment fails. The old "the
+deadline is the only lever left" message is now unreachable except in the genuine
+single-option case. See `DECISIONS.md` 055.
+
 ### R2.2 Resources include companies, not just people
 
 Add a resource type: **individual** or **company**. A film production company, a design
@@ -151,7 +171,7 @@ Fields: name, type, skills, rate, lead time, note. Available two ways:
 That second path is the important one. It converts the dead end into what a producer
 actually does at that moment.
 
-### R2.4 Why everything lands on Alex
+### R2.4 Why everything lands on Alex **[DONE]**
 
 Two likely causes, both worth checking:
 
@@ -165,6 +185,12 @@ Diagnostic: *"When recommending a resource, how many candidates typically qualif
 determines the ranking among them? Show me the actual candidate list for the DE variants
 recommendation."* One candidate means it is the skills. Five sorted by ID means it is the
 ranking.
+
+**Done, both causes.** Nadia (designer, sharing Alex's skills) added so a genuine choice
+exists to rank; ranking now prefers whichever qualifying candidate has the most headroom and
+names the runner-up's own headroom in the rationale ("Maya — same skills, 40% free against
+Priya's 15%"), suppressed when the top two tie so it never states a number that didn't
+actually decide anything. See `DECISIONS.md` 053.
 
 ### R2.5 Localisation uses the same pool
 
@@ -230,7 +256,7 @@ producer will recognise immediately.
 
 ---
 
-## R4 — The estimator's cost model is structurally wrong **[DEMO]**
+## R4 — The estimator's cost model is structurally wrong **[DONE, R4.1/R4.3/R4.4; R4.2 still LATER]**
 
 A multi-brand US film shoot returned **€20,000–45,000**. That is off by roughly an order of
 magnitude, and any Creative Operations reviewer will know it on sight. This is the single
@@ -240,7 +266,17 @@ most damaging inaccuracy currently in the application.
 roles × rates. Correct for a social batch made in-house; wrong for anything involving a
 production.
 
-### R4.1 Minimum version — roughly two hours
+### R4.1 Minimum version — roughly two hours **[DONE]**
+
+**Built with one deliberate departure, logged in `DECISIONS.md` 057**: base-plus-marginal
+instead of the flat multiplier specified below — a one-time production base (paid once,
+regardless of brand count) plus a flat per-brand marginal figure, because the marginal cost
+of one more brand's incremental production needs doesn't scale with how expensive the shared
+set happens to be, which a flat multiplier on the whole total would otherwise imply. The
+bands, territory factors and their values below are exactly as specified and exactly as
+seeded. Verified live: a representative six-brand US film brief (the literal brief referenced
+here wasn't recoverable from history) now lands at €241,250–€619,270 total, versus
+€20,740–€43,500 before.
 
 Add to the Assumptions library, and use whenever a brief involves a shoot:
 
@@ -275,15 +311,24 @@ Replace the tier band with line items: production company and director fee · cr
 and usage buyout · location and permits · equipment · travel and accommodation · post
 (offline, online, grade, audio, VFX) · music licensing · insurance and contingency.
 
-### R4.3 Two rules for both versions
+### R4.3 Two rules for both versions **[DONE]**
 
 **Show internal effort and external spend separately.** They come from different budgets and
 producers think about them differently. One merged number is less useful than two.
 
 **Name the dominant variable:** *"Talent buyout across six brands is the largest single swing
-in this figure."*
+in this figure."* Built exactly as specified — Python compares the three real components
+(internal effort, base production cost, brand premium) and names whichever is genuinely
+largest for that estimate, so the wording only appears when the number backs it up.
 
-### R4.4 The boundary that stays
+Both built into a shared `_compute_estimate_block()` that Quick Estimate and the Full Brief
+Assistant both call — one calculation, not a lookalike copy on each screen (`DECISIONS.md`
+058). A follow-up beyond the original spec: one editable sentence stating what the figure
+does and doesn't include (covers production/crew/location/equipment/post; excludes talent
+buyout and usage, travel, music, insurance, media spend, agency fees), shown next to the
+number on both screens (`DECISIONS.md` 059).
+
+### R4.4 The boundary that stays **[DONE]**
 
 These are the studio's own planning assumptions, editable and labelled as such — **not a
 claim to authoritative market rates.** Same rule as everything else in `ASSUMPTIONS.md`. The
@@ -292,9 +337,9 @@ described as a next step rather than implemented.
 
 ---
 
-## R5 — Estimator interaction **[DEMO]**
+## R5 — Estimator interaction **[DEMO — R5.1 done via R1 item 3; R5.2/5.3/5.4 open]**
 
-### R5.1 Re-analysis returns a stale score
+### R5.1 Re-analysis returns a stale score **[DONE]**
 
 A brief scoring 65% was edited to add the missing deadline, localisation deadline and
 approval owner. Re-analysing returned 65% again, unchanged, including after navigating away
@@ -370,22 +415,27 @@ reloading anything by hand.
 
 ---
 
-## R7 — Localisation page **[DEMO]**
+## R7 — Localisation page **[DEMO — first three bullets done; last depends on R2.5, still open]**
 
 The grid works and links correctly to project pages. The four market cards above it do not.
 
-- **Market cards become interactive** — clicking one filters the grid to that market
+- **Market cards become interactive** — clicking one filters the grid to that market. **Done.**
 - **The action sits on the card** — a card reading "no assigned translator, 4 days to
-  deadline" carries an **Assign translator** button
-- **Fix the self-contradiction** in the DE card — item 4 of the current plan under R1
-- **Translators come from the open pool** (R2.5)
+  deadline" carries an **Assign translator** button. **Done**, as a separate inline `<form>`
+  beside the card's own link rather than nested inside it.
+- **Fix the self-contradiction** in the DE card — item 4 of the current plan under R1. **Done**
+  — `translator_ids` now scoped to the same row the headline describes.
+- **Translators come from the open pool** (R2.5) — still open; the translator dropdown reads
+  from the existing translator roster, not yet the same wider pool R2.5 would open up.
 
 ---
 
 ## R8 — Timeline interactivity **[LATER, except the today line]**
 
 - **The today marker does not move.** It is almost certainly positioned at a fixed offset
-  rather than computed from the current date each render. Two-line fix. **[DEMO]**
+  rather than computed from the current date each render. Two-line fix. **[DONE]** — confirmed
+  live: `timeline.html`'s marker position is `timeline.today_pct`, computed by the route on
+  every request, not a stored or hardcoded offset.
 - **Scroll through time** — horizontal scroll with project names pinned left, a range control
   (4 weeks / 8 weeks / quarter), and a **Today** button that snaps the view back
 - **Per-project timeline** — cheaper than it sounds, because project pages already exist.
@@ -398,9 +448,9 @@ The grid works and links correctly to project pages. The four market cards above
 
 ---
 
-## R9 — Assumptions page **[DEMO for labels, LATER for the rest]**
+## R9 — Assumptions page **[R9.1/9.2/9.3 done; R9.4 still LATER]**
 
-### R9.1 The labels are raw database keys
+### R9.1 The labels are raw database keys **[DONE]**
 
 `client_review_days`, `volume_scale_7_15`, `confidence_high_low_factor`. This is the same
 failure as "rows", one layer deeper. Every row needs a human label with the key hidden:
@@ -410,7 +460,7 @@ failure as "rows", one layer deeper. Every row needs a human label with the key 
 
 Single highest-value change on this page.
 
-### R9.2 Confidence bands: eight rows becomes four
+### R9.2 Confidence bands: eight rows becomes four **[DONE]**
 
 They control how wide an estimate is when the brief is vague, so a guess never reads as a
 quote. The concept stays; the raw multiplier pairs go. Express as what the user sees:
@@ -422,7 +472,7 @@ quote. The concept stays; the raw multiplier pairs go. Express as what the user 
 | Partly assumed | −25% / +40% |
 | Mostly assumed | −40% / +70% |
 
-### R9.3 Volume scaling needs its reason
+### R9.3 Volume scaling needs its reason **[DONE]**
 
 > **Volume scaling** — effort grows more slowly than asset count, because setup is a fixed
 > cost. Twenty assets take roughly 2.5× the time of six, not 3.3×.
@@ -464,7 +514,7 @@ mental model rather than a 2019 one.
 
 ---
 
-## R10 — Creative Intelligence mock differentiation **[DEMO]**
+## R10 — Creative Intelligence mock differentiation **[DEMO — mock differentiation done, live-key test not done]**
 
 Selecting any of the three brands for Germany returns a word-for-word identical
 recommendation. That is a single canned mock response being returned regardless of input,
@@ -473,9 +523,14 @@ knows immediately.
 
 Two things, do both:
 
-- Key the mocks by brand, market and variant theme so different selections genuinely differ
+- Key the mocks by brand, market and variant theme so different selections genuinely differ.
+  **Done** — `compute_brand_breakdown()` computes a real per-brand CTR comparison from actual
+  insight rows, and the mock narrates that instead of a canned response; verified live that
+  Fotomera/Halveth/Cassenvale each return genuinely different numbers and rationale for the
+  same DE market.
 - Test with a live API key, since behaviour may differ between modes and it must be known
-  which mode is being demoed
+  which mode is being demoed. **Not done** — every verification this round ran with
+  `AI_PROVIDER=mock`; a live-key comparison for this specific path remains open.
 
 The significance threshold from `REVIEW_02.md` P6.2 still applies: surface an insight only
 where the gap is large enough and the sample big enough, and say "no significant variance
@@ -483,28 +538,37 @@ this period" otherwise.
 
 ---
 
-## R11 — Copy and display **[DEMO]**
+## R11 — Copy and display **[DONE]**
 
-| Current | Change to |
-|---|---|
-| "1 of 6 over capacity · 1 tight · 4 available" | Name them. **"Alex is over capacity · Maya is tight · 4 have room"** — at six people, counts are abstraction for no reason, and each name should link |
-| Raw keys on the Assumptions page | Human labels (R9.1) |
-| "0 at risk" beside 5 blocked | Fix the at-risk filter — item 2 of the current plan under R1 |
+| Current | Change to | Status |
+|---|---|---|
+| "1 of 6 over capacity · 1 tight · 4 available" | Name them. **"Alex is over capacity · Maya is tight · 4 have room"** — at six people, counts are abstraction for no reason, and each name should link | **Done** — each name links to its row on `/resources` |
+| Raw keys on the Assumptions page | Human labels (R9.1) | **Done** — see R9.1 |
+| "0 at risk" beside 5 blocked | Fix the at-risk filter — item 2 of the current plan under R1 | **Done** — see the current plan's item 2 above |
 
 ---
 
 ## Verification
 
-All five checks in `SUPERVISION.md`, the eight in `REVIEW_02.md`, plus:
+All five checks in `SUPERVISION.md`, the eight in `REVIEW_02.md`, plus — re-verified live
+against a real cold start as part of the final pass before this round shipped:
 
-1. **A project created from a brief appears on all five surfaces** without manual reloading
-2. **Every blocked project states a reason, an owner and a consequence**
-3. **A resource recommendation offers time, money and scope options** — never a dead end
+1. **A project created from a brief appears on all five surfaces** without manual reloading —
+   **verified** (R6, done since the "Current plan" pass)
+2. **Every blocked project states a reason, an owner and a consequence** — **not built** (R3
+   entirely open)
+3. **A resource recommendation offers time, money and scope options** — never a dead end —
+   **verified** (R2.1)
 4. **A new resource can be added inline from within a recommendation**, and the
-   recommendation recomputes to include it
-5. **Two different brands on Creative Intelligence produce different recommendations**
-6. **Re-analysing an edited brief changes the score**
-7. **A US shoot estimate lands in a defensible range** — a producer reading it should not wince
-8. **The today marker sits on today**
+   recommendation recomputes to include it — **not built** (R2.3 open)
+5. **Two different brands on Creative Intelligence produce different recommendations** —
+   **verified**: Fotomera/Halveth/Cassenvale each returned a genuinely different CTR
+   comparison and rationale for the same DE market and period in this round's rehearsal (R10)
+6. **Re-analysing an edited brief changes the score** — **verified** (R5.1/R1 item 3)
+7. **A US shoot estimate lands in a defensible range** — a producer reading it should not
+   wince — **verified**: a representative six-brand US film brief now lands at
+   €241,250–€619,270 total, versus €20,740–€43,500 before (R4)
+8. **The today marker sits on today** — **verified**: computed live from the current date,
+   not a fixed offset
 
 Then `python tools/audit.py --url <site>` and `/check-honesty` before sharing.
