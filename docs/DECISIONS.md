@@ -1023,6 +1023,96 @@ and note the day-dependent one, rather than touching the seed date (already trie
 Consequences: steps 3, 5, 6, 8 verified live, unchanged. Every rewritten step re-run live end
 to end after the fixes, against a fresh reseed.
 
+## 047 — REVIEW_03.md item 2: at-risk tile no longer drops the "brief" cause
+Date: 2026-09-02
+Decision: `dashboard.py`'s `at_risk_ids` used to be `entry["cause"] in ("capacity",
+"localisation", "deadline")` — silently excluding the "brief" cause. Now every project in the
+attention snapshot counts as at risk unless it's already counted as blocked, with no
+per-cause filter at all.
+Alternatives considered: none — the comment already sitting next to the old code said the
+four causes were meant to partition every active project across the three tiles exactly once;
+the filter just didn't implement that.
+Why: a project flagged in the "Needs attention" panel for a low readiness score counted
+toward neither At Risk nor Blocked (the blocked-side brief-stalled cause needs
+`estimated_days`, not always set) and read as on-track — the exact "0 at risk alongside 5
+blocked" symptom the R1 audit traced to this file.
+Consequences: added a regression test (confirmed it fails against the reverted filter before
+restoring the fix). Verified live against the full seed data: On track 4 + At risk 2 +
+Blocked 5 = Active 11.
+
+## 048 — Timeline: unscheduled-project reasons and the tile-partition invariant test
+Date: 2026-09-02
+Decision: Two additions, requested together. (a) `/timeline` now lists projects with no
+`project_type_id` in a "Not yet scheduled" footnote naming why ("no deliverables defined
+yet", or "deliverables don't match a known project type") instead of omitting them
+silently. (b) A regression test locks `on_track + at_risk + blocked == active` against the
+full seed data.
+Alternatives considered: none for either — both were specified directly.
+Why: an absent project reads as a bug; a stated reason reads as the system knowing its own
+limits. The three dashboard tiles disagreed with each other across two review rounds
+(REVIEW_02.md P2, REVIEW_03.md R1/item 2) before decision 047 reconciled them — worth locking
+down as a test now that it's true, not just re-verified by hand each time.
+Consequences: none beyond the two additions — no schema or route behaviour changed.
+
+## 049 — REVIEW_03.md item 3: widen mock.py's brief extraction and insight mock
+Date: 2026-09-02
+Decision: Mock mode is what gets demoed, so its output quality is the product as far as any
+viewer is concerned. Two independent widenings:
+1. **Brief extraction** (`mock_analyse_brief`): deadline recognition covers ISO, "16
+   March"/"March 16", DD/MM(/YYYY) and weekday formats (was weekday-only), each hedge-checked
+   against only its own sentence rather than the whole brief; vague windows ("mid-January",
+   "spring next year", "end of next week") are captured as a stated target window instead of
+   discarded. Approval-owner matching covers six phrasings (was one regex), each
+   hedge-checked on its own captured clause. Added `LocalisationNeed.deadline` as a real
+   extracted fact, and `score_readiness`'s `localisation_deadline` check now reads it
+   directly instead of proxying off the project's overall deadline plus target-market
+   presence. Markets expanded from 5 to 16, with 2-letter codes matched case-sensitively
+   against the original text (lowercasing made several codes collide with common English
+   words — it/be/at/no/ie). `format_specs` now requires every deliverable to carry a format,
+   checked per deliverable type in its own clause, not any single global match.
+2. **Insight mock** (R10): `compute_market_comparisons` aggregates CTR across every brand in
+   a market by design (that's what keeps its sample size, and the significance gate,
+   meaningful) — the actual bug was that `intelligence.py`'s `recommend()` route called
+   `insight_to_action` with that brand-blind object instead of the brand-aware `facts` dict
+   built right next to it. Added `compute_brand_breakdown()`, layered on top of (not
+   replacing) the market-wide gate.
+Alternatives considered: brand-scoping `compute_market_comparisons` itself — rejected, since
+the seed data's ~2-row-per-brand groups would fall below the significance threshold and block
+the demo's own DE recommendation flow entirely.
+Why: both are the same underlying weakness — thin mocks in the mode that gets demoed — fixed
+together per the owner's instruction.
+Consequences: verified against a real 16-market acceptance brief end to end (see
+`tests/test_brief_extraction_acceptance.py`): all 16 markets, 16 March recognised as a hard
+date, score lands at 75, and editing the brief to add an approval owner and localisation
+deadline moves the score 75→85 — the original R5.1 bug. All 12 seed briefs re-checked
+identical before/after. Insight mock verified live: DE now returns three genuinely different
+CTR readings per brand instead of identical text, each with an honest small-sample caveat.
+`RUBRIC_WEIGHTS`'s `localisation_deadline`/`format_specs` semantics changed — `tests/
+test_brief_rubric.py` updated to match, not left contradicting the new behaviour.
+
+## 050 — REVIEW_03.md item 4: full pass on the localisation page (R7)
+Date: 2026-09-02
+Decision: `summarize_by_market()`'s `MarketSummary.translator_ids` now only ever names
+translators covering the *same* rows `headline` describes — empty when at risk (naming
+translators on other rows would recreate the exact contradiction being fixed), populated
+from the in-flight rows specifically when the queue is just moving. Added
+`flagged_localisation_id` so the UI can act on the specific row an at-risk headline is about.
+Market cards on `/localisation` now link to `?market=X`, filtering the grid below (the link
+wraps only the read-only summary, never the assign form, so no control nests inside it); an
+at-risk card carries its own "Assign translator" form posting to the existing
+`/localisation/{id}/assign` route.
+Alternatives considered: none recorded — the three sub-items (output shape, clickable cards,
+inline action) were specified directly, scoped to all of R7 except the translator-pool part,
+which depends on R2 and was explicitly deferred.
+Why: `headline` describing one row and `translator_ids` aggregating every row in the market
+was the literal cause of the DE card reading "no assigned translator" next to "assigned to
+Jonas and Camille" — two different rows presented as one fact. A card reporting a problem
+with no way to act on it is the pattern this review has been removing everywhere else.
+Consequences: six new tests (two unit, four route-level). Verified live against the seed
+data: the FR card (the review's own example) now reads with no translator names and a
+working assign control; the DE card reads "queue moving — 7 in flight, handled by Jonas,"
+coherent since both halves describe the same rows.
+
 ## 046 — REVIEW_03.md R1 audit ran first, and it re-scoped the review
 Date: 2026-09-02
 Decision: Before touching any code, audited every model column that stores a value derived
