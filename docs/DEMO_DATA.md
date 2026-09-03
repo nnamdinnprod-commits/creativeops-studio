@@ -8,9 +8,12 @@ to set anything up. Every conflict below exists because a specific screen needs 
 ## Scale
 
 Small enough to read on one screen, large enough to be believable: **3 brands, 5 markets,
-9 people, 12 projects, ~30 deliverables, ~20 localisation rows, ~24 creative insight rows.**
-(9, not 8 — REVIEW_02.md P5.6 added an external motion designer so its own example
-recommendation option, "Engage Lars," is reachable in the live demo, not just described.)
+10 people, 12 projects, ~30 deliverables, ~20 localisation rows, ~24 creative insight rows.**
+(10, not 9 — REVIEW_03.md R2.4 added Nadia, an internal designer sharing Alex's skills, so a
+reassignment recommendation has a genuine second candidate to rank against Maya instead of
+one candidate by construction. Before that, 9 not 8 — REVIEW_02.md P5.6 added an external
+motion designer so its own example recommendation option, "Engage Lars," is reachable in the
+live demo, not just described.)
 
 ## Brands and markets
 
@@ -41,6 +44,7 @@ Invented first names only. Mix of internal and external, with capacity that is n
 | Elena | Motion Designer | 80 | available, holds the scarce motion skill |
 | Tomas | Copywriter | 60 | part-time |
 | Priya | Designer | 100 | mid-loaded |
+| Nadia | Designer | 100 | shares Alex's skills, 50% free — the real second reassignment candidate |
 | Jonas | Translator (DE) | external | Talent Pool — not on the capacity roster until engaged (REVIEW_02.md P5.5) |
 | Camille | Translator (FR) | external | Talent Pool; deliberately *not* engaged for one FR project |
 | Lars | Motion Designer | external | Talent Pool — REVIEW_02.md P5.6's own "Engage Lars" resource-option example, made reachable |

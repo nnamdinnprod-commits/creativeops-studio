@@ -61,7 +61,7 @@ Teaser*.
 Click **"Get AI recommendation for Winter Campaign Refresh"**. It returns a ranked set of
 options, not one take-it-or-leave-it call:
 
-> **A · Reassign to Maya** — no cost, available today, has worked this brand before
+> **A · Reassign to Maya** — no cost, available today, 55% free, has worked this brand before
 > **B · Move delivery to 20 Sep** — no cost, no resource change, client conversation required
 >
 > Recommended: A.

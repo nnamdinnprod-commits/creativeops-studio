@@ -117,6 +117,33 @@ def test_reassign_candidate_with_partial_headroom_is_not_wrongly_excluded(db_ses
     assert reassign["start_date"] == TODAY.isoformat()  # available immediately
 
 
+def test_reassign_prefers_more_headroom_and_names_the_runner_up(db_session):
+    """REVIEW_03.md R2.4: among candidates who already qualify, the one with
+    more spare capacity wins, and the option's detail names the runner-up's
+    own headroom -- not just "spare capacity" with no comparison."""
+    ctx = _seed_conflict(db_session, project_deadline_days=14, add_external_candidate=False)
+    # A second qualifying candidate, sharing Maya's skill, with less headroom.
+    priya = Person(name="Priya", role=PersonRole.designer, capacity_pct=100, skills="layout",
+                  is_external=False)
+    db_session.add(priya)
+    db_session.flush()
+    db_session.add_all([
+        # Maya: 45% committed elsewhere -> 55% free.
+        Assignment(project_id=ctx["p1"].id, person_id=ctx["maya"].id, allocation_pct=45,
+                  start_date=TODAY - timedelta(days=10), end_date=TODAY + timedelta(days=30)),
+        # Priya: 60% committed elsewhere -> 40% free, still enough for this transfer (40%).
+        Assignment(project_id=ctx["p1"].id, person_id=priya.id, allocation_pct=60,
+                  start_date=TODAY - timedelta(days=10), end_date=TODAY + timedelta(days=30)),
+    ])
+    db_session.commit()
+
+    facts = _build_conflict_facts(db_session, ctx["alex"].id, ctx["p2"].id)
+    reassign = next(o for o in facts["options"] if o["kind"] == "reassign")
+    assert reassign["to_person_id"] == ctx["maya"].id
+    assert "55% free" in reassign["detail"]
+    assert "against Priya's 40%" in reassign["detail"]
+
+
 def test_route_recommend_persists_the_real_computed_options(client, db_session):
     ctx = _seed_conflict(db_session, project_deadline_days=14)
     resp = client.post("/resources/recommend", data={"person_id": ctx["alex"].id, "project_id": ctx["p2"].id})

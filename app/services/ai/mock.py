@@ -436,9 +436,13 @@ def mock_recommend_resource(conflict_facts: dict) -> ResourceRecommendation:
         )
         caveats.append("This candidate is an external partner, not an internal team member.")
     else:
+        # REVIEW_03.md R2.4: quotes recommended.detail whole, which now carries
+        # the headroom comparison resources.py computed ("55% free, against
+        # Nadia's 50%") whenever a genuine runner-up exists — "say so in the
+        # rationale" without this function inventing or re-deriving the numbers.
         rationale = (
-            f"{recommended.action} — spare capacity, no lead time needed, the fastest "
-            f"no-cost way to bring {overloaded['name']} back under {overloaded['capacity_pct']}%."
+            f"{recommended.action} — {recommended.detail}, the fastest no-cost way to "
+            f"bring {overloaded['name']} back under {overloaded['capacity_pct']}%."
         )
 
     return ResourceRecommendation(

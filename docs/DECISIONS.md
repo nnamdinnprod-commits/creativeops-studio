@@ -1222,3 +1222,34 @@ confirming an internal person is now offered for a phase already underway, one c
 external person's own lead time still gates the same phase (`engage_person()` enforces the
 identical rule on accept, so the two must not disagree). Full suite: 217 passed, 0 failed.
 Verified live: Winter Campaign Refresh's blocked phase now offers Priya, Elena, and Maya.
+
+## 053 — REVIEW_03.md R2.4: a real second reassignment candidate, ranked and named
+Date: 2026-09-03
+Decision: Diagnosed live first, per the review's own instruction: both of Alex's overloaded
+projects returned exactly one internal candidate (Maya) for reassignment. Not a ranking bug —
+Priya and Elena also share Alex's skills but neither has enough spare capacity for either
+transfer (40% or 55%), so the pool genuinely had one member. Added Nadia (designer, shares
+Alex's `layout,paid_formats` skills, one real assignment sized to leave exactly 50% free) —
+enough to qualify for Loyalty Relaunch Teaser's 40% transfer, less than Maya's 55%, and
+deliberately not enough for Winter Campaign Refresh's 55% transfer, so `DEMO_SCRIPT.md`'s
+step 4 (which names only Maya) is untouched.
+Reworked `resources.py`'s candidate selection from `_best()` (one winner, `available_from`
+primary key) to `_rank()` (a sorted list, `-available_pct` primary key, `available_from` only
+a tiebreaker) — headroom is now the actual primary ranking signal among people who already
+qualify, per the review's literal ask, not a secondary tiebreaker behind availability date
+(which almost every internal candidate ties on anyway). The option's `detail` string now
+names the runner-up's own headroom when one exists ("55% free, against Nadia's 50%") —
+computed in Python alongside every other number in this payload, not left for
+`mock_recommend_resource` to invent; that function now quotes `.detail` whole for its
+rationale instead of a generic "spare capacity" line.
+Alternatives considered: reducing Priya's or Elena's existing load instead of adding a new
+person — rejected, since both are already tuned for other stated reasons (Priya "mid-loaded,"
+Elena "the scarce motion skill"), and touching either risks a documented behaviour I'd have to
+re-verify from scratch. A new person, sized specifically for this purpose, is the more
+surgical change.
+Consequences: `DEMO_DATA.md`'s scale note and people table updated (9→10); `DEMO_SCRIPT.md`
+step 4's quote updated to the real live text. One new test
+(`test_reassign_prefers_more_headroom_and_names_the_runner_up`) exercises the two-candidate
+ranking directly. Full suite: 218 passed. Verified live: Winter Campaign Refresh still
+recommends Maya alone; Loyalty Relaunch Teaser now recommends Maya with Nadia named as the
+runner-up in both the option detail and the rationale.

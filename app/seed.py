@@ -54,6 +54,18 @@ def seed(session):
                    skills="copy_de,copy_fr", is_external=False)
     priya = Person(name="Priya", role=PersonRole.designer, capacity_pct=100,
                    skills="layout,paid_formats", is_external=False)
+    # REVIEW_03.md R2.4: the reassignment recommendation used to have exactly one
+    # candidate for either of Alex's overloaded projects — not because the
+    # ranking was wrong, but because nobody else who shared his skills also had
+    # enough spare capacity for either transfer (Priya's own two assignments
+    # already leave her too loaded for both). Nadia shares Alex's skills and is
+    # sized to qualify for the smaller of the two transfers (Loyalty Relaunch
+    # Teaser, 40%) with less headroom than Maya (55% free) — a real second
+    # candidate the ranking has to actually choose between, not a tie. Winter
+    # Campaign Refresh's transfer (55%) stays Maya-only, matching DEMO_SCRIPT.md's
+    # step 4 exactly — Nadia's 50% free isn't quite enough for that one.
+    nadia = Person(name="Nadia", role=PersonRole.designer, capacity_pct=100,
+                   skills="layout,paid_formats", is_external=False)
     jonas = Person(name="Jonas", role=PersonRole.translator, capacity_pct=100,
                    skills="copy_de", is_external=True)
     camille = Person(name="Camille", role=PersonRole.translator, capacity_pct=100,
@@ -65,7 +77,7 @@ def seed(session):
     # when internal capacity runs out" actually matters.
     lars = Person(name="Lars", role=PersonRole.motion_designer, capacity_pct=100,
                  skills="motion", is_external=True)
-    people = [alex, maya, sam, elena, tomas, priya, jonas, camille, lars]
+    people = [alex, maya, sam, elena, tomas, priya, nadia, jonas, camille, lars]
     session.add_all(people)
     session.flush()  # assign ids
 
@@ -177,7 +189,13 @@ def seed(session):
     a10 = Assignment(project_id=p11.id, person_id=sam.id, allocation_pct=15,
                      start_date=TODAY - timedelta(days=6), end_date=TODAY + timedelta(days=4),
                      role_on_project="producer")
-    session.add_all([a1, a2, a3, a4, a5, a6, a7, a8, a9, a10])
+    # REVIEW_03.md R2.4: Nadia's own real work, sized so her peak allocation (50%)
+    # leaves exactly 50% free -- enough to qualify as a reassignment candidate for
+    # Loyalty Relaunch Teaser's 40% transfer, less than Maya's 55% free.
+    a11 = Assignment(project_id=p8.id, person_id=nadia.id, allocation_pct=50,
+                     start_date=TODAY, end_date=TODAY + timedelta(days=18),
+                     role_on_project="designer")
+    session.add_all([a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11])
 
     # --- Deliverables ---
     deliverables = [
@@ -657,7 +675,7 @@ def main():
             print("Seed data already present — skipping (use --reset to start clean).")
         else:
             seed(session)
-            print("Seed data created: 9 people, 12 projects, 10 assignments, "
+            print("Seed data created: 10 people, 12 projects, 11 assignments, "
                   "18 deliverables, 20 localisation rows, 24 creative insights.")
 
         if session.query(ProjectType).count() > 0:

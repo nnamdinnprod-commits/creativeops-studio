@@ -231,19 +231,38 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
         }
         (external_candidates if person.is_external else internal_candidates).append(entry)
 
-    def _best(pool: list[dict]) -> dict | None:
+    def _rank(pool: list[dict]) -> list[dict]:
+        """REVIEW_03.md R2.4: headroom is the primary ranking signal among
+        everyone who already qualifies (enough spare capacity, can start in
+        time) — skill match narrows the pool first, but doesn't override it.
+        available_from used only as a tiebreaker: every internal person ties
+        at "today," and an external person's own lead time already gated
+        whether they qualified for the window at all."""
         skill_matches = [c for c in pool if c["matches_skill"]]
         chosen_pool = skill_matches or pool
-        return min(chosen_pool, key=lambda c: (c["available_from"], -c["available_pct"])) if chosen_pool else None
+        return sorted(chosen_pool, key=lambda c: (-c["available_pct"], c["available_from"]))
+
+    def _headroom_clause(ranked: list[dict]) -> str:
+        # REVIEW_03.md R2.4: "say so in the rationale" — named here, in the
+        # Python-computed detail line, not left for the mock to invent. Only
+        # the strongest runner-up is named; a distant third place doesn't add
+        # information a producer needs to decide.
+        if len(ranked) < 2:
+            return ""
+        runner_up = ranked[1]
+        return f", against {runner_up['name']}'s {runner_up['available_pct']}%"
 
     options = []
-    best_internal = _best(internal_candidates)
+    ranked_internal = _rank(internal_candidates)
+    best_internal = ranked_internal[0] if ranked_internal else None
     if best_internal is not None:
         options.append({
             "label": "", "kind": "reassign",
             "action": f"Reassign to {best_internal['name']}",
             "detail": (
-                f"no cost, available {best_internal['available_from']}"
+                f"no cost, available {best_internal['available_from']}, "
+                f"{best_internal['available_pct']}% free"
+                f"{_headroom_clause(ranked_internal)}"
                 f"{', has worked this brand before' if best_internal['matches_skill'] else ', has not worked this brand before'}"
             ),
             "to_person_id": best_internal["id"],
@@ -251,7 +270,8 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
             "new_deadline": None,
         })
 
-    best_external = _best(external_candidates)
+    ranked_external = _rank(external_candidates)
+    best_external = ranked_external[0] if ranked_external else None
     if best_external is not None:
         # Lead time can eat into the window — the engageable stretch is from
         # whenever they can actually start through the same window end, not the
@@ -266,7 +286,10 @@ def _build_conflict_facts(db: Session, person_id: int, project_id: int) -> dict 
         options.append({
             "label": "", "kind": "engage_external",
             "action": f"Engage {best_external['name']} (external, {best_external['role'].replace('_', ' ')})",
-            "detail": f"{cost_note}, {lead_time}-day lead time, available {best_external['available_from']}",
+            "detail": (
+                f"{cost_note}, {lead_time}-day lead time, available {best_external['available_from']}"
+                f"{_headroom_clause(ranked_external)}"
+            ),
             "to_person_id": best_external["id"],
             "start_date": best_external["available_from"], "end_date": window_end.isoformat(),
             "new_deadline": None,
