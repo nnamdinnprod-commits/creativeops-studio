@@ -42,22 +42,27 @@ class ReadinessResult:
 
 
 def score_readiness(extraction: BriefExtraction) -> ReadinessResult:
-    # "localisation_deadline" has no dedicated field on BriefExtraction — the doc's
-    # rubric names it but the extraction schema doesn't carry a separate localisation
-    # deadline. Interpreted here as: not applicable if localisation isn't required;
-    # otherwise satisfied only if target markets AND a confirmed deadline both exist,
-    # since neither localisation nor the deliverable schedule can be planned without both.
+    # REVIEW_03.md item 3: localisation_deadline now reads a real, separately
+    # extracted fact (LocalisationNeed.deadline) instead of proxying off the
+    # project's own deadline plus target-market presence — a confirmed overall
+    # deadline says nothing about whether translated/adapted assets have their
+    # own lead time before it, which is the actual planning gap this field is
+    # meant to catch. Not applicable when localisation isn't required.
+    #
+    # format_specs requires EVERY deliverable to carry a format, not just one —
+    # "effort estimation" (this field's block) genuinely needs all of them
+    # known; a brief with confirmed social specs and unconfirmed homepage/
+    # display specs is not fully scoped, even though *a* format exists somewhere.
     checks = {
         "objective": bool(extraction.objective),
         "audience": bool(extraction.audience),
         "markets": len(extraction.markets) > 0,
         "deliverables_with_type": any(d.type for d in extraction.deliverables),
-        "format_specs": any(d.format_spec for d in extraction.deliverables),
+        "format_specs": bool(extraction.deliverables) and all(d.format_spec for d in extraction.deliverables),
         "deadline_confirmed": bool(extraction.deadline),
         "approval_owner": bool(extraction.approval_owner),
         "localisation_deadline": (
-            not extraction.localisation.required
-            or (bool(extraction.localisation.targets) and bool(extraction.deadline))
+            not extraction.localisation.required or bool(extraction.localisation.deadline)
         ),
     }
 

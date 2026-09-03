@@ -22,6 +22,11 @@ class LocalisationNeed(BaseModel):
     required: bool = False
     source: str | None = None
     targets: list[str] = []
+    # REVIEW_03.md item 3: a genuinely separate fact from the project's own
+    # deadline (extraction.deadline) — a real localisation workflow needs its
+    # own lead time before the main deadline, not just "does a deadline exist
+    # at all." See app/services/brief.py's localisation_deadline rubric check.
+    deadline: str | None = None
 
 
 class BriefExtraction(BaseModel):

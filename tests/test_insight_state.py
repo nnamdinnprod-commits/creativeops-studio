@@ -151,6 +151,79 @@ def test_dismiss_unknown_market_returns_false(db_session):
     assert dismiss_market_insight(db_session, "ZZ", "no such market") is False
 
 
+def _seed_two_brand_gap(db_session, market="DE"):
+    """REVIEW_03.md R10: two brands, each with their own lifestyle/product rows
+    in the same market -- the fixture _seed_gap() above can't exercise brand
+    differentiation at all, since every row in it is the same brand."""
+    rows = []
+    for brand, lifestyle_ctrs, product_ctrs in (
+        ("Fotomera", [2.1, 2.6], [1.0, 0.9]),
+        ("Halveth", [2.3, 2.2], [1.2, 1.3]),
+    ):
+        rows += [
+            CreativeInsight(brand=brand, market=market, format="social_static",
+                            variant_theme=VariantTheme.lifestyle, impressions=40000, ctr=ctr,
+                            engagement_rate=4.5, conversion_rate=1.4,
+                            period_start=TODAY, period_end=TODAY, insight_text=None)
+            for ctr in lifestyle_ctrs
+        ] + [
+            CreativeInsight(brand=brand, market=market, format="social_static",
+                            variant_theme=VariantTheme.product_only, impressions=38000, ctr=ctr,
+                            engagement_rate=1.8, conversion_rate=0.7,
+                            period_start=TODAY, period_end=TODAY, insight_text=None)
+            for ctr in product_ctrs
+        ]
+    db_session.add_all(rows)
+    db_session.add_all([
+        Person(name="Priya", role=PersonRole.designer, capacity_pct=100,
+              skills="layout", is_external=False),
+        Person(name="Sam", role=PersonRole.producer, capacity_pct=100,
+              skills="", is_external=False),
+    ])
+    db_session.commit()
+
+
+def test_two_brands_produce_different_recommendations(client, db_session):
+    """REVIEW_03.md R10: selecting any of the three brands used to return
+    word-for-word identical output, because mock_insight_to_action was never
+    given the brand at all. Each brand's own CTR figures must now differ."""
+    _seed_two_brand_gap(db_session)
+
+    resp_a = client.post("/intelligence/recommend", data={"market": "DE", "brand": "Fotomera"})
+    assert resp_a.status_code == 200
+    rec_a = db_session.query(Recommendation).filter_by(kind=RecommendationKind.production_action).one()
+    summary_a = json.loads(rec_a.payload_json)["insight_summary"]
+    db_session.delete(rec_a)
+    db_session.commit()
+
+    resp_b = client.post("/intelligence/recommend", data={"market": "DE", "brand": "Halveth"})
+    assert resp_b.status_code == 200
+    rec_b = db_session.query(Recommendation).filter_by(kind=RecommendationKind.production_action).one()
+    summary_b = json.loads(rec_b.payload_json)["insight_summary"]
+
+    assert summary_a != summary_b
+    assert "Fotomera" in summary_a
+    assert "Halveth" in summary_b
+    assert "2.35" in summary_a  # mean of [2.1, 2.6]
+    assert "2.25" in summary_b  # mean of [2.3, 2.2]
+
+
+def test_brand_with_no_data_falls_back_to_market_wide_figures(client, db_session):
+    """A brand with no rows of its own in this market gets an honest fallback
+    caveat, not a crash or an invented figure."""
+    _seed_gap(db_session)  # every row is brand="Fotomera"
+
+    resp = client.post("/intelligence/recommend", data={"market": "DE", "brand": "Cassenvale"})
+    assert resp.status_code == 200
+    rec = db_session.query(Recommendation).filter_by(kind=RecommendationKind.production_action).one()
+    payload = json.loads(rec.payload_json)
+    # No brand-specific data, so the summary honestly stays market-wide rather
+    # than claiming a Cassenvale figure that doesn't exist -- the caveat is
+    # where that honesty lives.
+    assert "DE" in payload["insight_summary"]
+    assert any("No Cassenvale-specific data" in c for c in payload["caveats"])
+
+
 def test_recommend_page_renders_status_badges(client, db_session):
     _seed_gap(db_session)
     resp = client.get("/intelligence")

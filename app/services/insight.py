@@ -67,6 +67,32 @@ def compute_market_comparisons(insights: list[CreativeInsight]) -> list[dict]:
     return sorted(comparisons, key=lambda c: (not c["significant"], -c["gap"] if c["significant"] else c["market"]))
 
 
+def compute_brand_breakdown(insights: list[CreativeInsight], market: str, brand: str) -> dict | None:
+    """REVIEW_03.md R10: compute_market_comparisons aggregates across every
+    brand in a market by design -- that's what keeps its sample size (and
+    therefore its significance gate) meaningful, and that gate must keep
+    deciding which markets can be recommended for at all. This is a
+    brand-specific view layered on top, purely for insight_to_action's
+    narration -- which brand a producer picks should change what the
+    recommendation says, even though whether the market is worth recommending
+    for at all stays a market-wide question. Returns None when this brand has
+    no rows in one of the two groups for this market -- nothing brand-specific
+    to say yet, not an error."""
+    lifestyle = [r for r in insights
+                if r.market == market and r.brand == brand and r.variant_theme == VariantTheme.lifestyle]
+    product = [r for r in insights
+              if r.market == market and r.brand == brand and r.variant_theme == VariantTheme.product_only]
+    if not lifestyle or not product:
+        return None
+
+    return {
+        "lifestyle_avg_ctr": round(mean(row.ctr for row in lifestyle), 2),
+        "product_avg_ctr": round(mean(row.ctr for row in product), 2),
+        "lifestyle_count": len(lifestyle),
+        "product_count": len(product),
+    }
+
+
 def distinct_periods(db: Session) -> list[tuple]:
     """REVIEW_02.md P6.2: "the metrics table demotes to a supporting panel labelled
     with an explicit reporting period... with a period selector." Every distinct

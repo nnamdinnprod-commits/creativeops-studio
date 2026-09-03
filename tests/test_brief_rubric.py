@@ -15,7 +15,7 @@ def test_fully_complete_brief_scores_100():
         deliverables=[DeliverableSpec(type="social_static", market="NL", format_spec="1080x1080", quantity=4)],
         deadline="2026-09-04",
         approval_owner="Sam",
-        localisation=LocalisationNeed(required=True, source="NL", targets=["DE"]),
+        localisation=LocalisationNeed(required=True, source="NL", targets=["DE"], deadline="2026-08-25"),
     )
     result = score_readiness(extraction)
     assert result.score == 100
@@ -52,15 +52,21 @@ def test_vague_brief_scores_in_expected_band():
     assert result.blocking_reasons["deadline_confirmed"] == "scheduling"
 
 
-def test_localisation_deadline_check_requires_both_targets_and_deadline():
+def test_localisation_deadline_check_requires_its_own_extracted_deadline():
+    """REVIEW_03.md item 3: this used to proxy off the project's overall
+    deadline plus target-market presence — a confirmed campaign deadline says
+    nothing about whether translated assets have their own lead time before
+    it. Now it's a real, separately extracted fact (LocalisationNeed.deadline)
+    and the overall deadline being confirmed no longer satisfies it on its own."""
     extraction = BriefExtraction(
         localisation=LocalisationNeed(required=True, source="NL", targets=["FR"]),
-        deadline=None,
+        deadline="2026-09-04",
     )
     result = score_readiness(extraction)
     assert "localisation_deadline" in result.missing_fields
 
-    extraction2 = extraction.model_copy(update={"deadline": "2026-09-04"})
+    extraction2 = extraction.model_copy(
+        update={"localisation": extraction.localisation.model_copy(update={"deadline": "2026-08-25"})})
     result2 = score_readiness(extraction2)
     assert "localisation_deadline" not in result2.missing_fields
 

@@ -19,6 +19,7 @@ from app.models import (
 from app.services.ai.insight import insight_to_action
 from app.services.capacity import all_person_capacities
 from app.services.insight import (
+    compute_brand_breakdown,
     compute_insight_status,
     compute_market_comparisons,
     dismiss_market_insight,
@@ -119,8 +120,16 @@ def recommend(request: Request, market: str = Form(...), brand: str = Form(...),
     if current_status["status"] in ("actioned", "dismissed"):
         return RedirectResponse(url="/intelligence?error=recommend_failed", status_code=303)
 
+    # REVIEW_03.md R10: `match` is the market-wide comparison -- brand-blind by
+    # design, since that's what keeps its sample size (and the significance
+    # gate just above) meaningful. `facts` is what actually gets narrated, and
+    # it needs the brand the producer picked, plus that brand's own CTR
+    # breakdown where enough of its own data exists -- without this, every
+    # brand selection for the same market produced word-for-word identical
+    # output, because the mock was never actually given the brand at all.
     facts = dict(match)
     facts["brand"] = brand
+    facts["brand_breakdown"] = compute_brand_breakdown(insights, market, brand)
 
     existing = (
         db.query(Recommendation)
@@ -150,7 +159,7 @@ def recommend(request: Request, market: str = Form(...), brand: str = Form(...),
     if not capacity_snapshot:
         return RedirectResponse(url="/intelligence?error=no_candidates", status_code=303)
 
-    rec = insight_to_action(match, capacity_snapshot)
+    rec = insight_to_action(facts, capacity_snapshot)
     if rec is None:
         return RedirectResponse(url="/intelligence?error=recommend_failed", status_code=303)
 
