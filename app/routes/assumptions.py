@@ -6,11 +6,13 @@ from app.database import get_db
 from app.templates_env import templates
 from app.models import Assumption, Project, ProjectPhase, RateBand
 from app.services.assumptions import reset_all
+from app.services.estimate import PRODUCTION_SCALE_LABELS, PRODUCTION_SCALE_TIER_ORDER, TERRITORY_LABELS
 from app.services.scheduling import generate_schedule
 
 router = APIRouter()
 
-CATEGORY_ORDER = ["Review and approval cycles", "Lead times", "Volume scaling", "Confidence bands"]
+CATEGORY_ORDER = ["Review and approval cycles", "Lead times", "Volume scaling",
+                  "Territory factor", "Confidence bands"]
 
 # REVIEW_03.md R9.1: "the same failure as 'rows,' one layer deeper" — the raw
 # key was the only label this page ever gave a value, and a database column
@@ -33,6 +35,11 @@ ASSUMPTION_LABELS = {
     "volume_scale_16_30": "Volume scaling, 16–30 assets",
     "volume_scale_31_60": "Volume scaling, 31–60 assets",
 }
+# Derived from estimate.py's own TERRITORY_LABELS rather than restated here —
+# one name per territory, not two copies that could drift apart.
+ASSUMPTION_LABELS.update({
+    f"territory_factor_{territory}": label for territory, label in TERRITORY_LABELS.items()
+})
 
 # REVIEW_03.md R9.3: "volume scaling needs its reason" — a fixed sentence
 # above the category's table rather than repeated per row, since the reason
@@ -59,6 +66,10 @@ CONFIDENCE_TIER_ORDER = ["high", "medium", "low_medium", "low"]
 def _signed_pct(factor: float) -> str:
     pct = round((factor - 1) * 100)
     return f"{'+' if pct >= 0 else ''}{pct}%"
+
+
+def _currency_range(low: float, high: float) -> str:
+    return f"€{low:,.0f}–€{high:,.0f}"
 
 # REVIEW_02.md P3: "Change an assumption -> reschedule every affected project."
 # Every other assumption (volume scaling, lead times, confidence bands,
@@ -104,6 +115,32 @@ def assumptions(request: Request, db: Session = Depends(get_db)):
             "range_display": f"{_signed_pct(low.value_numeric)} / {_signed_pct(high.value_numeric)}",
         })
 
+    # REVIEW_03.md R4: same collapse as confidence bands above — eight low/high
+    # tier rows plus the marginal-cost pair become five rows a producer reads
+    # as ranges, not ten numbers they'd have to pair up themselves.
+    scale_by_key = {a.key: a for a in by_category.pop("Production scale", [])}
+    production_scale_rows = []
+    for tier in PRODUCTION_SCALE_TIER_ORDER:
+        low = scale_by_key.get(f"production_scale_{tier}_low")
+        high = scale_by_key.get(f"production_scale_{tier}_high")
+        if low is None or high is None:
+            continue
+        production_scale_rows.append({
+            "label": PRODUCTION_SCALE_LABELS[tier],
+            "low": low,
+            "high": high,
+            "range_display": _currency_range(low.value_numeric, high.value_numeric),
+        })
+    marginal_low = scale_by_key.get("multi_brand_marginal_cost_low")
+    marginal_high = scale_by_key.get("multi_brand_marginal_cost_high")
+    if marginal_low is not None and marginal_high is not None:
+        production_scale_rows.append({
+            "label": "Each additional brand (marginal)",
+            "low": marginal_low,
+            "high": marginal_high,
+            "range_display": _currency_range(marginal_low.value_numeric, marginal_high.value_numeric),
+        })
+
     rate_bands = db.query(RateBand).order_by(RateBand.role).all()
 
     return templates.TemplateResponse(request, "assumptions.html", {
@@ -112,6 +149,7 @@ def assumptions(request: Request, db: Session = Depends(get_db)):
         "assumption_labels": ASSUMPTION_LABELS,
         "volume_scaling_note": VOLUME_SCALING_NOTE,
         "confidence_rows": confidence_rows,
+        "production_scale_rows": production_scale_rows,
         "rate_bands": rate_bands,
     })
 

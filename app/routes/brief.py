@@ -19,7 +19,15 @@ from app.services.ai.brief import analyse_brief
 from app.services.ai.estimate import quick_estimate
 from app.services.ai.schemas import BriefExtraction
 from app.services.brief import RUBRIC_BLOCKS, RUBRIC_WEIGHTS, score_readiness
-from app.services.estimate import compute_estimate
+from app.services.estimate import (
+    PRODUCTION_SCALE_LABELS,
+    PRODUCTION_SCALE_TIER_ORDER,
+    TERRITORY_LABELS,
+    TERRITORY_ORDER,
+    compute_estimate,
+    compute_production_cost,
+    dominant_cost_component,
+)
 from app.services.project_creation import finalize_project
 
 router = APIRouter()
@@ -60,7 +68,8 @@ def _quick_estimate_context(db: Session, *, raw_text: str, work_type: str, marke
                             localisation_required: bool, single_best_question: str,
                             caveats: list[str], inferred_volume: int, volume_confidence: str,
                             asset_count: int, original_photography: bool, review_rounds: int,
-                            confidence: str) -> dict:
+                            confidence: str, production_scale: str | None = None,
+                            territory: str | None = None, brand_count: int = 1) -> dict:
     target_market_count = len(markets) if localisation_required else 0
     try:
         computed = compute_estimate(
@@ -71,6 +80,22 @@ def _quick_estimate_context(db: Session, *, raw_text: str, work_type: str, marke
         )
     except ValueError:
         computed = None
+
+    # REVIEW_03.md R4: external production spend only exists once a shoot is
+    # confirmed — production_scale/territory are explicit dropdowns (pre-filled
+    # by best-effort inference, never trusted on their own) so a producer's own
+    # choice always overrides a wrong guess before it reaches this number.
+    production = None
+    dominant_statement = None
+    if original_photography and production_scale and territory:
+        try:
+            production = compute_production_cost(
+                db, scale_tier=production_scale, territory=territory, brand_count=brand_count,
+            )
+        except ValueError:
+            production = None
+        if production is not None and computed is not None:
+            dominant_statement = dominant_cost_component(computed.cost_high, production)
 
     return {
         "brands": BRANDS,
@@ -91,6 +116,15 @@ def _quick_estimate_context(db: Session, *, raw_text: str, work_type: str, marke
         "review_rounds": review_rounds,
         "confidence": confidence,
         "computed": computed,
+        "production_scale": production_scale,
+        "territory": territory,
+        "brand_count": brand_count,
+        "production": production,
+        "dominant_statement": dominant_statement,
+        "production_scale_tiers": PRODUCTION_SCALE_TIER_ORDER,
+        "production_scale_labels": PRODUCTION_SCALE_LABELS,
+        "territories": TERRITORY_ORDER,
+        "territory_labels": TERRITORY_LABELS,
     }
 
 
@@ -107,6 +141,9 @@ def quick_estimate_analyse(request: Request, raw_text: str = Form(...), db: Sess
     asset_count = int(by_key.get("asset_count", estimate.inferred_volume))
     original_photography = bool(by_key.get("original_photography", False))
     review_rounds = int(by_key.get("review_rounds", 2))
+    production_scale = by_key.get("production_scale")
+    territory = by_key.get("territory")
+    brand_count = int(by_key.get("brand_count", 1))
 
     context = _quick_estimate_context(
         db, raw_text=raw_text, work_type=estimate.work_type, markets=estimate.markets,
@@ -115,6 +152,7 @@ def quick_estimate_analyse(request: Request, raw_text: str = Form(...), db: Sess
         inferred_volume=estimate.inferred_volume, volume_confidence=estimate.volume_confidence,
         asset_count=asset_count, original_photography=original_photography,
         review_rounds=review_rounds, confidence=estimate.confidence,
+        production_scale=production_scale, territory=territory, brand_count=brand_count,
     )
     return templates.TemplateResponse(request, "brief.html", context)
 
@@ -127,7 +165,9 @@ def quick_estimate_recompute(
     caveats_json: str = Form(...), inferred_volume: int = Form(...),
     volume_confidence: str = Form(...), asset_count: int = Form(...),
     original_photography: bool = Form(False), review_rounds: int = Form(...),
-    confidence: str = Form(...), db: Session = Depends(get_db),
+    confidence: str = Form(...), production_scale: str | None = Form(None),
+    territory: str | None = Form(None), brand_count: int = Form(1),
+    db: Session = Depends(get_db),
 ):
     context = _quick_estimate_context(
         db, raw_text=raw_text, work_type=work_type, markets=json.loads(markets_json),
@@ -135,7 +175,8 @@ def quick_estimate_recompute(
         caveats=json.loads(caveats_json), inferred_volume=inferred_volume,
         volume_confidence=volume_confidence, asset_count=asset_count,
         original_photography=original_photography, review_rounds=review_rounds,
-        confidence=confidence,
+        confidence=confidence, production_scale=production_scale, territory=territory,
+        brand_count=brand_count,
     )
     return templates.TemplateResponse(request, "brief.html", context)
 

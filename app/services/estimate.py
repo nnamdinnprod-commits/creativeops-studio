@@ -28,6 +28,29 @@ CONFIDENCE_FACTOR_KEYS: dict[str, tuple[str, str]] = {
     "low": ("confidence_low_low_factor", "confidence_low_high_factor"),
 }
 
+# REVIEW_03.md R4: the estimator priced every shoot as internal labour days —
+# phases x roles x rates — with no concept of production spend (talent, crew,
+# location) at all, so a multi-brand film shoot returned a few tens of
+# thousands of euros regardless of scale. These four bands, five territory
+# factors and one marginal-per-brand figure are the studio's own planning
+# assumptions (docs/ASSUMPTIONS.md's honesty rule applies here exactly as
+# everywhere else) — not a claim to know what a real production costs.
+PRODUCTION_SCALE_TIER_ORDER = ["tabletop", "single_location", "multi_location", "large_international"]
+PRODUCTION_SCALE_LABELS = {
+    "tabletop": "Tabletop / studio product",
+    "single_location": "Single location, lifestyle",
+    "multi_location": "Multi-location or talent-led",
+    "large_international": "Large-scale international",
+}
+TERRITORY_ORDER = ["us", "uk_nordics_ch", "western_europe", "southern_europe", "central_eastern_europe"]
+TERRITORY_LABELS = {
+    "us": "US",
+    "uk_nordics_ch": "UK / Nordics / CH",
+    "western_europe": "Western Europe",
+    "southern_europe": "Southern Europe",
+    "central_eastern_europe": "Central / Eastern Europe",
+}
+
 
 def volume_factor_for(db: Session, asset_count: int) -> float:
     """The live ASSUMPTIONS.md 'Volume scaling' bands — deliberately a separate read from
@@ -152,3 +175,73 @@ def compute_estimate(
         earliest_delivery=earliest_delivery,
         lines=lines,
     )
+
+
+@dataclass(frozen=True)
+class ProductionCost:
+    scale_tier: str
+    territory: str
+    brand_count: int
+    territory_factor: float
+    # Territory-adjusted, brand_count == 1 baseline — shared setup, crew and
+    # location, paid once regardless of how many brands the shoot covers.
+    base_spend_low: float
+    base_spend_high: float
+    # Territory-adjusted total for brands beyond the first — a flat per-brand
+    # figure (docs/DECISIONS.md: departure from a flat multiplier on the whole
+    # total, because the marginal cost of one more brand's talent buyout
+    # doesn't scale with how expensive the shared set happens to be).
+    brand_premium_low: float
+    brand_premium_high: float
+    external_spend_low: float
+    external_spend_high: float
+
+
+def compute_production_cost(db: Session, scale_tier: str, territory: str, brand_count: int) -> ProductionCost:
+    if scale_tier not in PRODUCTION_SCALE_TIER_ORDER:
+        raise ValueError(f"Unknown production scale tier {scale_tier!r}")
+    if territory not in TERRITORY_ORDER:
+        raise ValueError(f"Unknown territory {territory!r}")
+    if brand_count < 1:
+        raise ValueError(f"brand_count must be at least 1, got {brand_count}")
+
+    raw_base_low = get_value(db, f"production_scale_{scale_tier}_low")
+    raw_base_high = get_value(db, f"production_scale_{scale_tier}_high")
+    raw_marginal_low = get_value(db, "multi_brand_marginal_cost_low")
+    raw_marginal_high = get_value(db, "multi_brand_marginal_cost_high")
+    factor = get_value(db, f"territory_factor_{territory}")
+
+    base_spend_low = round(raw_base_low * factor)
+    base_spend_high = round(raw_base_high * factor)
+    brand_premium_low = round(raw_marginal_low * (brand_count - 1) * factor)
+    brand_premium_high = round(raw_marginal_high * (brand_count - 1) * factor)
+
+    return ProductionCost(
+        scale_tier=scale_tier,
+        territory=territory,
+        brand_count=brand_count,
+        territory_factor=factor,
+        base_spend_low=base_spend_low,
+        base_spend_high=base_spend_high,
+        brand_premium_low=brand_premium_low,
+        brand_premium_high=brand_premium_high,
+        external_spend_low=base_spend_low + brand_premium_low,
+        external_spend_high=base_spend_high + brand_premium_high,
+    )
+
+
+def dominant_cost_component(internal_effort_high: float, production: ProductionCost | None) -> str | None:
+    """REVIEW_03.md R4.3: 'name the dominant variable.' Deterministic — the three
+    components are already computed numbers, so naming the largest is a comparison,
+    not narration; no AI mock involved. None when there's no shoot to compare against."""
+    if production is None:
+        return None
+    candidates = [
+        ("Internal team effort", internal_effort_high),
+        ("The base production cost", production.base_spend_high),
+    ]
+    if production.brand_count > 1:
+        candidates.append((f"Talent buyout across {production.brand_count} brands",
+                           production.brand_premium_high))
+    winner_label, _ = max(candidates, key=lambda pair: pair[1])
+    return f"{winner_label} is the largest single swing in this figure."

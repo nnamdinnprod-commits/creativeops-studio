@@ -10,7 +10,10 @@ code change required. The one remaining gap: `app/services/scheduling.py`'s volu
 bands are still hardcoded, because nothing in the app derives a project's `volume_factor`
 from an asset count on the generated-schedule path — `Project.volume_factor` is a stored
 field, set directly, not computed here. `volume_factor_for()` accepts an override for the day
-a caller needs to wire it live.
+a caller needs to wire it live. `compute_production_cost()` (external production spend for a
+shoot — REVIEW_03.md R4) is the newest live consumer, currently wired into Quick Estimate;
+sharing it onto the Full Brief Assistant is the next step so the two estimate paths can't
+disagree.
 
 ## What this is
 
@@ -106,6 +109,39 @@ How input uncertainty widens an output range.
 | medium | 0.85 | 1.25 |
 | low_medium | 0.75 | 1.40 |
 | low | 0.60 | 1.70 |
+
+### Production scale (REVIEW_03.md R4)
+
+The estimator priced every shoot as internal labour days only — phases × roles × rates —
+with no concept of production spend at all, so a multi-brand film shoot returned a few tens
+of thousands of euros regardless of scale. These bands cover external spend (talent, crew,
+location) for a brief that involves a physical shoot, shown separately from internal effort
+because the two come from different budgets. Paid once regardless of how many brands share
+the production — shared setup, crew and location is the whole reason anyone consolidates a
+shoot. `multi_brand_marginal_cost` is the flat per-brand add-on beyond the first: a
+deliberate departure from a flat multiplier on the whole total (`DECISIONS.md` — the
+marginal cost of one more brand's talent buyout doesn't scale with how expensive the shared
+set happens to be).
+
+| Tier | Band |
+|---|---|
+| Tabletop / studio product | €15,000–€40,000 |
+| Single location, lifestyle | €40,000–€100,000 |
+| Multi-location or talent-led | €100,000–€300,000 |
+| Large-scale international | €300,000–€600,000 |
+| Each additional brand (marginal) | €10,000–€20,000 |
+
+### Territory factor (REVIEW_03.md R4)
+
+A multiplier on external production spend for where the shoot is based.
+
+| Territory | Factor |
+|---|---|
+| US | 1.45 |
+| UK / Nordics / CH | 1.25 |
+| Western Europe | 1.0 |
+| Southern Europe | 0.85 |
+| Central / Eastern Europe | 0.7 |
 
 ---
 

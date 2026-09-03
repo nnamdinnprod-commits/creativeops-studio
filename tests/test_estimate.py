@@ -4,7 +4,12 @@ import pytest
 
 from app.models import Assumption
 from app.seed import seed_assumptions, seed_phase_templates
-from app.services.estimate import compute_estimate, volume_factor_for
+from app.services.estimate import (
+    compute_estimate,
+    compute_production_cost,
+    dominant_cost_component,
+    volume_factor_for,
+)
 
 
 def _seed(db_session):
@@ -167,3 +172,88 @@ def test_asset_count_affects_duration_for_every_work_type(db_session, work_type)
 
     assert many.duration_high_days > few.duration_high_days
     assert many.cost_high > few.cost_high
+
+
+def test_compute_production_cost_reads_the_tier_band_and_territory_factor(db_session):
+    """REVIEW_03.md R4: at brand_count=1 and the neutral Western Europe factor
+    (1.0), external spend is exactly the tier's own seeded band -- no hidden
+    multiplier sneaking in."""
+    _seed(db_session)
+    result = compute_production_cost(db_session, scale_tier="multi_location",
+                                     territory="western_europe", brand_count=1)
+    assert result.territory_factor == 1.0
+    assert result.base_spend_low == 100000
+    assert result.base_spend_high == 300000
+    assert result.brand_premium_low == 0
+    assert result.brand_premium_high == 0
+    assert result.external_spend_low == 100000
+    assert result.external_spend_high == 300000
+
+
+def test_compute_production_cost_marginal_scales_with_extra_brands(db_session):
+    """REVIEW_03.md R4 + DECISIONS.md: base is paid once; each brand beyond
+    the first adds the flat per-brand marginal figure, not a multiplier on
+    the whole total."""
+    _seed(db_session)
+    one_brand = compute_production_cost(db_session, scale_tier="tabletop",
+                                        territory="western_europe", brand_count=1)
+    six_brands = compute_production_cost(db_session, scale_tier="tabletop",
+                                         territory="western_europe", brand_count=6)
+
+    assert six_brands.base_spend_low == one_brand.base_spend_low  # the shared base doesn't repeat
+    assert six_brands.base_spend_high == one_brand.base_spend_high
+    assert six_brands.brand_premium_low == 5 * 10000   # 5 brands beyond the first
+    assert six_brands.brand_premium_high == 5 * 20000
+    assert six_brands.external_spend_high > one_brand.external_spend_high
+
+
+def test_compute_production_cost_applies_territory_factor_to_the_whole_external_spend(db_session):
+    _seed(db_session)
+    us = compute_production_cost(db_session, scale_tier="multi_location", territory="us", brand_count=3)
+    eastern = compute_production_cost(db_session, scale_tier="multi_location",
+                                      territory="central_eastern_europe", brand_count=3)
+    assert us.territory_factor == 1.45
+    assert eastern.territory_factor == 0.7
+    assert us.external_spend_high > eastern.external_spend_high
+
+
+@pytest.mark.parametrize("kwargs", [
+    dict(scale_tier="not_a_tier", territory="us", brand_count=1),
+    dict(scale_tier="tabletop", territory="not_a_territory", brand_count=1),
+    dict(scale_tier="tabletop", territory="us", brand_count=0),
+])
+def test_compute_production_cost_rejects_invalid_input(db_session, kwargs):
+    _seed(db_session)
+    with pytest.raises(ValueError):
+        compute_production_cost(db_session, **kwargs)
+
+
+def test_dominant_cost_component_is_none_without_a_shoot():
+    assert dominant_cost_component(internal_effort_high=50000, production=None) is None
+
+
+def test_dominant_cost_component_names_internal_effort_when_it_is_largest(db_session):
+    _seed(db_session)
+    production = compute_production_cost(db_session, scale_tier="tabletop",
+                                         territory="western_europe", brand_count=1)
+    statement = dominant_cost_component(internal_effort_high=999999, production=production)
+    assert statement == "Internal team effort is the largest single swing in this figure."
+
+
+def test_dominant_cost_component_names_the_base_production_cost_when_it_is_largest(db_session):
+    _seed(db_session)
+    production = compute_production_cost(db_session, scale_tier="large_international",
+                                         territory="us", brand_count=1)
+    statement = dominant_cost_component(internal_effort_high=30000, production=production)
+    assert statement == "The base production cost is the largest single swing in this figure."
+
+
+def test_dominant_cost_component_names_the_brand_premium_when_enough_brands_dominate(db_session):
+    """REVIEW_03.md R4.3's own worked example: 'talent buyout across six brands
+    is the largest single swing in this figure' -- only true once the marginal
+    total genuinely exceeds both other components, not unconditionally."""
+    _seed(db_session)
+    production = compute_production_cost(db_session, scale_tier="multi_location",
+                                         territory="us", brand_count=20)
+    statement = dominant_cost_component(internal_effort_high=30000, production=production)
+    assert statement == "Talent buyout across 20 brands is the largest single swing in this figure."

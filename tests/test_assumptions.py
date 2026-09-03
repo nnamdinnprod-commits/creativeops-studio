@@ -7,7 +7,7 @@ from app.services.assumptions import get_rate_band, get_value, reset_all
 
 def test_seed_creates_expected_row_counts(db_session):
     seed_assumptions(db_session)
-    assert db_session.query(Assumption).count() == len(ASSUMPTIONS) == 21
+    assert db_session.query(Assumption).count() == len(ASSUMPTIONS) == 36
     assert db_session.query(RateBand).count() == len(RATE_BANDS) == 6
 
 
@@ -22,6 +22,7 @@ def test_seed_categories_match_assumptions_md(db_session):
     categories = {a.category for a in db_session.query(Assumption).all()}
     assert categories == {
         "Review and approval cycles", "Lead times", "Volume scaling", "Confidence bands",
+        "Production scale", "Territory factor",
     }
 
 

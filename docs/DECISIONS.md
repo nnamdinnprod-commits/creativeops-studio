@@ -1348,3 +1348,54 @@ Consequences: `app/routes/assumptions.py` gained `ASSUMPTION_LABELS`, `VOLUME_SC
 `app/routes/dashboard.py` and `dashboard.html` updated for named capacity; `resources.html`
 gained the per-row anchor. Full suite: 226 passed. All eight screens verified live against the
 reset seed database, including the `/resources#person-N` anchor target.
+
+## 057 — REVIEW_03.md R4, commit 1: a real production-cost model, wired into Quick Estimate
+Date: 2026-09-03
+Decision: `compute_estimate()` priced every shoot as internal labour days only — phases ×
+roles × rates — with no concept of production spend at all, so a six-brand US film brief
+returned €20,740–€43,500. Added `compute_production_cost()` (`app/services/estimate.py`):
+four production-scale tiers (tabletop/studio product, single-location lifestyle,
+multi-location or talent-led, large-scale international) each with an editable base-cost
+band, five territory factors (US 1.45 / UK-Nordics-CH 1.25 / Western Europe 1.0 / Southern
+Europe 0.85 / Central-Eastern Europe 0.7), and a flat marginal cost per brand beyond the
+first. Internal effort and external spend are shown as two separate figures on `/brief`
+(never merged into one number — different budgets), plus a plain-Python sentence naming
+whichever of the three components (internal effort / base production cost / brand premium)
+is genuinely largest for that estimate — a comparison of already-computed numbers, not AI
+narration.
+Departure from spec: REVIEW_03.md itself specifies a flat multiplier, `1 + 0.25 ×
+(brands − 1)`, applied to the whole tier total. Built base-plus-marginal instead — a
+one-time production base (shared setup/crew/location, paid once) plus a flat per-brand
+figure (€10,000–€20,000) that does **not** scale with the tier's own cost — because the
+marginal cost of one more brand's talent buyout is roughly the same real-world figure
+whether the shared set cost €25k or €450k to build; a flat multiplier would imply the
+opposite (a fancier production makes each extra brand proportionally more expensive, which
+isn't how a shoot is actually budgeted). Owner confirmed this reading and asked for the
+departure logged here rather than silently diverging from the doc.
+Fixed while in this code: `_MARKET_CODES` had no non-EU market at all — "US" (and "united
+states"/"usa") extracted as nothing, silently dropping the market from every downstream use,
+independent of the cost model. Caught live, not by a test written first: (1) "six brands"
+and "three locations" were both being misread as `asset_count` by the existing bare-number
+fallback regex — fixed by excluding number words that modify `brand(s)`/`location(s)` within
+a few words, and by giving brand-count its own dedicated extraction; (2) the
+large-scale-international tier's keyword list originally included "flagship"/"biggest
+production of the year" — words that describe importance, not geography — which wrongly
+priced a US-only shoot at the international tier; narrowed to genuine cross-border language
+("international", "worldwide", "global campaign") only, so a big domestic production reads
+as multi-location/talent-led instead.
+Alternatives considered: inferring scale/territory purely from text with no dropdown —
+rejected per the owner's own instruction (R4's "if text detection is unreliable" clause) —
+explicit `<select>` dropdowns for scale and territory and a number input for brand count are
+shown whenever `original_photography` is true, pre-filled by best-effort keyword/market
+detection when the brief gives a clean signal, defaulting to a neutral middle value
+(multi-location tier, Western Europe territory, 1 brand) with a caveat when it doesn't —
+inference never carries the acceptance case on its own.
+Consequences: 15 new `Assumption` rows (`Production scale`, `Territory factor` categories) —
+Assumptions grew 21→36 rows. `/assumptions` gained two sections: "Production scale" (same
+low/high-collapse-to-range pattern as Confidence bands, decision 056) and a generic
+"Territory factor" table. `docs/ASSUMPTIONS.md` updated with both new tables. Verified live
+against a representative six-brand US film brief (the literal brief referenced in this
+review round wasn't recoverable from history or the repo — owner confirmed building a
+representative one instead): €241,250–€619,270 total, versus €20–45k before. Full suite: 243
+passed. All eight screens verified live. Full Brief Assistant path (`/brief/analyse`) still
+shows no cost at all — that's commit 2, next.

@@ -642,6 +642,41 @@ ASSUMPTIONS: list[tuple[str, str, float, str, str, str]] = [
      "Low-confidence estimate range, low multiplier", "costing"),
     ("Confidence bands", "confidence_low_high_factor", 1.70, "factor",
      "Low-confidence estimate range, high multiplier", "costing"),
+    # REVIEW_03.md R4: external production spend — talent, crew, location — for
+    # a brief that involves a physical shoot. Paid once regardless of how many
+    # brands share the production; multi_brand_marginal_cost below is the
+    # per-brand add-on. Bands and factors are the studio's own planning
+    # judgement (docs/ASSUMPTIONS.md's honesty rule), not market data.
+    ("Production scale", "production_scale_tabletop_low", 15000, "EUR",
+     "Tabletop or studio product shoot — external production cost, low", "costing"),
+    ("Production scale", "production_scale_tabletop_high", 40000, "EUR",
+     "Tabletop or studio product shoot — external production cost, high", "costing"),
+    ("Production scale", "production_scale_single_location_low", 40000, "EUR",
+     "Single-location lifestyle shoot — external production cost, low", "costing"),
+    ("Production scale", "production_scale_single_location_high", 100000, "EUR",
+     "Single-location lifestyle shoot — external production cost, high", "costing"),
+    ("Production scale", "production_scale_multi_location_low", 100000, "EUR",
+     "Multi-location or talent-led shoot — external production cost, low", "costing"),
+    ("Production scale", "production_scale_multi_location_high", 300000, "EUR",
+     "Multi-location or talent-led shoot — external production cost, high", "costing"),
+    ("Production scale", "production_scale_large_international_low", 300000, "EUR",
+     "Large-scale international shoot — external production cost, low", "costing"),
+    ("Production scale", "production_scale_large_international_high", 600000, "EUR",
+     "Large-scale international shoot — external production cost, high", "costing"),
+    ("Production scale", "multi_brand_marginal_cost_low", 10000, "EUR",
+     "Incremental cost per additional brand sharing one production, low", "costing"),
+    ("Production scale", "multi_brand_marginal_cost_high", 20000, "EUR",
+     "Incremental cost per additional brand sharing one production, high", "costing"),
+    ("Territory factor", "territory_factor_us", 1.45, "factor",
+     "Cost-of-production multiplier for a shoot based in the US", "costing"),
+    ("Territory factor", "territory_factor_uk_nordics_ch", 1.25, "factor",
+     "Cost-of-production multiplier for a shoot based in the UK, Nordics or Switzerland", "costing"),
+    ("Territory factor", "territory_factor_western_europe", 1.0, "factor",
+     "Cost-of-production multiplier for a shoot based in Western Europe", "costing"),
+    ("Territory factor", "territory_factor_southern_europe", 0.85, "factor",
+     "Cost-of-production multiplier for a shoot based in Southern Europe", "costing"),
+    ("Territory factor", "territory_factor_central_eastern_europe", 0.7, "factor",
+     "Cost-of-production multiplier for a shoot based in Central or Eastern Europe", "costing"),
 ]
 
 # lead_time_days: REVIEW_02.md P5.5 — the realistic minimum notice before an
@@ -702,7 +737,7 @@ def main():
             print("Assumptions already present — skipping.")
         else:
             seed_assumptions(session)
-            print("Assumptions created: 21 assumption rows, 6 rate bands.")
+            print("Assumptions created: 36 assumption rows, 6 rate bands.")
 
         # Must come after seed_assumptions(): generate_schedule() now reads
         # client_review_days live from the Assumption table (DECISIONS.md 027).
