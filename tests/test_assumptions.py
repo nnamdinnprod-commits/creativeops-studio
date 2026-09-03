@@ -1,13 +1,15 @@
 import pytest
 
 from app.models import Assumption, PersonRole, RateBand
-from app.seed import ASSUMPTIONS, RATE_BANDS, seed_assumptions
-from app.services.assumptions import get_rate_band, get_value, reset_all
+from app.seed import ASSUMPTIONS, RATE_BANDS, TEXT_ASSUMPTIONS, seed_assumptions
+from app.services.assumptions import get_rate_band, get_text_value, get_value, reset_all
 
 
 def test_seed_creates_expected_row_counts(db_session):
     seed_assumptions(db_session)
-    assert db_session.query(Assumption).count() == len(ASSUMPTIONS) == 36
+    assert len(ASSUMPTIONS) == 36
+    assert len(TEXT_ASSUMPTIONS) == 1
+    assert db_session.query(Assumption).count() == len(ASSUMPTIONS) + len(TEXT_ASSUMPTIONS) == 37
     assert db_session.query(RateBand).count() == len(RATE_BANDS) == 6
 
 
@@ -44,6 +46,18 @@ def test_get_value_raises_for_unknown_key(db_session):
     seed_assumptions(db_session)
     with pytest.raises(ValueError):
         get_value(db_session, "not_a_real_key")
+
+
+def test_get_text_value_returns_the_live_value(db_session):
+    seed_assumptions(db_session)
+    note = get_text_value(db_session, "production_cost_coverage_note")
+    assert "Excludes talent buyout" in note
+
+
+def test_get_text_value_raises_for_unknown_key(db_session):
+    seed_assumptions(db_session)
+    with pytest.raises(ValueError):
+        get_text_value(db_session, "not_a_real_key")
 
 
 def test_get_rate_band_returns_correct_role(db_session):
@@ -115,6 +129,26 @@ def test_route_states_the_reason_for_volume_scaling(client, db_session):
     resp = client.get("/assumptions")
     assert resp.status_code == 200
     assert "effort grows more slowly than asset count" in resp.text.lower()
+
+
+def test_route_shows_the_production_cost_coverage_note(client, db_session):
+    seed_assumptions(db_session)
+    resp = client.get("/assumptions")
+    assert resp.status_code == 200
+    assert "Excludes talent buyout" in resp.text
+
+
+def test_route_update_text_assumption_persists_new_value(client, db_session):
+    seed_assumptions(db_session)
+    assumption = db_session.query(Assumption).filter_by(key="production_cost_coverage_note").one()
+
+    resp = client.post(f"/assumptions/{assumption.id}/update-text",
+                       data={"value_text": "Covers everything, excludes nothing."},
+                       follow_redirects=False)
+    assert resp.status_code == 303
+
+    db_session.refresh(assumption)
+    assert assumption.value_text == "Covers everything, excludes nothing."
 
 
 def test_route_update_assumption_persists_new_value(client, db_session):

@@ -114,14 +114,14 @@ How input uncertainty widens an output range.
 
 The estimator priced every shoot as internal labour days only — phases × roles × rates —
 with no concept of production spend at all, so a multi-brand film shoot returned a few tens
-of thousands of euros regardless of scale. These bands cover external spend (talent, crew,
-location) for a brief that involves a physical shoot, shown separately from internal effort
-because the two come from different budgets. Paid once regardless of how many brands share
-the production — shared setup, crew and location is the whole reason anyone consolidates a
-shoot. `multi_brand_marginal_cost` is the flat per-brand add-on beyond the first: a
-deliberate departure from a flat multiplier on the whole total (`DECISIONS.md` — the
-marginal cost of one more brand's talent buyout doesn't scale with how expensive the shared
-set happens to be).
+of thousands of euros regardless of scale. These bands cover external spend for a brief that
+involves a physical shoot, shown separately from internal effort because the two come from
+different budgets. Paid once regardless of how many brands share the production — shared
+setup, crew and location is the whole reason anyone consolidates a shoot. `multi_brand_
+marginal_cost` is the flat per-brand add-on beyond the first: a deliberate departure from a
+flat multiplier on the whole total (`DECISIONS.md` 057 — the marginal cost of one more
+brand's incremental production needs doesn't scale with how expensive the shared set happens
+to be).
 
 | Tier | Band |
 |---|---|
@@ -130,6 +130,17 @@ set happens to be).
 | Multi-location or talent-led | €100,000–€300,000 |
 | Large-scale international | €300,000–€600,000 |
 | Each additional brand (marginal) | €10,000–€20,000 |
+
+**What these figures do and don't include** — `production_cost_coverage_note`, one editable
+sentence, shown alongside the figure on both estimate pages (`DECISIONS.md` 059): covers
+production, crew, location, equipment and post; excludes talent buyout and usage, travel and
+accommodation, music licensing, insurance and contingency, media spend, and agency fees. One
+nuance worth stating plainly: the marginal-per-brand figure above and the dominant-variable
+sentence's "talent buyout across N brands" wording are *not* the same claim as "talent
+buyout is covered" — the marginal figure only ever models the incremental production cost of
+accommodating another brand in the same shoot (extra setup, wardrobe, crew time), never a
+real negotiated talent fee or usage right, which stays a separate line a producer prices
+outside this tool.
 
 ### Territory factor (REVIEW_03.md R4)
 

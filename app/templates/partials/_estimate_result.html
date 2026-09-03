@@ -28,6 +28,7 @@
     </div>
 </dl>
 {% if dominant_statement %}<p class="mt-2 text-sm text-slate-600">{{ dominant_statement }}</p>{% endif %}
+{% if coverage_note %}<p class="mt-1 text-xs text-slate-400">{{ coverage_note }}</p>{% endif %}
 {% endif %}
 <p class="mt-2 text-sm text-slate-500">Earliest realistic delivery if started today: {{ computed.earliest_delivery.strftime('%d %b %Y') }}</p>
 <p class="mt-1 text-xs text-slate-400">Indicative — the studio's own planning assumptions, not a quote. See <a href="/assumptions" class="underline">Assumptions</a>.</p>

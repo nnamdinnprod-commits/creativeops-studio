@@ -137,11 +137,11 @@ planning assumptions, not as market data.
 ### Production spend (external) — REVIEW_03.md R4
 
 **Built** (`app/services/estimate.py`'s `compute_production_cost()`). Internal-effort costing
-above prices people; it has no concept of production spend — talent, crew, location — at
-all, so a multi-brand film shoot priced as a handful of internal day-rates, off by roughly an
-order of magnitude from what such a shoot actually costs. This is a second, separate figure,
-shown alongside internal effort rather than merged into it, because they come from different
-budgets and a producer thinks about them differently.
+above prices people only; it has no concept of production spend at all, so a multi-brand film
+shoot priced as a handful of internal day-rates, off by roughly an order of magnitude from
+what such a shoot actually costs. This is a second, separate figure, shown alongside internal
+effort rather than merged into it, because they come from different budgets and a producer
+thinks about them differently.
 
 ```
 external spend = (production_scale base band + (brand_count - 1) × marginal_cost_per_brand)
@@ -161,6 +161,15 @@ the quick one.
 
 All bands and factors are `ASSUMPTIONS.md` rows: the studio's own planning judgement, labelled
 as such, not a claim to know what a real production costs.
+
+**Coverage note (`DECISIONS.md` 059).** The figure covers production, crew, location,
+equipment and post; it excludes talent buyout and usage, travel and accommodation, music
+licensing, insurance and contingency, media spend, and agency fees — one editable
+`Assumption` sentence, shown next to the number on both estimate pages, not hardcoded in a
+template. The marginal-per-brand figure and the dominant-variable sentence's "talent buyout"
+wording model the *incremental production cost* of accommodating another brand in the same
+shoot, never a real negotiated talent fee or usage right — that stays a separate line a
+producer prices outside this tool.
 
 ---
 

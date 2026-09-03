@@ -141,6 +141,11 @@ def assumptions(request: Request, db: Session = Depends(get_db)):
             "range_display": _currency_range(marginal_low.value_numeric, marginal_high.value_numeric),
         })
 
+    # REVIEW_03.md R4 follow-up: the coverage note is a sentence, not a
+    # number/range, so it's pulled out of scale_by_key on its own rather than
+    # folded into production_scale_rows's low/high shape.
+    coverage_note = scale_by_key.get("production_cost_coverage_note")
+
     rate_bands = db.query(RateBand).order_by(RateBand.role).all()
 
     return templates.TemplateResponse(request, "assumptions.html", {
@@ -150,6 +155,7 @@ def assumptions(request: Request, db: Session = Depends(get_db)):
         "volume_scaling_note": VOLUME_SCALING_NOTE,
         "confidence_rows": confidence_rows,
         "production_scale_rows": production_scale_rows,
+        "coverage_note": coverage_note,
         "rate_bands": rate_bands,
     })
 
@@ -163,6 +169,16 @@ def update_assumption(assumption_id: int, value_numeric: float = Form(...),
         db.commit()
         if assumption.key in _KEYS_REQUIRING_RESCHEDULE:
             _reschedule_every_scheduled_project(db)
+    return RedirectResponse(url="/assumptions", status_code=303)
+
+
+@router.post("/assumptions/{assumption_id}/update-text")
+def update_text_assumption(assumption_id: int, value_text: str = Form(...),
+                           db: Session = Depends(get_db)):
+    assumption = db.get(Assumption, assumption_id)
+    if assumption is not None:
+        assumption.value_text = value_text
+        db.commit()
     return RedirectResponse(url="/assumptions", status_code=303)
 
 

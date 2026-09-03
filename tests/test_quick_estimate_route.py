@@ -116,3 +116,23 @@ def test_recompute_with_more_brands_raises_the_external_spend(client, db_session
     })
     assert small.status_code == 200 and large.status_code == 200
     assert small.text != large.text
+
+
+def test_coverage_note_appears_alongside_external_spend(client, db_session):
+    """The user-facing follow-up to R4: what the figure does and doesn't
+    include, editable in the Assumptions library like everything else."""
+    _seed(db_session)
+    resp = client.post("/brief/quick-estimate", data={
+        "raw_text": "A branded content film shoot for the US market, multi-location, talent-led.",
+    })
+    assert resp.status_code == 200
+    assert "Excludes talent buyout" in resp.text
+
+
+def test_coverage_note_is_absent_without_a_shoot(client, db_session):
+    _seed(db_session)
+    resp = client.post("/brief/quick-estimate", data={
+        "raw_text": "Summer social campaign for Germany, maybe six or so assets, no shoot.",
+    })
+    assert resp.status_code == 200
+    assert "Excludes talent buyout" not in resp.text

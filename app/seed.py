@@ -679,6 +679,18 @@ ASSUMPTIONS: list[tuple[str, str, float, str, str, str]] = [
      "Cost-of-production multiplier for a shoot based in Central or Eastern Europe", "costing"),
 ]
 
+# REVIEW_03.md R4 follow-up: what the production-scale bands do and don't
+# assume -- a sentence, not a number, so it lives separately from ASSUMPTIONS
+# above (whose value always goes to value_numeric). category/key/value_text/
+# description/affects, no unit -- doesn't fit that tuple shape.
+TEXT_ASSUMPTIONS: list[tuple[str, str, str, str, str]] = [
+    ("Production scale", "production_cost_coverage_note",
+     "Covers production, crew, location, equipment and post. Excludes talent buyout "
+     "and usage, travel and accommodation, music licensing, insurance and contingency, "
+     "media spend, and agency fees.",
+     "What the external production spend figure does and doesn't include", "costing"),
+]
+
 # lead_time_days: REVIEW_02.md P5.5 — the realistic minimum notice before an
 # external engagement of this role can start. Only read for is_external=True
 # people (app/services/assignment.py's engage_person()); internal Team members
@@ -700,6 +712,11 @@ def seed_assumptions(session):
         session.add(Assumption(
             category=category, key=key, value_numeric=value, value_text=None, unit=unit,
             default_value=value, description=description, affects=affects,
+        ))
+    for category, key, value_text, description, affects in TEXT_ASSUMPTIONS:
+        session.add(Assumption(
+            category=category, key=key, value_numeric=None, value_text=value_text, unit=None,
+            default_value=None, description=description, affects=affects,
         ))
     for role, low, high, lead_time_days in RATE_BANDS:
         session.add(RateBand(role=role, low=low, high=high, currency="EUR",
@@ -737,7 +754,7 @@ def main():
             print("Assumptions already present — skipping.")
         else:
             seed_assumptions(session)
-            print("Assumptions created: 36 assumption rows, 6 rate bands.")
+            print("Assumptions created: 37 assumption rows, 6 rate bands.")
 
         # Must come after seed_assumptions(): generate_schedule() now reads
         # client_review_days live from the Assumption table (DECISIONS.md 027).

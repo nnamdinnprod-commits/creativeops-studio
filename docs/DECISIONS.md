@@ -1447,3 +1447,50 @@ Verified live: the representative six-brand US film brief now shows the identica
 both `/brief/quick-estimate` and `/brief/analyse` for matching inputs (a new test asserts
 byte-equality on the external-spend number, not just "both non-zero"). Full suite: 248
 passed. All eight screens verified live.
+
+## 059 — REVIEW_03.md R4 follow-up: what the production-cost figure does and doesn't include
+Date: 2026-09-03
+Decision: Audited the production-scale bands against REVIEW_03.md R4.2's own itemized
+budget list (production company/director fee, crew, talent and usage buyout, location and
+permits, equipment, travel and accommodation, post, music licensing, insurance and
+contingency) and decided which side of the line each item sits on. Covered by the base tier
+band: production company/director fee, crew, location and permits, equipment, and post
+(bundled at planning-level precision, not itemized — R4.2's line-item breakdown is
+explicitly the later, fuller version). Excluded: talent and usage buyout, travel and
+accommodation, music licensing, insurance and contingency — each too variable, or too
+disconnected from production *scale* specifically, to bake into a flat band — plus media
+spend (not a production cost at all) and agency fees (this is the in-house studio; no
+pass-through fee to itself). Added one new editable `Assumption`
+(`production_cost_coverage_note`, category "Production scale", a `value_text` row — the
+first non-numeric one in this table) stating this in one sentence, shown next to the figure
+on both estimate pages via the shared `_compute_estimate_block()`/`_estimate_result.html`
+partial, so it's automatically on every screen that shows the number rather than needing to
+be added twice.
+A real wrinkle surfaced by doing the audit rather than skipping straight to the sentence: the
+per-brand marginal cost (decision 057) and the dominant-variable sentence's own "talent
+buyout across N brands" wording (the user's literal R4.3 example) are not the same claim as
+"talent buyout is covered." The marginal figure only ever models the *incremental production
+cost* of accommodating another brand in the same shoot — extra setup, wardrobe, crew time —
+never a real negotiated talent fee or usage right, which stays a separate line a producer
+prices outside this tool. Flagged this to the user rather than silently picking a resolution;
+kept the dominant-statement wording exactly as specified (it names the real-world *driver* of
+the swing, which genuinely is talent-related) and clarified the distinction in
+`ASSUMPTIONS.md`/`BRIEF_MODES.md` rather than watering down either the exclusion or the
+dominant-variable sentence to avoid the appearance of conflict.
+Also fixed while auditing: `ASSUMPTIONS.md`'s and `BRIEF_MODES.md`'s own R4 write-ups
+(decision 057/058) had said the bands cover "talent, crew, location" — written before this
+audit was done, and simply wrong once the audit's answer came back "talent is excluded."
+Corrected both.
+Alternatives considered: making the coverage note vary per scale tier (a large international
+shoot's real insurance/travel exposure differs a lot from a tabletop shoot's) — rejected as
+over-precise for a single disclosure sentence; one global note matches the user's own
+"one line, both estimate paths" framing, and per-tier nuance would fight the "planning
+assumption, not a real budget" honesty rule this whole library already follows.
+Consequences: `Assumption` model's existing but previously-unused `value_text` column gets
+its first real row; `get_text_value()` added to `app/services/assumptions.py` alongside
+`get_value()`. New `/assumptions/{id}/update-text` route — the coverage note is editable
+exactly like every other row, just via a textarea instead of a number input. Not included in
+"Reset all to defaults" (no `default_value_text` concept exists — same carve-out
+`RateBand` already has). Full suite: 255 passed. All eight screens verified live, including
+an edit-and-reappear round trip (changing the note on `/assumptions` and confirming the new
+text shows on the next `/brief/quick-estimate` call, not a cached one).

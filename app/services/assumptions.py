@@ -17,6 +17,16 @@ def get_value(db: Session, key: str) -> float:
     return assumption.value_numeric
 
 
+def get_text_value(db: Session, key: str) -> str:
+    """Same contract as get_value(), for the rare Assumption row that's a
+    sentence rather than a number (REVIEW_03.md R4: the production-cost
+    coverage note)."""
+    assumption = db.query(Assumption).filter_by(key=key).first()
+    if assumption is None or assumption.value_text is None:
+        raise ValueError(f"No text Assumption found for key {key!r}")
+    return assumption.value_text
+
+
 def get_rate_band(db: Session, role: PersonRole) -> RateBand | None:
     return db.query(RateBand).filter_by(role=role).first()
 

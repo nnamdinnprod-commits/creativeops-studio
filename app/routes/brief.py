@@ -19,7 +19,7 @@ from app.models import (
 from app.services.ai.brief import analyse_brief
 from app.services.ai.estimate import quick_estimate
 from app.services.ai.schemas import BriefExtraction
-from app.services.assumptions import get_value
+from app.services.assumptions import get_text_value, get_value
 from app.services.brief import RUBRIC_BLOCKS, RUBRIC_WEIGHTS, score_readiness
 from app.services.estimate import (
     PRODUCTION_SCALE_LABELS,
@@ -97,6 +97,7 @@ def _compute_estimate_block(db: Session, *, work_type: str, asset_count: int,
     # choice always overrides a wrong guess before it reaches this number.
     production = None
     dominant_statement = None
+    coverage_note = None
     if original_photography and production_scale and territory:
         try:
             production = compute_production_cost(
@@ -106,8 +107,16 @@ def _compute_estimate_block(db: Session, *, work_type: str, asset_count: int,
             production = None
         if production is not None and computed is not None:
             dominant_statement = dominant_cost_component(computed.cost_high, production)
+        if production is not None:
+            try:
+                coverage_note = get_text_value(db, "production_cost_coverage_note")
+            except ValueError:
+                coverage_note = None
 
-    return {"computed": computed, "production": production, "dominant_statement": dominant_statement}
+    return {
+        "computed": computed, "production": production,
+        "dominant_statement": dominant_statement, "coverage_note": coverage_note,
+    }
 
 
 def _estimate_editable_context(*, work_type: str, asset_count: int, original_photography: bool,

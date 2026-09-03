@@ -92,6 +92,19 @@
         </tbody>
     </table>
     </div>
+    {% if coverage_note %}
+    {# REVIEW_03.md R4 follow-up: what the figure above does and doesn't
+       include -- a sentence, not a number, so its own small edit form rather
+       than a table row. Shown on both estimate pages next to the figure. #}
+    <div class="mt-3 pt-3 border-t border-slate-100">
+        <form method="post" action="/assumptions/{{ coverage_note.id }}/update-text" class="flex items-start gap-2">
+            <textarea name="value_text" rows="2"
+                      class="flex-1 border border-slate-300 rounded px-2 py-1 text-xs">{{ coverage_note.value_text }}</textarea>
+            <button type="submit" class="text-xs text-blue-600 underline mt-1">Save</button>
+        </form>
+        <p class="text-xs text-slate-400 mt-1">{{ coverage_note.description }}. Shown alongside the estimate on both Quick Estimate and the Full Brief Assistant.</p>
+    </div>
+    {% endif %}
 </div>
 
 <div class="bg-white rounded shadow-sm p-4 mt-4">

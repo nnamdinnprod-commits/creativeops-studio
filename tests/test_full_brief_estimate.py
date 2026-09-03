@@ -118,3 +118,10 @@ def test_full_brief_and_quick_estimate_agree_on_external_spend_for_matching_inpu
     })
 
     assert _external_spend_low(quick.text) == _external_spend_low(full.text)
+
+
+def test_coverage_note_appears_on_full_brief_too(client, db_session):
+    _seed(db_session)
+    resp = client.post("/brief/analyse", data={"raw_text": SIX_BRAND_US_FILM_BRIEF})
+    assert resp.status_code == 200
+    assert "Excludes talent buyout" in resp.text
