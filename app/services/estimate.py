@@ -5,6 +5,7 @@ first real consumer ASSUMPTIONS.md and DECISIONS.md 025 pointed forward to) and 
 ProjectType's PhaseTemplate rows. app/services/ai/estimate.py's quick_estimate() only infers
 the request shape; it never produces a day count or a price."""
 
+import re
 from dataclasses import dataclass
 from datetime import date
 
@@ -20,6 +21,11 @@ WORK_TYPE_TO_PROJECT_TYPE = {
     "stills": "Stills",
     "social": "Social / AI-generated content",
 }
+# REVIEW_03.md R4 commit 2: the Full Brief Assistant has no work_type concept of
+# its own — deliverables resolve to a ProjectType (app/services/project_creation.py's
+# resolve_project_type_id, the same function project creation itself uses); this
+# reverses that back to compute_estimate()'s own vocabulary.
+PROJECT_TYPE_TO_WORK_TYPE = {name: work_type for work_type, name in WORK_TYPE_TO_PROJECT_TYPE.items()}
 
 CONFIDENCE_FACTOR_KEYS: dict[str, tuple[str, str]] = {
     "high": ("confidence_high_low_factor", "confidence_high_high_factor"),
@@ -106,7 +112,13 @@ def compute_estimate(
     if confidence not in CONFIDENCE_FACTOR_KEYS:
         raise ValueError(f"Unknown confidence band {confidence!r}")
 
-    project_type = db.query(ProjectType).filter_by(name=project_type_name).one()
+    project_type = db.query(ProjectType).filter_by(name=project_type_name).first()
+    if project_type is None:
+        # REVIEW_03.md R4 commit 2: surfaced once compute_estimate() gained a
+        # second caller (the Full Brief Assistant) that doesn't always seed
+        # phase templates first — every other "can't compute this" case here
+        # is a ValueError, not a leaked SQLAlchemy NoResultFound.
+        raise ValueError(f"No ProjectType named {project_type_name!r} — seed_phase_templates() not run?")
     templates = (
         db.query(PhaseTemplate)
         .filter_by(project_type_id=project_type.id)
@@ -245,3 +257,80 @@ def dominant_cost_component(internal_effort_high: float, production: ProductionC
                            production.brand_premium_high))
     winner_label, _ = max(candidates, key=lambda pair: pair[1])
     return f"{winner_label} is the largest single swing in this figure."
+
+
+# REVIEW_03.md R4 commit 2: these three plus infer_original_photography() were
+# originally private to app/services/ai/mock.py's Quick Estimate mock. Moved
+# here — plain text heuristics with no AI-provider dependency — so the Full
+# Brief Assistant can call the identical functions rather than a lookalike
+# copy; mock.py now imports them from here instead of defining its own.
+_NUMBER_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "a dozen": 12, "twenty": 20,
+}
+
+TERRITORY_BY_MARKET_CODE = {
+    "US": "us",
+    "UK": "uk_nordics_ch", "SE": "uk_nordics_ch", "DK": "uk_nordics_ch",
+    "NO": "uk_nordics_ch", "FI": "uk_nordics_ch", "CH": "uk_nordics_ch", "IE": "uk_nordics_ch",
+    "DE": "western_europe", "FR": "western_europe", "NL": "western_europe",
+    "BE": "western_europe", "AT": "western_europe",
+    "ES": "southern_europe", "IT": "southern_europe", "PT": "southern_europe",
+    "PL": "central_eastern_europe",
+}
+
+_BRAND_COUNT_PATTERN = re.compile(r"(\d+)(?:\s+\w+){0,2}\s+(?:house\s+)?brands?")
+
+# Checked in this order — most specific, most consequential tier first —
+# because a brief naming both "talent-led" and "the biggest production of the
+# year" should read as the bigger claim, not whichever keyword appears first.
+_SCALE_TIER_KEYWORDS: list[tuple[str, list[str]]] = [
+    # "flagship"/"biggest production of the year" describe importance, not
+    # geographic scope — a big domestic shoot isn't "international" just
+    # because it's the year's most important one, so only genuine cross-border
+    # language earns this, the most expensive, tier.
+    ("large_international", ["international", "worldwide", "global campaign", "cross-border"]),
+    ("multi_location", ["multi-location", "multi location", "multiple locations",
+                        "several locations", "talent-led", "talent led"]),
+    ("single_location", ["single location", "single-location", "one location"]),
+    ("tabletop", ["tabletop", "studio product", "product shot", "still life"]),
+]
+
+
+def infer_original_photography(text: str) -> tuple[bool, str]:
+    if re.search(r"no\s+(?:original\s+)?(?:shoot|photography|photo shoot)", text):
+        return False, "inferred"
+    if "shoot" in text or "photography" in text:
+        return True, "inferred"
+    return False, "assumed"
+
+
+def infer_brand_count(text: str) -> tuple[int, str]:
+    digit_match = _BRAND_COUNT_PATTERN.search(text)
+    if digit_match:
+        return int(digit_match.group(1)), "inferred"
+    for word, value in _NUMBER_WORDS.items():
+        # Tolerates a couple of filler words ("six of our house brands") —
+        # still a clean signal, just not a bare "six brands".
+        if re.search(rf"\b{re.escape(word)}\b(?:\s+\w+){{0,2}}\s+(?:house\s+)?brands?", text):
+            return value, "inferred"
+    return 1, "assumed"
+
+
+def infer_production_scale(text: str) -> tuple[str, str]:
+    for tier, keywords in _SCALE_TIER_KEYWORDS:
+        if any(kw in text for kw in keywords):
+            return tier, "inferred"
+    # A confirmed shoot with no stated scale — a mid-range default, not the
+    # cheapest or the most expensive guess.
+    return "multi_location", "assumed"
+
+
+def infer_territory(markets: list[str], text: str) -> tuple[str, str]:
+    for code in markets:
+        territory = TERRITORY_BY_MARKET_CODE.get(code)
+        if territory:
+            return territory, "inferred"
+    # Western Europe carries the neutral 1.0 territory factor — the safest
+    # silent default when nothing in the brief names a market at all.
+    return "western_europe", "assumed"

@@ -1399,3 +1399,51 @@ review round wasn't recoverable from history or the repo — owner confirmed bui
 representative one instead): €241,250–€619,270 total, versus €20–45k before. Full suite: 243
 passed. All eight screens verified live. Full Brief Assistant path (`/brief/analyse`) still
 shows no cost at all — that's commit 2, next.
+
+## 058 — REVIEW_03.md R4, commit 2: sharing the production-cost model onto the Full Brief Assistant
+Date: 2026-09-03
+Decision: `/brief/analyse` had no cost estimate at all before this — only extraction and a
+readiness score. Rather than build a second, lookalike calculation for it, moved the four
+text-inference helpers commit 1 put in `app/services/ai/mock.py` (`infer_production_scale`,
+`infer_territory`, `infer_brand_count`, `infer_original_photography`) into
+`app/services/estimate.py` instead — plain text heuristics with no AI-provider dependency, so
+`mock.py` now imports them rather than defining its own copies. Added
+`brief.py:_compute_estimate_block()`, the one function both `_quick_estimate_context()`
+(commit 1) and the new Full Brief flow call — same inputs in, same `ComputedEstimate` /
+`ProductionCost` / dominant-statement out, regardless of which screen asked. Full Brief
+derives those inputs from the richer signal a full extraction already has (work_type from
+`resolve_project_type_id()` — the same deliverable → `ProjectType` resolution project
+creation itself uses, reversed via a new `PROJECT_TYPE_TO_WORK_TYPE` map; territory from
+`extraction.markets`, the AI-extracted list, not a fresh regex pass) rather than reusing Quick
+Estimate's own regex-on-raw-text approach verbatim. A new
+`/brief/analyse/recompute-estimate` route mirrors Quick Estimate's recompute — no new AI
+call, and deliberately re-derives `extraction`/`result` fresh from the stored
+`BriefAnalysis` row on every request rather than trusting a cached value, so this route
+structurally cannot reintroduce REVIEW_03.md R5.1's stale-score bug. Two new partials
+(`partials/_estimate_result.html`, `partials/_estimate_inputs_fields.html`) render both
+screens' estimate box and recompute-form fields from one source, reading the shared
+`_estimate_editable_context()` variable names via Jinja's `{% include %}` context sharing —
+not two independently-maintained templates.
+Fixed while wiring this: `compute_estimate()` raised a raw SQLAlchemy `NoResultFound` instead
+of `ValueError` when its `ProjectType` query came up empty — invisible before because every
+existing Quick Estimate test happened to seed phase templates first; the Full Brief
+Assistant's own tests don't always, and the leaked exception 500'd the route. Fixed at the
+source (`.one()` → `.first()` plus an explicit `ValueError`), matching every other "can't
+compute this" case in that function. Also caught: `_infer_full_brief_estimate_inputs()`'s
+`get_value(db, "default_review_rounds")` call assumed Assumptions were always seeded — true
+for Quick Estimate, never required before for Full Brief — wrapped in a fallback to the
+literal seeded default (2) so a still-unseeded database keeps rendering extraction and the
+readiness score even though the new estimate block can't compute.
+Alternatives considered: giving the Full Brief Assistant its own confidence concept —
+rejected; the readiness score already answers the same underlying question ("how much of
+this is stated vs. guessed"), so `_confidence_band_for_score()` maps it onto the existing
+four-band scale instead of inventing a second one.
+Consequences: `app/routes/brief.py` gained `_compute_estimate_block()`,
+`_estimate_editable_context()`, `_infer_full_brief_estimate_inputs()`,
+`_confidence_band_for_score()`, and the new recompute route. `app/services/estimate.py`
+gained the four moved inference functions plus `PROJECT_TYPE_TO_WORK_TYPE`.
+`docs/BRIEF_MODES.md` gained a "Production spend (external)" subsection under Costing.
+Verified live: the representative six-brand US film brief now shows the identical figure on
+both `/brief/quick-estimate` and `/brief/analyse` for matching inputs (a new test asserts
+byte-equality on the external-spend number, not just "both non-zero"). Full suite: 248
+passed. All eight screens verified live.

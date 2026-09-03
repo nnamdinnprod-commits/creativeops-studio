@@ -134,6 +134,34 @@ the confidence factors alone.
 Rate bands live in `ASSUMPTIONS.md` and are editable. They are stated as the studio's own
 planning assumptions, not as market data.
 
+### Production spend (external) — REVIEW_03.md R4
+
+**Built** (`app/services/estimate.py`'s `compute_production_cost()`). Internal-effort costing
+above prices people; it has no concept of production spend — talent, crew, location — at
+all, so a multi-brand film shoot priced as a handful of internal day-rates, off by roughly an
+order of magnitude from what such a shoot actually costs. This is a second, separate figure,
+shown alongside internal effort rather than merged into it, because they come from different
+budgets and a producer thinks about them differently.
+
+```
+external spend = (production_scale base band + (brand_count - 1) × marginal_cost_per_brand)
+               × territory_factor
+```
+
+Only computed once a shoot is confirmed (the same `original_photography` signal Quick
+Estimate already infers). Production scale (four tiers) and territory (five regions) are
+explicit dropdowns — pre-filled by best-effort keyword/market detection when the brief gives
+a clean signal, but never trusted to carry the number on inference alone; a wrong guess is
+always one click from being corrected before it reaches the figure a producer reads.
+
+One calculation, two render sites: Quick Estimate and the Full Brief Assistant both call the
+identical `app/routes/brief.py:_compute_estimate_block()`, so the two screens can't disagree
+about what a given shape of work costs — the fuller brief was never allowed to know less than
+the quick one.
+
+All bands and factors are `ASSUMPTIONS.md` rows: the studio's own planning judgement, labelled
+as such, not a claim to know what a real production costs.
+
 ---
 
 ## AI contract

@@ -11,9 +11,9 @@ bands are still hardcoded, because nothing in the app derives a project's `volum
 from an asset count on the generated-schedule path — `Project.volume_factor` is a stored
 field, set directly, not computed here. `volume_factor_for()` accepts an override for the day
 a caller needs to wire it live. `compute_production_cost()` (external production spend for a
-shoot — REVIEW_03.md R4) is the newest live consumer, currently wired into Quick Estimate;
-sharing it onto the Full Brief Assistant is the next step so the two estimate paths can't
-disagree.
+shoot — REVIEW_03.md R4) is the newest live consumer, read by both Quick Estimate and the
+Full Brief Assistant through the same `app/routes/brief.py:_compute_estimate_block()` — the
+two estimate paths can't disagree because they call the identical function.
 
 ## What this is
 

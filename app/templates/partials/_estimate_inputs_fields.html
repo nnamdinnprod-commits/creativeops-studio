@@ -1,0 +1,60 @@
+{# REVIEW_03.md R4: the editable estimate inputs, shared verbatim between Quick
+   Estimate's and the Full Brief Assistant's recompute forms -- both pages set
+   the same variable names via brief.py's _estimate_editable_context(), so this
+   partial reads them straight from the including template's own context. #}
+<div class="flex flex-wrap gap-4 items-end text-sm">
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Work type</label>
+        <div class="px-2 py-1.5 text-slate-600">{{ work_type|title }}</div>
+    </div>
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Asset count</label>
+        <input type="number" name="asset_count" min="1" max="60" value="{{ asset_count }}" required
+               class="border border-slate-300 rounded px-2 py-1 w-20">
+    </div>
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Original photography</label>
+        <input type="checkbox" name="original_photography" value="true"
+               {% if original_photography %}checked{% endif %} class="align-middle h-5">
+    </div>
+    {% if original_photography %}
+    {# REVIEW_03.md R4: explicit dropdowns, pre-filled by best-effort guess
+       where the text gives a clean signal -- never left to carry the
+       acceptance case on inference alone. #}
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Production scale</label>
+        <select name="production_scale" class="border border-slate-300 rounded px-2 py-1">
+            {% for tier in production_scale_tiers %}
+            <option value="{{ tier }}" {% if tier == production_scale %}selected{% endif %}>{{ production_scale_labels[tier] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Territory</label>
+        <select name="territory" class="border border-slate-300 rounded px-2 py-1">
+            {% for t in territories %}
+            <option value="{{ t }}" {% if t == territory %}selected{% endif %}>{{ territory_labels[t] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Brands in this production</label>
+        <input type="number" name="brand_count" min="1" max="20" value="{{ brand_count }}" required
+               class="border border-slate-300 rounded px-2 py-1 w-16">
+    </div>
+    {% endif %}
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Review rounds</label>
+        <input type="number" name="review_rounds" min="0" max="10" value="{{ review_rounds }}" required
+               class="border border-slate-300 rounded px-2 py-1 w-16">
+    </div>
+    <div>
+        <label class="block text-xs text-slate-500 mb-1">Confidence</label>
+        <select name="confidence" class="border border-slate-300 rounded px-2 py-1">
+            {% for c in confidence_bands %}
+            <option value="{{ c }}" {% if c == confidence %}selected{% endif %}>{{ c.replace('_', '-')|title }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="bg-slate-800 text-white text-sm rounded px-4 py-2">Recalculate</button>
+</div>

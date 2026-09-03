@@ -9,6 +9,7 @@ them, so the demo stays coherent with whatever seed data is on screen.
 import re
 from datetime import date, datetime, timedelta
 
+from app.services.estimate import infer_brand_count, infer_original_photography, infer_production_scale, infer_territory
 from app.services.ai.schemas import (
     AttentionBrief,
     AttentionItem,
@@ -57,19 +58,6 @@ _MARKET_FULL_NAMES = {
     "ireland": "IE", "irish": "IE",
     # REVIEW_03.md R4: "US" was entirely absent -- any non-EU market in a brief
     "united states": "US", "usa": "US",
-}
-# REVIEW_03.md R4: the cost model's territory factor is a coarser grouping than
-# a localisation target market -- five production-cost regions, not sixteen
-# countries. Best-effort only: it seeds the dropdown pre-fill, never the final
-# value (see docs/ASSUMPTIONS.md -- the producer's own choice always wins).
-_TERRITORY_BY_MARKET_CODE = {
-    "US": "us",
-    "UK": "uk_nordics_ch", "SE": "uk_nordics_ch", "DK": "uk_nordics_ch",
-    "NO": "uk_nordics_ch", "FI": "uk_nordics_ch", "CH": "uk_nordics_ch", "IE": "uk_nordics_ch",
-    "DE": "western_europe", "FR": "western_europe", "NL": "western_europe",
-    "BE": "western_europe", "AT": "western_europe",
-    "ES": "southern_europe", "IT": "southern_europe", "PT": "southern_europe",
-    "PL": "central_eastern_europe",
 }
 _CHANNEL_KEYWORDS = ["social", "homepage", "email", "display", "video"]
 
@@ -696,62 +684,6 @@ def _infer_asset_count(text: str) -> tuple[int, str]:
     return 6, "assumed"
 
 
-_BRAND_COUNT_PATTERN = re.compile(r"(\d+)(?:\s+\w+){0,2}\s+(?:house\s+)?brands?")
-
-# REVIEW_03.md R4: production scale is checked in this order — most specific,
-# most consequential tier first — because a brief naming both "talent-led"
-# and "the biggest production of the year" should read as the bigger claim,
-# not whichever keyword happens to appear first in the sentence.
-_SCALE_TIER_KEYWORDS: list[tuple[str, list[str]]] = [
-    # "flagship"/"biggest production of the year" describe importance, not
-    # geographic scope — a big domestic shoot isn't "international" just
-    # because it's the year's most important one, so only genuine cross-border
-    # language earns this, the most expensive, tier.
-    ("large_international", ["international", "worldwide", "global campaign", "cross-border"]),
-    ("multi_location", ["multi-location", "multi location", "multiple locations",
-                        "several locations", "talent-led", "talent led"]),
-    ("single_location", ["single location", "single-location", "one location"]),
-    ("tabletop", ["tabletop", "studio product", "product shot", "still life"]),
-]
-
-
-def _infer_brand_count(text: str) -> tuple[int, str]:
-    digit_match = _BRAND_COUNT_PATTERN.search(text)
-    if digit_match:
-        return int(digit_match.group(1)), "inferred"
-    for word, value in _NUMBER_WORDS.items():
-        # Tolerates a couple of filler words ("six of our house brands") —
-        # still a clean signal, just not a bare "six brands".
-        if re.search(rf"\b{re.escape(word)}\b(?:\s+\w+){{0,2}}\s+(?:house\s+)?brands?", text):
-            return value, "inferred"
-    return 1, "assumed"
-
-
-def _infer_production_scale(text: str) -> tuple[str, str]:
-    for tier, keywords in _SCALE_TIER_KEYWORDS:
-        if any(kw in text for kw in keywords):
-            return tier, "inferred"
-    # A confirmed shoot with no stated scale — a mid-range default, not the
-    # cheapest or the most expensive guess.
-    return "multi_location", "assumed"
-
-
-def _infer_territory(markets: list[str], text: str) -> tuple[str, str]:
-    for code in markets:
-        territory = _TERRITORY_BY_MARKET_CODE.get(code)
-        if territory:
-            return territory, "inferred"
-    # Western Europe carries the neutral 1.0 territory factor — the safest
-    # silent default when nothing in the brief names a market at all.
-    return "western_europe", "assumed"
-
-
-def _infer_original_photography(text: str) -> tuple[bool, str]:
-    if re.search(r"no\s+(?:original\s+)?(?:shoot|photography|photo shoot)", text):
-        return False, "inferred"
-    if "shoot" in text or "photography" in text:
-        return True, "inferred"
-    return False, "assumed"
 
 
 def mock_quick_estimate(raw_text: str) -> QuickEstimate:
@@ -759,7 +691,7 @@ def mock_quick_estimate(raw_text: str) -> QuickEstimate:
 
     work_type = _infer_work_type(text)
     asset_count, volume_confidence = _infer_asset_count(text)
-    original_photography, photography_source = _infer_original_photography(text)
+    original_photography, photography_source = infer_original_photography(text)
     markets = _extract_markets(raw_text)
     localisation_required = len(markets) > 0
 
@@ -783,9 +715,9 @@ def mock_quick_estimate(raw_text: str) -> QuickEstimate:
     # more common case) never grows these three extra fields at all.
     scale_source = territory_source = brand_source = None
     if original_photography:
-        production_scale, scale_source = _infer_production_scale(text)
-        territory, territory_source = _infer_territory(markets, text)
-        brand_count, brand_source = _infer_brand_count(text)
+        production_scale, scale_source = infer_production_scale(text)
+        territory, territory_source = infer_territory(markets, text)
+        brand_count, brand_source = infer_brand_count(text)
         assumptions.extend([
             QuickEstimateAssumption(key="production_scale", value=production_scale, source=scale_source),
             QuickEstimateAssumption(key="territory", value=territory, source=territory_source),
