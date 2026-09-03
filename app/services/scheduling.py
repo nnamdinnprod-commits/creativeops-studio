@@ -14,7 +14,6 @@ from app.models import (
     PhaseTemplate,
     Project,
     ProjectPhase,
-    ProjectPhaseStatus,
     ProjectStatus,
 )
 from app.services.assumptions import get_value
@@ -239,8 +238,7 @@ def generate_schedule(db: Session, project: Project) -> list[ProjectPhase]:
         ProjectPhase(
             project_id=project.id, name=p.name, kind=p.kind,
             start_date=p.start_date, end_date=p.end_date, is_milestone=p.is_milestone,
-            is_anchored=False, status=ProjectPhaseStatus.not_started, assigned_person_id=None,
-            required_roles=template.required_roles,
+            is_anchored=False, required_roles=template.required_roles,
         )
         for template, p in zip(templates, result.phases)
     ]

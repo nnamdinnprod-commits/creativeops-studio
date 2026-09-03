@@ -13,6 +13,22 @@ from app.models import Assignment, PhaseKind, Person, ProjectPhase, RateBand
 from app.services.capacity import available_pct, max_allocation_pct
 
 
+def assigned_person_ids_by_phase(db: Session, phase_ids: list[int]) -> dict[int, int]:
+    """REVIEW_03.md item 5: ProjectPhase.assigned_person_id used to be a stored
+    mirror of "does an Assignment row exist with this project_phase_id" — kept
+    in sync by three separate call sites, which is exactly the kind of thing
+    that drifts (DECISIONS.md 034 already found and fixed one such drift once).
+    Computed live instead: one query, no column to forget to update."""
+    if not phase_ids:
+        return {}
+    rows = (
+        db.query(Assignment.project_phase_id, Assignment.person_id)
+        .filter(Assignment.project_phase_id.in_(phase_ids))
+        .all()
+    )
+    return {phase_id: person_id for phase_id, person_id in rows}
+
+
 def earliest_feasible_start(db: Session, person: Person, today: date | None = None) -> date:
     """REVIEW_02.md P5.5: the earliest date an engagement of this person could
     start — `today` for anyone on the Team, `today + lead_time_days` (RateBand, by
@@ -39,8 +55,7 @@ def engage_person(
     and, for an external person, a lead-time floor on the start date: a freelancer
     cannot start tomorrow, and day rates/lead times live in the Assumptions library
     (RateBand), not on the Person row itself. Does not commit — the caller owns the
-    transaction so it can update its own denormalized state (e.g.
-    ProjectPhase.assigned_person_id) in the same commit.
+    transaction.
 
     `existing_id`, when given, is excluded from both the capacity check and the
     replace — re-confirming the same person to the same slot isn't rejected for
@@ -155,7 +170,6 @@ def assign_phase(db: Session, phase: ProjectPhase, person: Person) -> tuple[bool
     if assignment is None:
         return False, refusal
 
-    phase.assigned_person_id = person.id
     db.commit()
     return True, None
 
@@ -164,5 +178,4 @@ def unassign_phase(db: Session, phase: ProjectPhase) -> None:
     existing = db.query(Assignment).filter_by(project_phase_id=phase.id).first()
     if existing is not None:
         db.delete(existing)
-    phase.assigned_person_id = None
     db.commit()

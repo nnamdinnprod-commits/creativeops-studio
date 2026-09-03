@@ -205,7 +205,6 @@ def create_project(request: Request, analysis_id: int = Form(...), project_name:
         owner_id=owner.id,
         brief_raw=analysis.raw_text,
         brief_analysis_id=analysis.id,
-        localisation_required=extraction.localisation.required,
     )
     db.add(project)
     db.flush()

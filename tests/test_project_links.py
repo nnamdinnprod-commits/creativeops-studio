@@ -67,8 +67,7 @@ def test_localisation_oldest_in_queue_links_to_the_project(client, db_session):
     db_session.flush()
     project = Project(name="FR Localisation Push", brand="Cassenvale", campaign="C",
                       source_market="FR", priority=Priority.medium, status=ProjectStatus.in_production,
-                      deadline=TODAY + timedelta(days=10), owner_id=owner.id, brief_raw="x",
-                      localisation_required=True)
+                      deadline=TODAY + timedelta(days=10), owner_id=owner.id, brief_raw="x")
     db_session.add(project)
     db_session.flush()
     db_session.add(Localisation(project_id=project.id, target_market="ES", language="es",

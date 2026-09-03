@@ -14,7 +14,7 @@ from app.models import (
 )
 from app.seed import seed_assumptions, seed_phase_templates
 from app.services.scheduling import generate_schedule
-from app.services.assignment import PhaseCandidate
+from app.services.assignment import PhaseCandidate, assigned_person_ids_by_phase
 from app.services.timeline import (
     build_timeline,
     conflicted_phase_ids,
@@ -269,8 +269,7 @@ def test_assign_route_assigns_a_role_matched_candidate(client, db_session):
                        data={"person_id": designer.id}, follow_redirects=False)
     assert resp.status_code == 303
 
-    db_session.refresh(retouching)
-    assert retouching.assigned_person_id == designer.id
+    assert assigned_person_ids_by_phase(db_session, [retouching.id]) == {retouching.id: designer.id}
 
     page = client.get("/timeline")
     assert "Dana" in page.text
@@ -289,8 +288,7 @@ def test_assign_route_rejects_a_role_mismatched_person(client, db_session):
     assert resp.status_code == 303
     assert "error=assign_failed" in resp.headers["location"]
 
-    db_session.refresh(retouching)
-    assert retouching.assigned_person_id is None
+    assert assigned_person_ids_by_phase(db_session, [retouching.id]) == {}
 
 
 def test_unassign_route_clears_the_assignment(client, db_session):
@@ -303,8 +301,7 @@ def test_unassign_route_clears_the_assignment(client, db_session):
 
     client.post(f"/timeline/phases/{retouching.id}/unassign")
 
-    db_session.refresh(retouching)
-    assert retouching.assigned_person_id is None
+    assert assigned_person_ids_by_phase(db_session, [retouching.id]) == {}
     assert db_session.query(Assignment).filter_by(project_phase_id=retouching.id).count() == 0
 
 
@@ -375,8 +372,9 @@ def test_timeline_does_not_outline_a_phase_once_a_candidate_exists(client, db_se
 
 def test_timeline_stops_computing_candidates_for_a_phase_once_assigned(client, db_session):
     """An assigned phase is dropped from candidates_by_phase_id entirely (app/routes/
-    timeline.py only computes candidates for phase.assigned_person_id is None), so it can
-    never be outlined as a conflict regardless of who else could theoretically take it on."""
+    timeline.py only computes candidates for a phase with no id in
+    assigned_person_by_phase_id), so it can never be outlined as a conflict
+    regardless of who else could theoretically take it on."""
     _project, retouching = _seed_project_with_schedule(db_session)
     designer = Person(name="Dana", role=PersonRole.designer, capacity_pct=100,
                       skills="", is_external=False)

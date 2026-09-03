@@ -76,17 +76,17 @@ def seed(session):
                  source_market="NL", priority=Priority.high, status=ProjectStatus.in_production,
                  deadline=friday, owner_id=sam.id,
                  brief_raw="Refresh winter hero creative across NL, DE, FR and ES paid social and homepage.",
-                 localisation_required=True, estimated_days=4.0)
+                 estimated_days=4.0)
     p2 = Project(name="Loyalty Relaunch Teaser", brand="Halveth", campaign="Loyalty Relaunch",
                  source_market="UK", priority=Priority.medium, status=ProjectStatus.assigned,
                  deadline=TODAY + timedelta(days=10), owner_id=sam.id,
                  brief_raw="Teaser assets for loyalty programme relaunch, UK, ES and DE paid social.",
-                 localisation_required=True, estimated_days=3.0)
+                 estimated_days=3.0)
     p3 = Project(name="Spring Lookbook", brand="Cassenvale", campaign="Spring 2026",
                  source_market="ES", priority=Priority.medium, status=ProjectStatus.assigned,
                  deadline=TODAY + timedelta(days=35), owner_id=sam.id,
                  brief_raw="Spring lookbook static set for ES homepage and email, extending to DE and FR.",
-                 localisation_required=True, estimated_days=5.0)
+                 estimated_days=5.0)
     p4 = Project(name="Loyalty App Push", brand="Cassenvale", campaign="App Growth",
                  source_market="DE", priority=Priority.medium, status=ProjectStatus.brief,
                  deadline=friday, owner_id=sam.id,
@@ -95,49 +95,49 @@ def seed(session):
                      "and maybe email? Not sure on exact sizes yet, will confirm. Audience is "
                      "existing customers I think. Who signs off on this one is TBC."
                  ),
-                 localisation_required=False, estimated_days=None)
+                 estimated_days=None)
     p5 = Project(name="Autumn Prints FR Push", brand="Halveth", campaign="Autumn Prints",
                  source_market="UK", priority=Priority.high, status=ProjectStatus.in_production,
                  deadline=TODAY + timedelta(days=47), owner_id=sam.id,
                  brief_raw="Autumn prints campaign extending to the French market.",
-                 localisation_required=True, estimated_days=4.0)
+                 estimated_days=4.0)
     p6 = Project(name="Retouch Guidelines Refresh", brand="Fotomera", campaign="Brand Ops",
                  source_market="NL", priority=Priority.low, status=ProjectStatus.brief,
                  deadline=TODAY + timedelta(days=21), owner_id=sam.id,
                  brief_raw="Update internal retouching guidelines deck for design team onboarding.",
-                 localisation_required=False, estimated_days=None)
+                 estimated_days=None)
     p7 = Project(name="Yearly Mother's Day Assets", brand="Halveth", campaign="Mothers Day",
                  source_market="UK", priority=Priority.medium, status=ProjectStatus.ready,
                  deadline=TODAY + timedelta(days=24), owner_id=sam.id,
                  brief_raw="Mother's Day social static set, UK and ES, 6 variants, 1080x1080, "
                            "approved by Sam, audience existing + prospecting customers.",
-                 localisation_required=True, estimated_days=3.0)
+                 estimated_days=3.0)
     p8 = Project(name="Photobook Bundle Homepage Banner", brand="Fotomera", campaign="Bundle Promo",
                  source_market="NL", priority=Priority.medium, status=ProjectStatus.ready,
                  deadline=TODAY + timedelta(days=18), owner_id=sam.id,
                  brief_raw="Homepage banner for photobook bundle promo, NL and DE, approved "
                            "by Sam, 1600x400 spec confirmed.",
-                 localisation_required=True, estimated_days=2.0)
+                 estimated_days=2.0)
     p9 = Project(name="Calendar Season Kickoff", brand="Cassenvale", campaign="Calendar 2027",
                  source_market="ES", priority=Priority.high, status=ProjectStatus.assigned,
                  deadline=TODAY + timedelta(days=12), owner_id=sam.id,
                  brief_raw="Calendar season kickoff creative, ES and FR paid social.",
-                 localisation_required=True, estimated_days=4.0)
+                 estimated_days=4.0)
     p10 = Project(name="Gift Card Email Series", brand="Halveth", campaign="Gift Cards",
                   source_market="UK", priority=Priority.medium, status=ProjectStatus.creative_review,
                   deadline=TODAY + timedelta(days=13), owner_id=sam.id,
                   brief_raw="3-part gift card email series, UK, NL and DE, in creative review.",
-                  localisation_required=True, estimated_days=2.5)
+                  estimated_days=2.5)
     p11 = Project(name="Canvas Prints Paid Display", brand="Fotomera", campaign="Canvas Push",
                   source_market="NL", priority=Priority.medium, status=ProjectStatus.approved,
                   deadline=TODAY + timedelta(days=4), owner_id=sam.id,
                   brief_raw="Paid display set for canvas prints, NL and DE and FR, approved and awaiting delivery.",
-                  localisation_required=True, estimated_days=3.0)
+                  estimated_days=3.0)
     p12 = Project(name="New Year Cards Social Set", brand="Cassenvale", campaign="New Year",
                   source_market="DE", priority=Priority.low, status=ProjectStatus.delivered,
                   deadline=TODAY - timedelta(days=10), owner_id=sam.id,
                   brief_raw="New Year cards social set, DE with FR extension, delivered on schedule.",
-                  localisation_required=True, estimated_days=2.0)
+                  estimated_days=2.0)
     projects = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12]
     session.add_all(projects)
     session.flush()

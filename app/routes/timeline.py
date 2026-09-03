@@ -6,7 +6,7 @@ from app.database import get_db
 from app.templates_env import templates
 from app.models import Deliverable, PhaseKind, Person, Project, ProjectPhase, ProjectType
 from app.services.ai.feasibility import assess_schedule_feasibility
-from app.services.assignment import assign_phase, phase_candidates, unassign_phase
+from app.services.assignment import assign_phase, assigned_person_ids_by_phase, phase_candidates, unassign_phase
 from app.services.assumptions import get_value
 from app.services.scheduling import NOT_ASSESSED_FOR_FEASIBILITY, build_feasibility_facts
 from app.services.timeline import build_timeline, conflicted_phase_ids, milestone_list
@@ -63,6 +63,11 @@ def timeline(request: Request, brand: str | None = None, market: str | None = No
         key=lambda person: person.name,
     )
 
+    # REVIEW_03.md item 5: "who's assigned to this phase" is computed live from
+    # Assignment rows now, not read from a stored ProjectPhase.assigned_person_id.
+    all_phase_ids = [phase.id for _, phases in projects_with_phases for phase in phases]
+    assigned_person_by_phase_id = assigned_person_ids_by_phase(db, all_phase_ids)
+
     # Only production, non-milestone phases are assignable (PLANNING.md "each production
     # phase requiring a role") — candidates are computed only for those still unassigned.
     candidates_by_phase_id = {
@@ -70,7 +75,7 @@ def timeline(request: Request, brand: str | None = None, market: str | None = No
         for _, phases in projects_with_phases
         for phase in phases
         if phase.kind == PhaseKind.production and not phase.is_milestone
-        and phase.assigned_person_id is None
+        and phase.id not in assigned_person_by_phase_id
     }
     conflicted_ids = conflicted_phase_ids(candidates_by_phase_id)
 
@@ -103,6 +108,7 @@ def timeline(request: Request, brand: str | None = None, market: str | None = No
         "selected_owner": owner,
         "has_any_schedules": len(scheduled_projects) > 0,
         "candidates_by_phase_id": candidates_by_phase_id,
+        "assigned_person_by_phase_id": assigned_person_by_phase_id,
         "people_by_id": people_by_id,
         "assign_failed": error == "assign_failed",
         "feasibility_by_project_id": feasibility_by_project_id,

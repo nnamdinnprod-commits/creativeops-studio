@@ -178,10 +178,15 @@ def _board_context(db: Session, brand: str | None, market: str | None, priority:
     people_by_id = {p.id: p for p in db.query(Person).all()}
 
     # Risk badges are computed live from the same signals the dashboard uses —
-    # not read from Project.risk_level, which stays unpopulated in V1 rather
-    # than building a separate stored-and-synced value for a demo.
+    # there's no Project.risk_level column to read (REVIEW_03.md item 5 deleted
+    # it; it was never written in the first place).
     snapshot = build_attention_snapshot(db)
     project_risks = {entry["project_id"]: entry["cause"] for entry in snapshot}
+
+    # REVIEW_03.md item 5: "does this project need localisation" is computed
+    # from its own Localisation rows now, not a stored Project.localisation_required
+    # column that could disagree with them.
+    localisation_project_ids = {row[0] for row in db.query(Localisation.project_id).distinct().all()}
 
     return {
         "columns": columns,
@@ -199,6 +204,7 @@ def _board_context(db: Session, brand: str | None, market: str | None, priority:
         "people_by_id": people_by_id,
         "project_risks": project_risks,
         "blocked_causes": blocked_causes,
+        "localisation_project_ids": localisation_project_ids,
     }
 
 

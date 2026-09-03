@@ -49,13 +49,6 @@ class ProductionTempo(str, enum.Enum):
     full_production = "full_production"
 
 
-class RiskLevel(str, enum.Enum):
-    none = "none"
-    low = "low"
-    medium = "medium"
-    high = "high"
-
-
 class PersonRole(str, enum.Enum):
     producer = "producer"
     designer = "designer"
@@ -126,16 +119,6 @@ class PhaseKind(str, enum.Enum):
     delivery = "delivery"
 
 
-class ProjectPhaseStatus(str, enum.Enum):
-    """PLANNING.md's data model doesn't enumerate status values for ProjectPhase — inferred
-    to match the not_started/in_progress/... shape used by Deliverable and Localisation
-    elsewhere in this app. Logged as an assumption in DECISIONS.md."""
-
-    not_started = "not_started"
-    in_progress = "in_progress"
-    complete = "complete"
-
-
 class Project(TimestampMixin, Base):
     __tablename__ = "projects"
 
@@ -149,9 +132,6 @@ class Project(TimestampMixin, Base):
     owner_id: Mapped[int] = mapped_column(ForeignKey("people.id"), nullable=False)
     brief_raw: Mapped[str] = mapped_column(Text, nullable=False)
     brief_analysis_id: Mapped[int | None] = mapped_column(ForeignKey("brief_analyses.id"), nullable=True)
-    risk_level: Mapped[RiskLevel] = mapped_column(Enum(RiskLevel), nullable=False, default=RiskLevel.none)
-    risk_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    localisation_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     estimated_days: Mapped[float | None] = mapped_column(Float, nullable=True)
     # docs/PLANNING.md (Session 2, not yet wired to the Brief Assistant's create-project
     # flow) — nullable because every project seeded or created before this column existed
@@ -316,10 +296,6 @@ class ProjectPhase(TimestampMixin, Base):
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     is_milestone: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_anchored: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    status: Mapped[ProjectPhaseStatus] = mapped_column(
-        Enum(ProjectPhaseStatus), nullable=False, default=ProjectPhaseStatus.not_started
-    )
-    assigned_person_id: Mapped[int | None] = mapped_column(ForeignKey("people.id"), nullable=True)
     # Not in PLANNING.md's ProjectPhase column list — copied from the source PhaseTemplate row
     # at generation time (generate_schedule()) so this row is self-sufficient for candidate
     # matching even if the template changes later, or (once built) a producer inserts an

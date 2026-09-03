@@ -12,7 +12,6 @@ from app.models import (
     PersonRole,
     Priority,
     Project,
-    ProjectPhase,
     ProjectStatus,
     Recommendation,
     RecommendationKind,
@@ -104,16 +103,6 @@ def _apply_resource_reallocation(db: Session, rec: Recommendation, payload: dict
     else:
         assignment.person_id = to_person.id
 
-    # The Assignment row is the source of truth for capacity, but a phase-derived
-    # one also has a denormalized ProjectPhase.assigned_person_id (set by
-    # assign_phase() for /timeline's own display) that this same move must keep in
-    # sync — otherwise Timeline keeps showing the person this recommendation just
-    # moved the work away from.
-    if assignment.project_phase_id is not None:
-        phase = db.get(ProjectPhase, assignment.project_phase_id)
-        if phase is not None:
-            phase.assigned_person_id = to_person.id
-
     db.flush()
 
     # REVIEW_02.md P6.1: "when an action resolves a risk, say so" — re-checked
@@ -159,7 +148,6 @@ def _apply_production_action(db: Session, rec: Recommendation, payload: dict) ->
         deadline=end,
         owner_id=owner.id,
         brief_raw=payload["insight_summary"],
-        localisation_required=payload["localisation_required"],
         # The mock's own quantity-based estimate (app/services/ai/mock.py) —
         # finalize_project() only fills this in when it's still None, so this
         # number is kept rather than overwritten by its generic schedule-span

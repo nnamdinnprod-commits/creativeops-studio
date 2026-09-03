@@ -168,8 +168,6 @@ def test_generate_schedule_persists_project_phases_matching_back_schedule(db_ses
         assert stored.end_date == computed.end_date
         assert stored.is_milestone == computed.is_milestone
         assert stored.project_id == project.id
-        assert stored.status.value == "not_started"
-        assert stored.assigned_person_id is None
         assert stored.is_anchored is False
 
 
@@ -317,10 +315,9 @@ def test_regenerating_a_schedule_deletes_assignments_made_against_the_old_phases
     generate_schedule(db_session, project)
 
     assert db_session.query(Assignment).filter_by(person_id=designer.id).count() == 0
-    # The new phases exist and are unassigned, not silently missing.
+    # The new phases exist, not silently missing.
     new_phases = db_session.query(ProjectPhase).filter_by(project_id=project.id).all()
     assert len(new_phases) == len(phases)
-    assert all(p.assigned_person_id is None for p in new_phases)
 
 
 def test_generate_schedule_without_assumptions_seeded_raises(db_session):

@@ -1157,3 +1157,38 @@ Consequences: six new tests (two unit, four route-level). Verified live against 
 data: the FR card (the review's own example) now reads with no translator names and a
 working assign control; the DE card reads "queue moving — 7 in flight, handled by Jonas,"
 coherent since both halves describe the same rows.
+
+## 051 — REVIEW_03.md item 5: stored-column cleanup, with one correction to R1's own audit
+Date: 2026-09-03
+Decision: `ProjectPhase.assigned_person_id` is computed live now — a new
+`assigned_person_ids_by_phase()` (`app/services/assignment.py`) queries `Assignment` rows by
+`project_phase_id` instead of reading a stored mirror. `assign_phase()`/`unassign_phase()` no
+longer write it (nothing to sync — the Assignment row already was the source of truth);
+`recommendations.py`'s resource-reallocation accept no longer needs its own sync step either,
+since there's no second copy to update. `attention.py`'s blocked-snapshot cause 4 rebuilt on
+the same live query. `Project.localisation_required` is computed live from the project's own
+`Localisation` rows instead — `project_detail.html` already had the rows loaded; `pipeline.py`
+now computes a `localisation_project_ids` set once per board render for `partials/_board.html`.
+Deleted three genuinely dead columns: `Project.risk_level`, `Project.risk_reason` (no writer
+anywhere, ever), and `ProjectPhase.status`/the `ProjectPhaseStatus` enum (written at creation
+but never transitioned; its one reader, a `!= complete` filter, was vacuously always true
+since nothing ever set `complete` — removed with no behaviour change).
+**Not deleted, contradicting R1's own audit**: `Deliverable.status`. The audit said "no writer
+anywhere" for this one — wrong. `seed.py` and `project_creation.py` both set it at creation
+with varied, meaningful values (`in_progress`, `approved`, `delivered`, ...), and
+`project_detail.html` displays it in the deliverables table. It's write-once (nothing
+transitions it after creation) but it is read and it is real, demo-relevant information, not
+a dead column computable from other rows — deleting it would have silently removed a working
+feature to satisfy a mischaracterization from three items ago.
+Alternatives considered: deleting `Deliverable.status` anyway, since it was named explicitly
+in the plan.
+Why: the plan's premise for every one of these four columns was "dead, safe to delete." Three
+of the four hold; the fourth doesn't, and deleting it wouldn't be a cleanup, it would be a
+regression to the deliverables table dressed up as one. Flagged rather than silently done or
+silently skipped.
+Consequences: 25 tests broke from the column removals (constructor kwargs, direct attribute
+reads/writes) — all fixed to use the live-computed equivalents, none deleted. Two of
+`test_assignment.py`'s failures are the pre-existing, parked ones (unchanged, still failing,
+still not this decision's problem). Full suite otherwise green. Verified live against a fresh
+reseed: all eight screens render, phase assign/unassign and the localisation "Yes/No" field
+behave identically to before.

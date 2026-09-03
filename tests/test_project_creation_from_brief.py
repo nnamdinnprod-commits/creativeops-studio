@@ -31,7 +31,6 @@ def test_analyse_then_create_project_persists_everything(client, db_session):
     assert project.status.value == "brief"
     assert project.brief_analysis_id == analysis.id
     assert project.brief_raw == raw_text
-    assert project.localisation_required is True
 
     db_session.refresh(analysis)
     assert analysis.created_project_id == project.id

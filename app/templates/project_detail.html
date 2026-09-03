@@ -19,7 +19,10 @@
     <div><div class="text-slate-500 text-xs">Priority</div><div class="font-medium">{{ project.priority.value|title }}</div></div>
     <div><div class="text-slate-500 text-xs">Deadline</div><div class="font-medium">{{ project.deadline.strftime('%d %b %Y') }}</div></div>
     <div><div class="text-slate-500 text-xs">Owner</div><div class="font-medium">{{ owner.name if owner else '—' }}</div></div>
-    <div><div class="text-slate-500 text-xs">Localisation required</div><div class="font-medium">{{ 'Yes' if project.localisation_required else 'No' }}</div></div>
+    {# REVIEW_03.md item 5: computed live from the project's own Localisation rows,
+       already in context — not a stored Project.localisation_required column, which
+       could say "No" while target-market rows sat right below it saying otherwise. #}
+    <div><div class="text-slate-500 text-xs">Localisation required</div><div class="font-medium">{{ 'Yes' if localisations else 'No' }}</div></div>
 </div>
 
 <div class="mt-6">

@@ -10,7 +10,13 @@ from app.models import (
     ProjectPhase,
     ProjectStatus,
 )
-from app.services.assignment import PHASE_ASSIGNMENT_ALLOCATION_PCT, assign_phase, phase_candidates, unassign_phase
+from app.services.assignment import (
+    PHASE_ASSIGNMENT_ALLOCATION_PCT,
+    assign_phase,
+    assigned_person_ids_by_phase,
+    phase_candidates,
+    unassign_phase,
+)
 from app.services.capacity import all_person_capacities, get_conflicts
 
 
@@ -99,7 +105,7 @@ def test_assign_phase_refuses_milestone(db_session):
     ok, reason = assign_phase(db_session, phase, owner)
     assert ok is False
     assert "milestone" in reason.lower()
-    assert phase.assigned_person_id is None
+    assert assigned_person_ids_by_phase(db_session, [phase.id]) == {}
 
 
 def test_assign_phase_refuses_non_production_kind(db_session):
@@ -126,7 +132,7 @@ def test_assign_phase_refuses_role_mismatch(db_session):
     ok, reason = assign_phase(db_session, phase, translator)
     assert ok is False
     assert "Jonas" in reason
-    assert phase.assigned_person_id is None
+    assert assigned_person_ids_by_phase(db_session, [phase.id]) == {}
 
 
 def test_assign_phase_creates_assignment_that_capacity_py_picks_up_unmodified(db_session):
@@ -141,7 +147,7 @@ def test_assign_phase_creates_assignment_that_capacity_py_picks_up_unmodified(db
 
     ok, reason = assign_phase(db_session, phase, designer)
     assert ok is True and reason is None
-    assert phase.assigned_person_id == designer.id
+    assert assigned_person_ids_by_phase(db_session, [phase.id]) == {phase.id: designer.id}
 
     capacities = {c.person.id: c for c in all_person_capacities(db_session, on_date=date(2026, 9, 2))}
     assert capacities[designer.id].allocated_pct == PHASE_ASSIGNMENT_ALLOCATION_PCT
@@ -162,7 +168,6 @@ def test_reassigning_a_phase_replaces_the_assignment_row_not_duplicates(db_sessi
     matching = db_session.query(Assignment).filter_by(project_phase_id=phase.id).all()
     assert len(matching) == 1
     assert matching[0].person_id == priya.id
-    assert phase.assigned_person_id == priya.id
 
 
 def test_unassign_phase_removes_assignment_and_clears_person(db_session):
@@ -176,7 +181,7 @@ def test_unassign_phase_removes_assignment_and_clears_person(db_session):
     assign_phase(db_session, phase, dana)
     unassign_phase(db_session, phase)
 
-    assert phase.assigned_person_id is None
+    assert assigned_person_ids_by_phase(db_session, [phase.id]) == {}
     assert db_session.query(Assignment).filter_by(project_phase_id=phase.id).count() == 0
 
 

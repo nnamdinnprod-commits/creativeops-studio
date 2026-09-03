@@ -12,13 +12,13 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import (
+    Assignment,
     BriefAnalysis,
     Localisation,
     LocalisationStatus,
     PhaseKind,
     Project,
     ProjectPhase,
-    ProjectPhaseStatus,
     ProjectStatus,
 )
 from app.services.assumptions import get_value
@@ -236,18 +236,27 @@ def build_blocked_snapshot(db: Session, on_date: date | None = None) -> list[dic
     # review phase here would ask a producer to fix something the UI has no
     # mechanism to let them fix. Milestones and phases with no required_roles
     # (e.g. an internal-only checkpoint) don't need a person either.
-    started_unstaffed = (
+    #
+    # REVIEW_03.md item 5: "assigned" is computed from Assignment rows now, not
+    # a stored ProjectPhase.assigned_person_id — the old ProjectPhase.status !=
+    # complete filter was dropped in the same pass (nothing anywhere ever sets a
+    # phase to complete, so it was always vacuously true).
+    candidate_phases = (
         db.query(ProjectPhase)
         .filter(
             ProjectPhase.start_date <= on_date,
-            ProjectPhase.status != ProjectPhaseStatus.complete,
-            ProjectPhase.assigned_person_id.is_(None),
             ProjectPhase.is_milestone.is_(False),
             ProjectPhase.required_roles != "",
             ProjectPhase.kind == PhaseKind.production,
         )
         .all()
     )
+    assigned_phase_ids = {
+        row[0] for row in db.query(Assignment.project_phase_id)
+        .filter(Assignment.project_phase_id.in_([p.id for p in candidate_phases]))
+        .distinct().all()
+    }
+    started_unstaffed = [p for p in candidate_phases if p.id not in assigned_phase_ids]
     for phase in started_unstaffed:
         project = projects_by_id.get(phase.project_id)
         if project is None or project.id in seen:

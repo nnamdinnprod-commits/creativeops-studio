@@ -9,12 +9,12 @@ from app.models import (
     Priority,
     Project,
     ProjectPhase,
-    ProjectPhaseStatus,
     ProjectStatus,
     Recommendation,
     RecommendationKind,
     RecommendationStatus,
 )
+from app.services.assignment import assigned_person_ids_by_phase
 
 TODAY = date(2026, 8, 21)
 
@@ -137,16 +137,16 @@ def test_accept_moves_exactly_the_captured_assignment_not_whichever_matches_firs
 
 
 def test_accept_syncs_the_phase_this_assignment_came_from(client, db_session):
-    """REVIEW_02.md P3: accepting a resource recommendation must also update
-    Timeline, not just the Assignment row. A phase-derived assignment carries a
-    denormalized ProjectPhase.assigned_person_id (set by assign_phase() for
-    /timeline's own display) — reassigning the Assignment without also updating
-    this leaves Timeline showing the person the work was just moved away from."""
+    """REVIEW_02.md P3 / REVIEW_03.md item 5: accepting a resource
+    recommendation must also update Timeline, not just the Assignment row.
+    "Who's assigned to this phase" is computed live from Assignment rows
+    (assigned_person_ids_by_phase) rather than a stored, separately-synced
+    ProjectPhase.assigned_person_id — reassigning the Assignment is itself
+    the whole fix, since there's nothing else left to fall out of sync."""
     alex, maya, project, assignment = _seed_conflict(db_session)
     phase = ProjectPhase(project_id=project.id, name="Shoot", kind=PhaseKind.production,
                          start_date=TODAY, end_date=TODAY + timedelta(days=3),
                          is_milestone=False, is_anchored=False,
-                         status=ProjectPhaseStatus.not_started, assigned_person_id=alex.id,
                          required_roles="senior_designer")
     db_session.add(phase)
     db_session.flush()
@@ -158,6 +158,5 @@ def test_accept_syncs_the_phase_this_assignment_came_from(client, db_session):
     assert resp.status_code == 200
 
     db_session.refresh(assignment)
-    db_session.refresh(phase)
     assert assignment.person_id == maya.id
-    assert phase.assigned_person_id == maya.id
+    assert assigned_person_ids_by_phase(db_session, [phase.id]) == {phase.id: maya.id}

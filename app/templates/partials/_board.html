@@ -27,7 +27,7 @@
                         {% else %}bg-slate-100 text-slate-600{% endif %}">
                         {{ project.priority.value|title }}
                     </span>
-                    {% if project.localisation_required %}
+                    {% if project.id in localisation_project_ids %}
                     <span class="inline-block px-1.5 py-0.5 rounded text-xs bg-purple-100 text-purple-700">Localisation</span>
                     {% endif %}
                     {% if project.production_tempo.value == 'fast_track' %}

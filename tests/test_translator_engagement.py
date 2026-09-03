@@ -33,8 +33,7 @@ def _seed(db_session, due_date, lead_time_days=3):
 
     project = Project(name="P1", brand="Fotomera", campaign="C", source_market="NL",
                       priority=Priority.medium, status=ProjectStatus.ready,
-                      deadline=TODAY + timedelta(days=30), owner_id=owner.id, brief_raw="x",
-                      localisation_required=True)
+                      deadline=TODAY + timedelta(days=30), owner_id=owner.id, brief_raw="x")
     db_session.add(project)
     db_session.flush()
 

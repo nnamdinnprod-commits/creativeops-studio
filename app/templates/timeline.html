@@ -160,8 +160,9 @@
                     <td class="py-1.5 pr-2 text-slate-500 align-top">{{ bar.phase.start_date }}{% if not bar.phase.is_milestone %} – {{ bar.phase.end_date }}{% endif %}</td>
                     <td class="py-1.5 align-top">
                         {% if bar.phase.kind.value == 'production' and not bar.phase.is_milestone %}
-                            {% if bar.phase.assigned_person_id %}
-                            <span class="text-slate-600">{{ people_by_id[bar.phase.assigned_person_id].name if bar.phase.assigned_person_id in people_by_id else '—' }}</span>
+                            {% set assigned_id = assigned_person_by_phase_id.get(bar.phase.id) %}
+                            {% if assigned_id %}
+                            <span class="text-slate-600">{{ people_by_id[assigned_id].name if assigned_id in people_by_id else '—' }}</span>
                             <form method="post" action="/timeline/phases/{{ bar.phase.id }}/unassign" class="inline">
                                 <button type="submit" class="text-slate-400 underline ml-1">Unassign</button>
                             </form>
